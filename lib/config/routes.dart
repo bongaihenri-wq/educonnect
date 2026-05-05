@@ -1,51 +1,84 @@
+// lib/config/routes.dart
+import 'package:educonnect/presentation/blocs/attendance/attendance_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../presentation/pages/admin/admin_dashboard.dart';
 import '../presentation/pages/admin/bulk_import_page.dart';
+import '../presentation/pages/admin/schedule_page.dart';
 import '../presentation/pages/parent/parent_dashboard.dart';
 import '../presentation/pages/school_login_page.dart';
 import '../presentation/pages/teacher/teacher_dashboard.dart';
-import '/presentation/pages/teacher/attendance/attendance_classes_page.dart'; // NOUVEAU
-import '../presentation/pages/teacher/attendance_page.dart';
+import '../presentation/pages/teacher/attendance/attendance_classes_page.dart';
+import '../presentation/pages/admin/classes_students_page.dart';
+import '../presentation/pages/teacher/comments_entry_page.dart';
+import '../presentation/pages/teacher/comments_classes_page.dart';
+import '../presentation/pages/teacher/grades_entry_page.dart';
+import '../presentation/pages/teacher/grades_classes_page.dart';
+import '../presentation/pages/teacher/teacher_schedule_full_page.dart';
+import '../presentation/pages/teacher/teacher_reports_page.dart';
+
+import '../presentation/blocs/attendance/attendance_bloc.dart';
+import '../presentation/blocs/attendance/attendance_event.dart';
+import '../presentation/blocs/auth_bloc/auth_bloc.dart' as auth;
+import '../data/repositories/attendance_repository.dart';
+import '../data/repositories/class_repository.dart';
+import '../data/repositories/student_repository.dart';
+import '../data/repositories/course_repository.dart';
+import '../services/teacher_service.dart';
 
 class AppRoutes {
-  static const String schoolLogin = '/';
+  static const String schoolLogin = '/login';
   static const String teacherDashboard = '/teacher/dashboard';
   static const String parentDashboard = '/parent/dashboard';
   static const String adminDashboard = '/admin/dashboard';
-  static const String childDetail = '/parent/child/detail';
-  static const String attendance = '/attendance';
-  
-  // Routes enseignant - APPEL
-  static const String teacherAttendanceClasses = '/teacher/attendance/classes'; // Étape 1: Choisir classe
-  static const String teacherAttendance = '/teacher/attendance';               // Étape 2: Faire l'appel
-  
+  static const String teacherAttendanceClasses = '/teacher/attendance/classes';
+  static const String teacherAttendance = '/teacher/attendance';
   static const String adminBulkImport = '/admin/import';
+  static const String schedulePage = '/schedule_page';
+  static const String classesStudents = '/classes_students';
+  static const String teacherGradesClasses = '/teacher/grades-classes';
+  static const String teacherGradesEntry = '/teacher/grades-entry';
+  static const String teacherCommentsClasses = '/teacher/comments-classes';
+  static const String teacherCommentsEntry = '/teacher/comments-entry';
+  static const String teacherScheduleFull = '/teacher/schedule-full';
+  static const String teacherReports = '/teacher/reports';
 
   static Map<String, WidgetBuilder> get routes => {
     schoolLogin: (context) => const SchoolLoginPage(),
     teacherDashboard: (context) => const TeacherDashboard(),
     parentDashboard: (context) => const ParentDashboard(),
     adminDashboard: (context) => const AdminDashboard(),
-    attendance: (context) => const AttendancePage(classId: '', className: '',),
+    teacherScheduleFull: (context) => const TeacherScheduleFullPage(),
+  
+      teacherReports: (context) => const Scaffold(
+  body: Center(child: Text('Utiliser le bouton du dashboard')),
+      ),
     
-    // ÉTAPE 1: Page de sélection des classes (pas d'arguments requis)
-    teacherAttendanceClasses: (context) => const AttendanceClassesPage(),
+    teacherAttendanceClasses: (context) {
+      final authState = context.read<auth.AuthBloc>().state;
+      final teacherId = authState is auth.Authenticated ? authState.userId : '';
+      final schoolId = authState is auth.Authenticated ? authState.schoolId : '';
+      
+      return BlocProvider(
+        create: (_) => _createAttendanceBloc(context)..add(
+          AttendanceLoadClassesRequested(
+            teacherId: teacherId,
+            schoolId: schoolId,
+          ),
+        ),
+        child: const AttendanceClassesPage(),
+      );
+    },
     
-    // ÉTAPE 2: Page d'appel (classId requis)
     teacherAttendance: (context) {
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      if (args == null || args['classId'] == null) {
-        return const Scaffold(
-          body: Center(
-            child: Text('Erreur: Aucune classe sélectionnée'),
-          ),
-        );
-      }
       return AttendancePage(
-        classId: args['classId'] as String,
-        className: args['className'] as String? ?? 'Classe',
-        subjectId: args['subjectId'] as String?,
-        subjectName: args['subjectName'] as String?,
+        classId: args?['classId'] ?? '',
+        className: args?['className'] ?? 'Classe',
+        subjectId: args?['subjectId'],
+        subjectName: args?['subjectName'],
       );
     },
     
@@ -57,72 +90,59 @@ class AppRoutes {
         schoolYear: args?['schoolYear'] ?? '2024-2025',
       );
     },
+    
+    schedulePage: (context) => const SchedulePage(),
+    classesStudents: (context) => const ClassesStudentsPage(),
+    
+    teacherGradesClasses: (context) {
+      final authState = context.read<auth.AuthBloc>().state;
+      final teacherId = authState is auth.Authenticated ? authState.userId : '';
+      final schoolId = authState is auth.Authenticated ? authState.schoolId : '';
+      
+      return BlocProvider(
+        create: (_) => _createAttendanceBloc(context)..add(
+          AttendanceLoadClassesRequested(
+            teacherId: teacherId,
+            schoolId: schoolId,
+          ),
+        ),
+        child: const GradesClassesPage(),
+      );
+    },
+    
+    teacherGradesEntry: (context) => const GradesEntryPage(classId: '', className: '',),
+    
+    teacherCommentsClasses: (context) {
+      final authState = context.read<auth.AuthBloc>().state;
+      final teacherId = authState is auth.Authenticated ? authState.userId : '';
+      final schoolId = authState is auth.Authenticated ? authState.schoolId : '';
+      
+      return BlocProvider(
+        create: (_) => _createAttendanceBloc(context)..add(
+          AttendanceLoadClassesRequested(
+            teacherId: teacherId,
+            schoolId: schoolId,
+          ),
+        ),
+        child: const CommentsClassesPage(),
+      );
+    },
+    
+    teacherCommentsEntry: (context) => const CommentsEntryPage(classId: '', className: '',),
   };
-  
-  /// Navigation helpers
-  
-  // ÉTAPE 1: Voir les classes de l'enseignant
-  static void navigateToAttendanceClasses(BuildContext context) {
-    Navigator.pushNamed(context, teacherAttendanceClasses);
-  }
-  
-  // ÉTAPE 2: Faire l'appel dans une classe spécifique
-  static void navigateToAttendance(
-    BuildContext context, {
-    required String classId,
-    required String className,
-    String? subjectId,
-    String? subjectName,
-  }) {
-    Navigator.pushNamed(
-      context,
-      teacherAttendance,
-      arguments: {
-        'classId': classId,
-        'className': className,
-        'subjectId': subjectId,
-        'subjectName': subjectName,
-      },
+
+  static AttendanceBloc _createAttendanceBloc(BuildContext context) {
+    final supabase = Supabase.instance.client;
+    return AttendanceBloc(
+      attendanceRepository: AttendanceRepository(supabase),
+      classRepository: ClassRepository(supabase),
+      studentRepository: StudentRepository(supabase),
+      courseRepository: CourseRepository(supabase),
+      teacherService: TeacherService(supabase),
     );
-  }
-  
-  static void navigateToTeacherDashboard(BuildContext context) {
-    Navigator.pushNamed(context, teacherDashboard);
-  }
-  
-  static void navigateToParentDashboard(BuildContext context) {
-    Navigator.pushNamed(context, parentDashboard);
-  }
-  
-  static void navigateToAdminDashboard(BuildContext context) {
-    Navigator.pushNamed(context, adminDashboard);
-  }
-  static void navigateToAttendancePage(BuildContext context) {
-    Navigator.pushNamed(context, attendance);
   }
 
-  static void navigateToBulkImport(
-    BuildContext context, {
-    String? schoolId,
-    String? schoolCode,
-    String? schoolYear,
-  }) {
-    Navigator.pushNamed(
-      context,
-      adminBulkImport,
-      arguments: {
-        'schoolId': schoolId,
-        'schoolCode': schoolCode,
-        'schoolYear': schoolYear,
-      },
-    );
-  }
-  
   static void logout(BuildContext context) {
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      schoolLogin,
-      (route) => false,
-    );
+    Navigator.pushNamedAndRemoveUntil(context, schoolLogin, (route) => false);
   }
 }

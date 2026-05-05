@@ -1,7 +1,9 @@
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../config/theme.dart';
 import '../../blocs/auth_bloc/auth_bloc.dart';
+import '/config/routes.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -14,7 +16,7 @@ class _SplashPageState extends State<SplashPage> {
   @override
   void initState() {
     super.initState();
-    // Vérifier la session au démarrage
+    // Déclencher la vérification de session
     context.read<AuthBloc>().add(AppStarted());
   }
 
@@ -22,35 +24,52 @@ class _SplashPageState extends State<SplashPage> {
   Widget build(BuildContext context) {
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
-        print('🔄 SplashPage - État auth: ${state.runtimeType}');
+        print('🔄 SplashPage - État: ${state.runtimeType}');
+        
+        if (state is Unauthenticated || state is AuthError) {
+  print('⚠️ Non authentifié -> Login');
+  Navigator.pushReplacementNamed(context, AppRoutes.schoolLogin);  // ✅ Utiliser la constante
+  return;
+}
 
-        // NOUVEAU : Gestion des 3 états authentifiés séparés
+
+        // ⭐ ADMIN
+        if (state is AdminAuthenticated) {
+          print('✅ Admin authentifié !');
+          Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
+          return;
+        }
+        
+        // ⭐ ENSEIGNANT  
         if (state is TeacherAuthenticated) {
           print('✅ Enseignant authentifié !');
-          print('🏫 École: ${state.schoolName}');
-          Navigator.pushReplacementNamed(context, '/teacher/dashboard');
-          
-        } else if (state is ParentAuthenticated) {
-          print('✅ Parent authentifié !');
-          print('🏫 École: ${state.schoolName}');
-          print('👦 Élève: ${state.studentData['first_name']}');
-          Navigator.pushReplacementNamed(context, '/parent/dashboard');
-          
-        } else if (state is Unauthenticated) {
-          print('⚠️ Non authentifié -> Login');
-          Navigator.pushReplacementNamed(context, '/login');
-          
-        } else if (state is AuthError) {
-          print('❌ Erreur auth: ${state.message}');
-          // Afficher l'erreur puis rediriger vers login
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.message),
-              backgroundColor: AppTheme.rose,
-            ),
-          );
-          Navigator.pushReplacementNamed(context, '/login');
+          Navigator.pushReplacementNamed(context, AppRoutes.teacherDashboard);
+          return;
         }
+        
+        // ⭐ PARENT
+        if (state is ParentAuthenticated) {
+          print('✅ Parent authentifié !');
+          Navigator.pushReplacementNamed(context, AppRoutes.parentDashboard);
+          return;
+        }
+        
+        // ⭐ NON AUTHENTIFIÉ ou ERREUR
+        if (state is Unauthenticated || state is AuthError) {
+          print('⚠️ Non authentifié -> Login');
+          if (state is AuthError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text((state as AuthError).message),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          Navigator.pushReplacementNamed(context, AppRoutes.schoolLogin);
+          return;
+        }
+        
+        // AuthLoading : on reste sur le splash (rien à faire)
       },
       child: Scaffold(
         backgroundColor: AppTheme.violet,
@@ -72,7 +91,7 @@ class _SplashPageState extends State<SplashPage> {
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.school,
                   size: 60,
                   color: AppTheme.violet,
@@ -96,27 +115,22 @@ class _SplashPageState extends State<SplashPage> {
                 ),
               ),
               const SizedBox(height: 60),
-              // Animation de chargement
+              // Indicateur de chargement
               BlocBuilder<AuthBloc, AuthState>(
                 builder: (context, state) {
-                  return Column(
-                    children: [
-                      const CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 3,
-                      ),
-                      if (state is AuthLoading) ...[
-                        const SizedBox(height: 20),
+                  if (state is AuthLoading) {
+                    return const Column(
+                      children: [
+                        CircularProgressIndicator(color: Colors.white),
+                        SizedBox(height: 20),
                         Text(
-                          'Connexion en cours...',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
-                            fontSize: 14,
-                          ),
+                          'Vérification de la session...',
+                          style: TextStyle(color: Colors.white70),
                         ),
                       ],
-                    ],
-                  );
+                    );
+                  }
+                  return const SizedBox.shrink();
                 },
               ),
             ],

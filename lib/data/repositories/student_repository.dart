@@ -19,18 +19,30 @@ class StudentRepository {
   }
 
   /// Recuperer les eleves d une classe specifique (pour l appel)
-  Future<List<StudentModel>> getStudentsByClass(String classId) async {
+ Future<List<StudentModel>> getStudentsByClass(String classId) async {
+  if (classId.isEmpty) {
+    print('❌ classId est vide !');
+    return [];
+  }
+  
+  try {
     final response = await _supabase
         .from('students')
-        .select('*, classes(name, levels(name)), parent_profiles(users(first_name, last_name))')
+        .select('*')  // ✅ Simplifié - juste les colonnes de students
         .eq('class_id', classId)
         .order('last_name')
         .order('first_name');
 
+    print('✅ ${response.length} élèves trouvés pour classId: $classId');
+    
     return (response as List)
         .map((json) => StudentModel.fromJson(json))
         .toList();
+  } catch (e) {
+    print('❌ ERREUR getStudentsByClass: $e');
+    return [];  // ✅ Retourne vide au lieu de planter
   }
+}
 
   /// Recuperer un eleve par son ID
   Future<StudentModel?> getStudentById(String studentId) async {

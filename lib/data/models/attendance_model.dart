@@ -8,7 +8,32 @@ enum AttendanceStatus {
   final String label;
   const AttendanceStatus(this.label);
 
-  // Helper pour obtenir la couleur directement depuis l'enum (plus propre)
+  String get value => name;
+  static AttendanceStatus fromString(String value) {
+    switch (value) {
+      case 'present': return AttendanceStatus.present;
+      case 'absent': return AttendanceStatus.absent;
+      case 'late': return AttendanceStatus.late;
+      default: return AttendanceStatus.present;
+    }
+  }
+
+  String get emoji {
+    switch (this) {
+      case AttendanceStatus.present: return '✓';
+      case AttendanceStatus.absent: return '✗';
+      case AttendanceStatus.late: return '⏰';
+    }
+  }
+
+  String get colorHex {
+    switch (this) {
+      case AttendanceStatus.present: return '#14B8A6';
+      case AttendanceStatus.absent: return '#FB7185';
+      case AttendanceStatus.late: return '#F59E0B';
+    }
+  }
+
   Color get color {
     switch (this) {
       case AttendanceStatus.present: return const Color(0xFF14B8A6);
@@ -18,53 +43,31 @@ enum AttendanceStatus {
   }
 }
 
-class CourseModel {
-  final String id;
-  final String name;      // Nom de la matière (ex: Mathématiques)
-  final String className; // Nom de la classe (ex: Terminale S1)
-  final String classId;   // ID technique pour récupérer les élèves
-  final String startTime;
-  final String endTime;
+class AttendanceSubmission {
+  final String studentId;
+  final String classId;
+  final String teacherId;
+  final String schoolId;
+  final AttendanceStatus status;
+  final DateTime date;
 
-  CourseModel({
-    required this.id,
-    required this.name,
-    required this.className,
+  AttendanceSubmission({
+    required this.studentId,
     required this.classId,
-    required this.startTime,
-    required this.endTime,
+    required this.teacherId,
+    required this.schoolId,
+    required this.status,
+    required this.date,
   });
 
-  // Factory pour transformer du JSON (API) en objet CourseModel
-  factory CourseModel.fromJson(Map<String, dynamic> json) {
-    return CourseModel(
-      id: json['id'],
-      name: json['subject_name'],
-      className: json['class_name'],
-      classId: json['class_id'],
-      startTime: json['start_time'],
-      endTime: json['end_time'],
-    );
-  }
-}
-
-// Ajout d'un modèle pour les élèves (si tu ne l'as pas déjà)
-class StudentModel {
-  final String id;
-  final String fullName;
-  final String matricule;
-
-  StudentModel({
-    required this.id,
-    required this.fullName,
-    required this.matricule,
-  });
-
-  String get initials {
-    if (fullName.isEmpty) return "?";
-    List<String> names = fullName.split(" ");
-    return names.length > 1 
-        ? "${names[0][0]}${names[1][0]}".toUpperCase() 
-        : names[0][0].toUpperCase();
+  Map<String, dynamic> toJson() {
+    return {
+      'student_id': studentId,
+      'class_id': classId,
+      'teacher_id': teacherId,
+      'school_id': schoolId,
+      'status': status.value,
+      'date': date.toIso8601String().split('T')[0],
+    };
   }
 }

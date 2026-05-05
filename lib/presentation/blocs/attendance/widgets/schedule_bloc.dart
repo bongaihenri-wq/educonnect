@@ -1,44 +1,52 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '/data/models/schedule_model.dart';
 
 class ScheduleProvider extends ChangeNotifier {
-  List<ScheduleModel> _todaySchedules = [];
+  final _supabase = Supabase.instance.client;
+  List<ScheduleModel> _allSchedules = [];
   bool _isLoading = false;
 
-  List<ScheduleModel> get todaySchedules => _todaySchedules;
+  List<ScheduleModel> get allSchedules => _allSchedules;
   bool get isLoading => _isLoading;
 
-  // Récupère le cours qui doit avoir lieu maintenant
+  // Filtrer uniquement les cours d'aujourd'hui pour l'enseignant
+  List<ScheduleModel> get todaySchedules {
+    final now = DateTime.now();
+    // weekday de Dart : 1=Lundi, 7=Dimanche. 
+    // Notre base : 1=Lundi, 0=Dimanche. On harmonise :
+    final currentDay = now.weekday == 7 ? 0 : now.weekday;
+    return _allSchedules.where((s) => s.dayOfWeek == currentDay).toList();
+  }
+
   ScheduleModel? get currentCourse {
     try {
-      return _todaySchedules.firstWhere((s) => s.isCurrent);
+      // .firstWhere utilise maintenant ton getter "isCurrent" mis à jour
+      return todaySchedules.firstWhere((s) => s.isCurrent);
     } catch (_) {
-      // Si aucun cours ne correspond à l'heure actuelle, 
-      // on peut retourner le prochain cours de la journée
-      return _todaySchedules.isNotEmpty ? _todaySchedules.first : null;
+      return null;
     }
   }
 
-  // Simulation de chargement depuis une API
-  Future<void> loadSchedules(String teacherId) async {
+  Future<void> loadSchedulesForTeacher(String teacherId) async {
     _isLoading = true;
     notifyListeners();
 
-    // ICI : Appel API réel plus tard
-    await Future.delayed(const Duration(seconds: 1));
-    
-    _todaySchedules = [
-      ScheduleModel(
-        id: "m1",
-        subjectName: "Mathématiques",
-        className: "Terminale S1",
-        classId: "ID_S1",
-        startTime: DateTime.now().subtract(const Duration(minutes: 30)),
-        endTime: DateTime.now().add(const Duration(minutes: 30)),
-      ),
-    ];
+    try {
+      // Appel à la Vue SQL créée à l'étape 1
+      final response = await _supabase
+          .from('view_active_schedules')
+          .select()
+          .eq('teacher_id', teacherId);
 
-    _isLoading = false;
-    notifyListeners();
+      _allSchedules = (response as List)
+          .map((data) => ScheduleModel.fromMap(data))
+          .toList();
+    } catch (e) {
+      debugPrint("Erreur chargement planning: $e");
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 }

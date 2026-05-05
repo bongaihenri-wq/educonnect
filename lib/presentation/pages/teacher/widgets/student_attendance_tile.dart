@@ -1,4 +1,4 @@
-import 'package:educonnect/presentation/blocs/attendance/attendance_event.dart';
+import 'package:educonnect/data/models/attendance_model.dart';
 import 'package:flutter/material.dart';
 
 

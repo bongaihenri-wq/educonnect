@@ -1,8 +1,8 @@
-// lib/services/bulk_import_service.dart
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:csv/csv.dart';
+import 'package:excel/excel.dart' as excel_lib; // Préfixé pour éviter les conflits
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 
@@ -19,7 +19,20 @@ class BulkImportService {
     'schedules'
   ];
 
-  static Future<ImportResult> importFromCsv({
+  // --- AJOUT : FONCTION DE FORMATAGE D'HEURE ---
+  static String _formatTimeToSupabase(dynamic value) {
+    if (value == null || value.toString().isEmpty) return "00:00:00";
+    String s = value.toString().trim();
+    if (RegExp(r'^\d{2}:\d{2}:\d{2}$').hasMatch(s)) return s;
+    if (RegExp(r'^\d{2}:\d{2}$').hasMatch(s)) return "$s:00";
+    if (s.contains(' ')) {
+      String timePart = s.split(' ')[1];
+      return timePart.length == 5 ? "$timePart:00" : timePart;
+    }
+    return s;
+  }
+
+  static Future<ImportResult> executeImport({
     required String type,
     required String schoolId,
     required String schoolCode,
@@ -29,78 +42,71 @@ class BulkImportService {
     if (!validTypes.contains(type)) {
       return ImportResult(
         success: false,
-        message: 'Type invalide: $type. Types valides: ${validTypes.join(", ")}',
+        message: 'Type invalide: $type',
       );
     }
 
-    FilePickerResult? pickerResult = fileResult;
-    pickerResult ??= await FilePicker.platform.pickFiles(
+    // 1. Sélection du fichier (CSV ou Excel)
+    FilePickerResult? pickerResult = fileResult ?? await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['csv', 'txt'],
+      allowedExtensions: ['csv', 'xlsx', 'xls', 'txt'],
       withData: true,
-      dialogTitle: 'Sélectionner un fichier CSV',
     );
 
     if (pickerResult == null) {
-      return ImportResult(
-        success: false, 
-        cancelled: true, 
-        message: 'Aucun fichier sélectionné',
-      );
+      return ImportResult(success: false, cancelled: true, message: 'Aucun fichier sélectionné');
     }
 
     try {
-      final bytes = pickerResult.files.first.bytes;
-      final path = pickerResult.files.first.path;
-      
-      Uint8List? fileBytes;
-      if (bytes != null) {
-        fileBytes = bytes;
-      } else if (path != null) {
-        fileBytes = await File(path).readAsBytes();
+      final file = pickerResult.files.first;
+      final bytes = file.bytes ?? (file.path != null ? await File(file.path!).readAsBytes() : null);
+
+      if (bytes == null || bytes.isEmpty) {
+        return ImportResult(success: false, message: 'Impossible de lire le fichier');
       }
 
-      if (fileBytes == null || fileBytes.isEmpty) {
-        return ImportResult(
-          success: false, 
-          message: 'Impossible de lire le fichier',
-        );
+      List<Map<String, dynamic>> data = [];
+
+      // 2. Branchement selon l'extension
+      if (file.extension == 'xlsx' || file.extension == 'xls') {
+        data = _readExcel(bytes);
+      } else {
+        data = _readCsv(bytes);
       }
 
-      final csvString = _decodeWithFallback(fileBytes);
-      final separator = _detectSeparator(csvString);
-      final eol = csvString.contains('\r\n') ? '\r\n' : '\n';
-      
-      final rows = CsvToListConverter(
-        fieldDelimiter: separator,
-        eol: eol,
-        shouldParseNumbers: false,
-      ).convert(csvString);
-
-      if (rows.isEmpty || rows.length < 2) {
-        return ImportResult(
-          success: false, 
-          message: 'Fichier CSV vide',
-        );
+      if (data.isEmpty) {
+        return ImportResult(success: false, message: 'Le fichier ne contient aucune donnée valide');
       }
 
-      final headers = rows.first
-          .map((e) => e.toString().trim())
-          .where((h) => h.isNotEmpty)
-          .toList();
+      // ==========================================================
+      // INJECTION SYSTÉMATIQUE DU SCHOOL_ID ET DES MÉTADONNÉES
+      // ==========================================================
+      final formattedData = data.map((row) {
+        final Map<String, dynamic> cleanRow = Map<String, dynamic>.from(row);
+        // --- AJOUT : CORRECTION DES HEURES SI TYPE SCHEDULES ---
+        if (type == 'schedules') {
+          final rawStart = cleanRow['heure_debut'] ?? cleanRow['heure_début'] ?? cleanRow['start_time'];
+          final rawEnd = cleanRow['heure_fin'] ?? cleanRow['end_time'];
+          
+             cleanRow['start_time'] = _formatTimeToSupabase(rawStart);
+             cleanRow['end_time'] = _formatTimeToSupabase(rawEnd);
 
-      final data = rows.skip(1)
-          .where((row) => row.any((cell) => cell.toString().trim().isNotEmpty))
-          .map((row) {
-        final map = <String, dynamic>{};
-        for (var i = 0; i < headers.length; i++) {
-          if (i < row.length) {
-            map[headers[i]] = row[i].toString().trim();
-          }
+             cleanRow.remove('heure_debut');
+             cleanRow.remove('heure_début');
+             cleanRow.remove('heure_fin');
+
+             cleanRow['school_id'] = schoolId;
+             cleanRow['school_code'] = schoolCode;
+             cleanRow['school_year'] = schoolYear ?? '2024-2025';
+
         }
-        return map;
+        
+        return {
+          ...cleanRow,
+        };
       }).toList();
 
+      // 3. Envoi à la Edge Function
       final response = await http.post(
         Uri.parse(_functionUrl),
         headers: {
@@ -112,11 +118,11 @@ class BulkImportService {
           'schoolId': schoolId,
           'schoolCode': schoolCode,
           'schoolYear': schoolYear ?? '2024-2025',
-          'data': data,
+          'data': formattedData,
         }),
       ).timeout(
         const Duration(minutes: 2),
-        onTimeout: () => throw ImportTimeoutException('Timeout'),
+        onTimeout: () => throw ImportTimeoutException('Le serveur a mis trop de temps à répondre'),
       );
 
       final responseData = jsonDecode(response.body);
@@ -129,21 +135,76 @@ class BulkImportService {
         errors: (responseData['errors'] as List?)?.cast<Map<String, dynamic>>() ?? [],
         requestId: responseData['requestId'],
         duration: responseData['duration'],
-        message: '${responseData['created'] ?? 0} créé(s), ${responseData['updated'] ?? 0} mis à jour',
+        message: responseData['message'] ?? '${responseData['created'] ?? 0} créé(s), ${responseData['updated'] ?? 0} mis à jour',
       );
 
     } catch (e) {
-      return ImportResult(
-        success: false,
-        message: 'Erreur: $e',
-      );
+      return ImportResult(success: false, message: 'Erreur: $e');
     }
+  }
+
+  // --- LOGIQUE DE LECTURE CSV ---
+  static List<Map<String, dynamic>> _readCsv(Uint8List bytes) {
+    final csvString = _decodeWithFallback(bytes);
+    final separator = _detectSeparator(csvString);
+    final eol = csvString.contains('\r\n') ? '\r\n' : '\n';
+    
+    final rows = CsvToListConverter(
+      fieldDelimiter: separator,
+      eol: eol,
+      shouldParseNumbers: false,
+    ).convert(csvString);
+
+    if (rows.length < 2) return [];
+
+    final headers = rows.first.map((e) => e.toString().trim().toLowerCase()).toList();
+
+    return rows.skip(1)
+        .where((row) => row.any((cell) => cell.toString().trim().isNotEmpty))
+        .map((row) {
+      final map = <String, dynamic>{};
+      for (var i = 0; i < headers.length; i++) {
+        if (i < row.length) {
+          map[headers[i]] = row[i].toString().trim();
+        }
+      }
+      return map;
+    }).toList();
+  }
+
+  // --- LOGIQUE DE LECTURE EXCEL ---
+  static List<Map<String, dynamic>> _readExcel(Uint8List bytes) {
+    var excel = excel_lib.Excel.decodeBytes(bytes);
+    List<Map<String, dynamic>> list = [];
+
+    for (var table in excel.tables.keys) {
+      var sheet = excel.tables[table]!;
+      if (sheet.maxRows < 2) continue;
+
+      final headers = sheet.rows.first.map((cell) => 
+        cell?.value.toString().trim().toLowerCase() ?? "").toList();
+
+      for (int i = 1; i < sheet.maxRows; i++) {
+        var row = sheet.rows[i];
+        if (row.any((cell) => cell?.value != null)) {
+          var map = <String, dynamic>{};
+          for (int j = 0; j < headers.length; j++) {
+            if (j < row.length) {
+              map[headers[j]] = row[j]?.value.toString().trim() ?? "";
+            }
+          }
+          list.add(map);
+        }
+      }
+      break; // On ne prend que la première feuille
+    }
+    return list;
   }
 
   static String _decodeWithFallback(Uint8List bytes) {
     try {
       return utf8.decode(bytes, allowMalformed: false);
-    } on FormatException catch (_) {
+    } on FormatException {
       try {
         return latin1.decode(bytes);
       } catch (_) {
@@ -190,7 +251,6 @@ class ImportResult {
     this.rawResponse,
   });
 
-  // GETTERS AJOUTÉS :
   bool get hasErrors => errors.isNotEmpty;
   bool get isPartialSuccess => success && hasErrors;
   int get errorCount => errors.length;

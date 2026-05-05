@@ -1,123 +1,114 @@
+// lib/core/services/school_service.dart
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Service de gestion de l'école et de l'API Key
-/// 
-/// Stockage persistant de l'API key et configuration
-/// de la session Supabase pour l'isolation des données.
 class SchoolService {
-  static const String _apiKeyKey = 'school_api_key';
-  static const String _schoolIdKey = 'school_id';
-  static const String _schoolNameKey = 'school_name';
+  static String? _currentSchoolId;
+  static String? _currentSchoolCode;
+  static String? _currentSchoolName;
+  static String? _currentApiKey;
+
+  static String? get currentSchoolId => _currentSchoolId;
+  static String? get currentSchoolCode => _currentSchoolCode;
+  static String? get currentSchoolName => _currentSchoolName;
+  static String? get currentApiKey => _currentApiKey;
   
-  static String? _cachedApiKey;
-  static String? _cachedSchoolId;
-  static String? _cachedSchoolName;
+  static bool get isConfigured => _currentSchoolId != null;
 
-  /// Récupère l'API key en cache ou depuis le stockage local
-  static Future<String?> getApiKey() async {
-    if (_cachedApiKey != null) return _cachedApiKey;
-    
-    final prefs = await SharedPreferences.getInstance();
-    _cachedApiKey = prefs.getString(_apiKeyKey);
-    return _cachedApiKey;
-  }
-
-  /// Récupère l'ID de l'école en cache
-  static String? get currentSchoolId => _cachedSchoolId;
-
-  /// Récupère le nom de l'école en cache
-  static String? get currentSchoolName => _cachedSchoolName;
-
-  /// Définit l'API key et configure la session
-  /// 
-  /// [apiKey] La clé API de l'école (ex: sk_live_...)
-  /// Retourne true si l'API key est valide, false sinon
-  static Future<bool> setApiKey(String apiKey) async {
+  // ⭐ NOUVEAU : Méthode d'initialisation complète
+  static Future<bool> registerNewSchool({
+    required String name,
+    required String code,
+  }) async {
     try {
-      print('🔑 SchoolService - Configuration API Key: $apiKey');
-
-      // 1. Vérifier l'API key via Supabase RPC
-      final result = await Supabase.instance.client
-          .rpc('get_school_id_by_api_key', params: {
-        'p_api_key': apiKey,
-      });
-
-      if (result == null) {
-        print('❌ SchoolService - API Key invalide');
-        return false;
+      final supabase = Supabase.instance.client;
+      
+      // Vérifier si l'école existe déjà
+      final existing = await supabase
+          .from('schools')
+          .select()
+          .eq('school_code', code)
+          .maybeSingle();
+          
+      if (existing != null) {
+        // École existe déjà, on la configure localement
+        await setSchool(
+          id: existing['id'],
+          code: existing['school_code'],
+          name: existing['name'],
+          apiKey: existing['api_key'],
+        );
+        return true;
       }
 
-      final schoolId = result as String;
-      
-      // 2. Récupérer les infos de l'école
-      final schoolData = await Supabase.instance.client
+      // Créer une nouvelle école dans Supabase
+      final response = await supabase
           .from('schools')
-          .select('name, is_active')
-          .eq('id', schoolId)
+          .insert({
+            'name': name,
+            'school_code': code,
+            'api_key': 'sk_live_${DateTime.now().millisecondsSinceEpoch}',
+          })
+          .select()
           .single();
 
-      if (schoolData['is_active'] != true) {
-        print('❌ SchoolService - École inactive');
-        return false;
-      }
+      // Sauvegarder localement
+      await setSchool(
+        id: response['id'],
+        code: response['school_code'],
+        name: response['name'],
+        apiKey: response['api_key'],
+      );
 
-      // 3. Configurer la session Supabase
-      await Supabase.instance.client.rpc('set_current_school', params: {
-        'p_api_key': apiKey,
-      });
-
-      // 4. Sauvegarder en local
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_apiKeyKey, apiKey);
-      await prefs.setString(_schoolIdKey, schoolId);
-      await prefs.setString(_schoolNameKey, schoolData['name']);
-
-      // 5. Mettre en cache
-      _cachedApiKey = apiKey;
-      _cachedSchoolId = schoolId;
-      _cachedSchoolName = schoolData['name'];
-
-      print('✅ SchoolService - École configurée: ${schoolData['name']} ($schoolId)');
       return true;
-
     } catch (e) {
-      print('💥 SchoolService - Erreur: $e');
+      print('❌ Erreur registerNewSchool: $e');
       return false;
     }
   }
 
-  /// Restaure la session depuis le stockage local
-  /// 
-  /// À appeler au démarrage de l'app
-  static Future<bool> restoreSession() async {
-    final apiKey = await getApiKey();
-    if (apiKey == null) {
-      print('⚠️ SchoolService - Aucune API key stockée');
-      return false;
-    }
-    return await setApiKey(apiKey);
-  }
+  // Configuration manuelle (méthode existante)
+  static Future<void> setSchool({
+    required String id,
+    required String code,
+    required String name,
+    String? apiKey,
+  }) async {
+    _currentSchoolId = id;
+    _currentSchoolCode = code;
+    _currentSchoolName = name;
+    _currentApiKey = apiKey;
 
-  /// Efface toutes les données de session
-  static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_apiKeyKey);
-    await prefs.remove(_schoolIdKey);
-    await prefs.remove(_schoolNameKey);
-    
-    _cachedApiKey = null;
-    _cachedSchoolId = null;
-    _cachedSchoolName = null;
-    
-    print('🧹 SchoolService - Session effacée');
+    await prefs.setString('school_id', id);
+    await prefs.setString('school_code', code);
+    await prefs.setString('school_name', name);
+    if (apiKey != null) {
+      await prefs.setString('school_api_key', apiKey);
+    }
   }
 
-  /// Vérifie si une session est active
-  static bool get isConfigured => _cachedApiKey != null && _cachedSchoolId != null;
+  // Chargement depuis SharedPreferences
+  static Future<void> loadSchool() async {
+    final prefs = await SharedPreferences.getInstance();
+    _currentSchoolId = prefs.getString('school_id');
+    _currentSchoolCode = prefs.getString('school_code');
+    _currentSchoolName = prefs.getString('school_name');
+    _currentApiKey = prefs.getString('school_api_key');
+  }
 
-  /// Retourne les headers pour les requêtes HTTP directes (si besoin)
-  static Map<String, String> get headers => {
-    'X-School-API-Key': _cachedApiKey ?? '',
-  };
+  // Nettoyage
+  static Future<void> clearSchool() async {
+    _currentSchoolId = null;
+    _currentSchoolCode = null;
+    _currentSchoolName = null;
+    _currentApiKey = null;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('school_id');
+    await prefs.remove('school_code');
+    await prefs.remove('school_name');
+    await prefs.remove('school_api_key');
+  }
 }

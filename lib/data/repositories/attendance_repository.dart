@@ -1,4 +1,5 @@
-import 'package:educonnect/presentation/blocs/attendance/attendance_event.dart';
+// lib/data/repositories/attendance_repository.dart
+import 'package:educonnect/data/models/attendance_model.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/entities/attendance.dart';
@@ -8,39 +9,45 @@ class AttendanceRepository {
 
   AttendanceRepository(this._supabase);
 
-  /// Sauvegarde l'appel en base de données (avec transaction)
+  // ============================================================
+  // SAUVEGARDE DES PRÉSENCES
+  // ============================================================
   Future<void> saveAttendance({
     required String classId,
     required String courseId,
     required DateTime date,
     required Map<String, AttendanceStatus> records,
+    required String schoolId,
+    required String teacherId,
   }) async {
-    final teacherId = _supabase.auth.currentUser?.id;
-    if (teacherId == null) throw Exception('Non authentifié');
+    if (schoolId.isEmpty) throw Exception('schoolId requis');
+    if (teacherId.isEmpty) throw Exception('teacherId requis');
+    if (classId.isEmpty) throw Exception('classId requis');
 
     final dateStr = date.toIso8601String().split('T')[0];
     final now = DateTime.now().toIso8601String();
 
-    // Préparer les données pour insertion batch
     final attendances = records.entries.map((entry) => {
       'student_id': entry.key,
-      'course_id': courseId,
+      'class_id': classId,
+      'schedule_id': courseId.isNotEmpty ? courseId : null,
       'teacher_id': teacherId,
+      'school_id': schoolId,
       'date': dateStr,
       'status': entry.value.value,
       'created_at': now,
+      'updated_at': now,
     }).toList();
 
     try {
-      // Supprimer les anciennes présences pour ce cours/date (même teacher)
       await _supabase
           .from('attendance')
           .delete()
-          .eq('course_id', courseId)
+          .eq('class_id', classId)
           .eq('date', dateStr)
-          .eq('teacher_id', teacherId);
+          .eq('teacher_id', teacherId)
+          .eq('school_id', schoolId);
 
-      // Insérer les nouvelles présences
       if (attendances.isNotEmpty) {
         await _supabase.from('attendance').insert(attendances);
       }
@@ -49,88 +56,116 @@ class AttendanceRepository {
     }
   }
 
-  /// Récupère l'historique des présences d'un élève
-  Future<List<Attendance>> getStudentAttendance(String studentId) async {
-    final response = await _supabase
+  // ============================================================
+  // RÉCUPÉRATION PAR ÉLÈVE
+  // ============================================================
+  Future<List<Attendance>> getStudentAttendance(
+    String studentId, {
+    String? schoolId,
+  }) async {
+    var query = _supabase
         .from('attendance')
         .select()
-        .eq('student_id', studentId)
-        .order('date', ascending: false);
+        .eq('student_id', studentId);
 
+    if (schoolId != null && schoolId.isNotEmpty) {
+      query = query.eq('school_id', schoolId);
+    }
+
+    final response = await query.order('date', ascending: false);
     return (response as List)
         .map((json) => Attendance.fromJson(json))
         .toList();
   }
 
-  /// Récupère les présences d'une classe pour une date
+  // ============================================================
+  // RÉCUPÉRATION PAR CLASSE ET DATE
+  // ============================================================
   Future<Map<String, AttendanceStatus>> getClassAttendance({
     required String classId,
     required DateTime date,
+    String? schoolId,
   }) async {
     final dateStr = date.toIso8601String().split('T')[0];
 
-    final response = await _supabase
+    var query = _supabase
         .from('attendance')
-        .select('*, students!inner(class_id)')
-        .eq('students.class_id', classId)
+        .select()
+        .eq('class_id', classId)
         .eq('date', dateStr);
+
+    if (schoolId != null && schoolId.isNotEmpty) {
+      query = query.eq('school_id', schoolId);
+    }
+
+    final response = await query;
 
     final result = <String, AttendanceStatus>{};
     for (final record in response as List) {
-      result[record['student_id']] = 
-          AttendanceStatusExtension.fromString(record['status']);
+      result[record['student_id']] = _parseStatus(record['status']);
     }
     return result;
   }
 
-  /// ⭐ NOUVEAU : Vérifie si un appel existe déjà pour ce cours/date
+  // ============================================================
+  // VÉRIFICATION EXISTANCE
+  // ============================================================
   Future<bool> checkExistingAttendance({
+    required String classId,
     required String courseId,
     required DateTime date,
+    required String teacherId,
+    String? schoolId,
   }) async {
     final dateStr = date.toIso8601String().split('T')[0];
-    final teacherId = _supabase.auth.currentUser?.id;
-    
-    final response = await _supabase
+
+    var query = _supabase
         .from('attendance')
         .select('id')
-        .eq('course_id', courseId)
+        .eq('class_id', classId)
+        .eq('schedule_id', courseId)
         .eq('date', dateStr)
-        .eq('teacher_id', teacherId as Object)
-        .limit(1);
+        .eq('teacher_id', teacherId);
 
+    if (schoolId != null && schoolId.isNotEmpty) {
+      query = query.eq('school_id', schoolId);
+    }
+
+    final response = await query.limit(1);
     return (response as List).isNotEmpty;
   }
 
-  /// Notifie les parents des absences/retards
+  // ============================================================
+  // NOTIFICATIONS PARENTS
+  // ============================================================
   Future<void> notifyParents({
     required List<String> studentIds,
     required DateTime date,
     String? className,
     String? courseName,
+    required String schoolId,
   }) async {
     if (studentIds.isEmpty) return;
+    if (schoolId.isEmpty) throw Exception('schoolId requis');
 
     try {
-      // Récupérer les parents des élèves concernés
       final parentsResponse = await _supabase
           .from('parent_students')
           .select('''
             parent_id,
-            students!inner(
-              id,
-              first_name,
-              last_name
-            )
+            students!inner(id, first_name, last_name, school_id)
           ''')
-          .inFilter('student_id', studentIds);
+          .inFilter('student_id', studentIds)
+          .eq('students.school_id', schoolId);
 
       final notifications = <Map<String, dynamic>>[];
 
       for (final link in parentsResponse as List) {
         final parentId = link['parent_id'];
         final student = link['students'];
-        
+
+        if (student['school_id'] != schoolId) continue;
+
         notifications.add({
           'user_id': parentId,
           'title': 'Absence / Retard',
@@ -145,59 +180,44 @@ class AttendanceRepository {
           'read': false,
           'created_at': DateTime.now().toIso8601String(),
           'student_id': student['id'],
+          'school_id': schoolId,
         });
       }
 
-      // Insérer les notifications en batch
       if (notifications.isNotEmpty) {
         await _supabase.from('notifications').insert(notifications);
       }
     } catch (e) {
-      // Log mais ne pas bloquer l'appel
       debugPrint('Erreur notification parents: $e');
     }
   }
 
-  String _buildNotificationMessage(
-    String firstName,
-    String lastName,
-    String? className,
-    String? courseName,
-    DateTime date,
-  ) {
-    final buffer = StringBuffer();
-    buffer.write('$firstName $lastName');
-    
-    if (className != null) buffer.write(' (Classe: $className)');
-    buffer.write(' a été marqué(e) ');
-    
-    final status = 'absent(e)'; // ou retard selon contexte
-    buffer.write(status);
-    
-    if (courseName != null) buffer.write(' au cours de $courseName');
-    buffer.write(' le ${_formatDate(date)}');
-    
-    return buffer.toString();
-  }
-
-  /// Récupère les statistiques de présence d'une classe
+  // ============================================================
+  // STATISTIQUES CLASSE
+  // ============================================================
   Future<Map<String, dynamic>> getClassStats({
     required String classId,
     required DateTime startDate,
     required DateTime endDate,
+    String? schoolId,
   }) async {
     final startStr = startDate.toIso8601String().split('T')[0];
     final endStr = endDate.toIso8601String().split('T')[0];
 
-    final response = await _supabase
+    var query = _supabase
         .from('attendance')
-        .select('status, students!inner(class_id)')
-        .eq('students.class_id', classId)
+        .select('status')
+        .eq('class_id', classId)
         .gte('date', startStr)
         .lte('date', endStr);
 
+    if (schoolId != null && schoolId.isNotEmpty) {
+      query = query.eq('school_id', schoolId);
+    }
+
+    final response = await query;
     final records = response as List;
-    
+
     final presentCount = records.where((r) => r['status'] == 'present').length;
     final absentCount = records.where((r) => r['status'] == 'absent').length;
     final lateCount = records.where((r) => r['status'] == 'late').length;
@@ -214,21 +234,115 @@ class AttendanceRepository {
     };
   }
 
-  /// ⭐ NOUVEAU : Récupère les absences fréquentes (alertes)
+  // ============================================================
+  // STATISTIQUES ÉLÈVE
+  // ============================================================
+  Future<Map<String, dynamic>> getStudentStats({
+    required String studentId,
+    String? schoolId,
+  }) async {
+    var query = _supabase
+        .from('attendance')
+        .select('status')
+        .eq('student_id', studentId);
+
+    if (schoolId != null && schoolId.isNotEmpty) {
+      query = query.eq('school_id', schoolId);
+    }
+
+    final response = await query;
+    final records = response as List;
+
+    final total = records.length;
+    final present = records.where((r) => r['status'] == 'present').length;
+    final absent = records.where((r) => r['status'] == 'absent').length;
+    final late = records.where((r) => r['status'] == 'late').length;
+
+    return {
+      'total': total,
+      'present': present,
+      'absent': absent,
+      'late': late,
+      'rate': total > 0 ? (present / total * 100).toStringAsFixed(1) : '0',
+    };
+  }
+
+  // ============================================================
+  // ABSENCES FRÉQUENTES (RPC)
+  // ============================================================
   Future<List<Map<String, dynamic>>> getFrequentAbsences({
     required String classId,
     required int minAbsences,
     required DateTime since,
+    String? schoolId,
   }) async {
     final sinceStr = since.toIso8601String().split('T')[0];
 
-    final response = await _supabase.rpc('get_frequent_absences', params: {
+    final params = {
       'p_class_id': classId,
       'p_min_absences': minAbsences,
       'p_since': sinceStr,
-    });
+    };
+
+    if (schoolId != null && schoolId.isNotEmpty) {
+      params['p_school_id'] = schoolId;
+    }
+
+    final response = await _supabase.rpc('get_frequent_absences', params: params);
+    return (response as List).cast<Map<String, dynamic>>();
+  }
+
+  // ============================================================
+  // ABSENCES DU JOUR
+  // ============================================================
+  Future<List<Map<String, dynamic>>> getTodayAbsences(String schoolId) async {
+    if (schoolId.isEmpty) throw Exception('schoolId requis');
+
+    final today = DateTime.now().toIso8601String().split('T')[0];
+
+    final response = await _supabase
+        .from('attendance')
+        .select('''
+          id,
+          student_id,
+          status,
+          schedule_id,
+          students!inner(id, first_name, last_name, class_id, classes(name)),
+          schedules!inner(id, course_name, start_time)
+        ''')
+        .eq('school_id', schoolId)
+        .eq('date', today)
+        .neq('status', 'present');
 
     return (response as List).cast<Map<String, dynamic>>();
+  }
+
+  // ============================================================
+  // HELPERS PRIVÉS
+  // ============================================================
+  static AttendanceStatus _parseStatus(String value) {
+    switch (value) {
+      case 'present': return AttendanceStatus.present;
+      case 'absent': return AttendanceStatus.absent;
+      case 'late': return AttendanceStatus.late;
+      default: return AttendanceStatus.present;
+    }
+  }
+
+  String _buildNotificationMessage(
+    String firstName,
+    String lastName,
+    String? className,
+    String? courseName,
+    DateTime date,
+  ) {
+    final buffer = StringBuffer();
+    buffer.write('$firstName $lastName');
+    if (className != null) buffer.write(' (Classe: $className)');
+    buffer.write(' a été marqué(e) absent(e)');
+    if (courseName != null) buffer.write(' au cours de $courseName');
+    buffer.write(' le ${_formatDate(date)}');
+    return buffer.toString();
   }
 
   String _formatDate(DateTime date) {

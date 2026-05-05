@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
-import '/../data/models/class_model.dart';
-import '/../data/models/course_model.dart';
-
+import '/data/models/class_model.dart';
+import '/data/models/course_model.dart';
+import '/data/models/attendance_model.dart';
 
 abstract class AttendanceEvent extends Equatable {
   const AttendanceEvent();
@@ -10,52 +10,62 @@ abstract class AttendanceEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-// ========== CHARGEMENT INITIAL ==========
-
-/// Récupérer les classes de l'enseignant connecté
 class AttendanceLoadClassesRequested extends AttendanceEvent {
-  const AttendanceLoadClassesRequested({required String classId, required String courseId});
+  final String teacherId;
+  final String schoolId;
+
+  const AttendanceLoadClassesRequested({
+    required this.teacherId,
+    required this.schoolId,
+  });
+
+  @override
+  List<Object?> get props => [teacherId, schoolId];
 }
 
-// ========== SÉLECTION CLASSE ==========
-
-/// Sélection d'une classe par l'enseignant
 class AttendanceClassSelected extends AttendanceEvent {
   final ClassModel selectedClass;
+  final String schoolId;
+  final CourseModel? currentCourse; // ✅ AJOUTÉ
 
-  const AttendanceClassSelected(this.selectedClass);
+  const AttendanceClassSelected(
+    this.selectedClass, {
+    required this.schoolId,
+    this.currentCourse, // ✅ AJOUTÉ
+  });
 
   @override
-  List<Object?> get props => [selectedClass];
+  List<Object?> get props => [selectedClass, schoolId, currentCourse]; // ✅
 }
 
-/// Chargement des élèves d'une classe
 class AttendanceLoadStudentsRequested extends AttendanceEvent {
   final String classId;
+  final String schoolId;
 
-  const AttendanceLoadStudentsRequested(this.classId);
+  const AttendanceLoadStudentsRequested({
+    required this.classId,
+    required this.schoolId,
+  });
 
   @override
-  List<Object?> get props => [classId];
+  List<Object?> get props => [classId, schoolId];
 }
 
-// ========== GESTION COURS ==========
-
-/// Détection automatique du cours selon l'heure actuelle
 class AttendanceDetectCurrentCourse extends AttendanceEvent {
   final String classId;
   final DateTime dateTime;
+  final String schoolId;
 
   const AttendanceDetectCurrentCourse({
     required this.classId,
     required this.dateTime,
+    required this.schoolId,
   });
 
   @override
-  List<Object?> get props => [classId, dateTime];
+  List<Object?> get props => [classId, dateTime, schoolId];
 }
 
-/// Changement manuel de cours (dropdown)
 class AttendanceCourseChanged extends AttendanceEvent {
   final CourseModel? course;
 
@@ -65,9 +75,6 @@ class AttendanceCourseChanged extends AttendanceEvent {
   List<Object?> get props => [course];
 }
 
-// ========== GESTION PRÉSENCES ==========
-
-/// Mise à jour du statut d'un élève (bouton spécifique)
 class AttendanceStudentStatusUpdated extends AttendanceEvent {
   final String studentId;
   final AttendanceStatus status;
@@ -81,7 +88,6 @@ class AttendanceStudentStatusUpdated extends AttendanceEvent {
   List<Object?> get props => [studentId, status];
 }
 
-/// Toggle rapide : 1 clic = cycle Présent → Absent → Retard → Présent
 class AttendanceToggleStatus extends AttendanceEvent {
   final String studentId;
 
@@ -91,29 +97,29 @@ class AttendanceToggleStatus extends AttendanceEvent {
   List<Object?> get props => [studentId];
 }
 
-/// Marquer tous les élèves comme présents (bouton rapide)
 class AttendanceMarkAllPresent extends AttendanceEvent {
   const AttendanceMarkAllPresent();
 }
 
-/// Marquer tous les élèves comme absents (cas exceptionnel)
 class AttendanceMarkAllAbsent extends AttendanceEvent {
   const AttendanceMarkAllAbsent();
 }
 
-// ========== SOUMISSION & DATE ==========
-
-/// Validation et sauvegarde de l'appel
 class AttendanceSubmitRequested extends AttendanceEvent {
   final DateTime date;
+  final String teacherId;
+  final String schoolId;
 
-  const AttendanceSubmitRequested({required this.date});
+  const AttendanceSubmitRequested({
+    required this.date,
+    required this.teacherId,
+    required this.schoolId,
+  });
 
   @override
-  List<Object?> get props => [date];
+  List<Object?> get props => [date, teacherId, schoolId];
 }
 
-/// Changement de date (appel rétrospectif ou anticipé)
 class AttendanceDateChanged extends AttendanceEvent {
   final DateTime newDate;
 
@@ -122,68 +128,17 @@ class AttendanceDateChanged extends AttendanceEvent {
   @override
   List<Object?> get props => [newDate];
 }
+class AttendanceReplaceConfirmed extends AttendanceEvent {
+  final DateTime date;
+  final String teacherId;
+  final String schoolId;
 
-// ========== ENUM & EXTENSIONS ==========
+  const AttendanceReplaceConfirmed({
+    required this.date,
+    required this.teacherId,
+    required this.schoolId,
+  });
 
-enum AttendanceStatus { present, absent, late }
-
-extension AttendanceStatusExtension on AttendanceStatus {
-  /// Valeur string pour la base de données
-  String get value {
-    switch (this) {
-      case AttendanceStatus.present:
-        return 'present';
-      case AttendanceStatus.absent:
-        return 'absent';
-      case AttendanceStatus.late:
-        return 'late';
-    }
-  }
-
-  /// Créer depuis la base de données
-  static AttendanceStatus fromString(String value) {
-    switch (value) {
-      case 'present':
-        return AttendanceStatus.present;
-      case 'absent':
-        return AttendanceStatus.absent;
-      case 'late':
-        return AttendanceStatus.late;
-      default:
-        return AttendanceStatus.present;
-    }
-  }
-
-  String get label {
-    switch (this) {
-      case AttendanceStatus.present:
-        return 'Présent';
-      case AttendanceStatus.absent:
-        return 'Absent';
-      case AttendanceStatus.late:
-        return 'Retard';
-    }
-  }
-
-  String get emoji {
-    switch (this) {
-      case AttendanceStatus.present:
-        return '✓';
-      case AttendanceStatus.absent:
-        return '✗';
-      case AttendanceStatus.late:
-        return '⏰';
-    }
-  }
-
-  String get colorHex {
-    switch (this) {
-      case AttendanceStatus.present:
-        return '#14B8A6'; // Teal
-      case AttendanceStatus.absent:
-        return '#FB7185'; // Coral
-      case AttendanceStatus.late:
-        return '#F59E0B'; // Sunshine
-    }
-  }
+  @override
+  List<Object?> get props => [date, teacherId, schoolId];
 }

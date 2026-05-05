@@ -1,58 +1,82 @@
 // lib/presentation/blocs/auth_bloc/auth_state.dart
 part of 'auth_bloc.dart';
 
-abstract class AuthState extends Equatable {
+abstract class AuthState {
   const AuthState();
 
-  @override
-  List<Object?> get props => [];
+  get userId => null;
+
+  get schoolId => null;
 }
 
 class AuthInitial extends AuthState {}
 
 class AuthLoading extends AuthState {}
 
-class TeacherAuthenticated extends AuthState {
-  final Map<String, dynamic> userData;
-  final String schoolName;
-  final String schoolId;
-
-  const TeacherAuthenticated({
-    required this.userData,
-    required this.schoolName,
-    required this.schoolId,
-  });
-
-  @override
-  List<Object?> get props => [userData, schoolName, schoolId];
-}
-
-class ParentAuthenticated extends AuthState {
-  final Map<String, dynamic> parentData;
-  final Map<String, dynamic> studentData;
-  final String relationship;
-  final String schoolName;
-  final String schoolId;
-
-  const ParentAuthenticated({
-    required this.parentData,
-    required this.studentData,
-    required this.relationship,
-    required this.schoolName,
-    required this.schoolId,
-  });
-
-  @override
-  List<Object?> get props => [parentData, studentData, relationship, schoolName, schoolId];
-}
-
 class Unauthenticated extends AuthState {}
 
 class AuthError extends AuthState {
   final String message;
-
   const AuthError(this.message);
+}
 
-  @override
-  List<Object?> get props => [message];
+/// État de base authentifié
+abstract class Authenticated extends AuthState {
+  final String userId;
+  final String firstName;
+  final String lastName;
+  final String schoolId;
+  final String schoolName;
+  final String role;
+  
+  const Authenticated({
+    required this.userId,
+    required this.firstName,
+    required this.lastName,
+    required this.schoolId,
+    required this.schoolName,
+    required this.role,
+  });
+}
+
+class AdminAuthenticated extends Authenticated {
+  const AdminAuthenticated({
+    required super.userId,
+    required super.firstName,
+    required super.lastName,
+    required super.schoolId,
+    required super.schoolName,
+       }) : super(role: 'admin');
+}
+
+class TeacherAuthenticated extends Authenticated {
+  const TeacherAuthenticated({
+    required super.userId,
+    required super.firstName,
+    required super.lastName,
+    required super.schoolId,
+    required super.schoolName,
+ }) : super(role: 'teacher');
+// ignore: empty_constructor_bodies
+}
+
+class ParentAuthenticated extends Authenticated {
+  final String studentId;
+  final String studentName;
+  final String studentMatricule;
+  final String className;
+
+
+
+  const ParentAuthenticated({
+    required super.userId,
+    required super.firstName,
+    required super.lastName,
+    required super.schoolId,
+    required super.schoolName,
+    required this.studentId,
+    required this.studentName,
+    required this.studentMatricule,
+    required this.className,
+  }) : super(role: 'parent');
 }

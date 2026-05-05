@@ -70,7 +70,7 @@ class ScheduleCard extends StatelessWidget {
     final state = context.read<AttendanceBloc>().state;
     final classModel = state.classes.firstWhere((c) => c.id == schedule.classId);
     
-    context.read<AttendanceBloc>().add(AttendanceClassSelected(classModel));
+    context.read<AttendanceBloc>().add(AttendanceClassSelected(classModel, schoolId: ''));
     Navigator.pushNamed(context, AppRoutes.teacherAttendance);
   }
 

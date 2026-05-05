@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../../config/theme.dart';
 
-// --- LE HEADER ---
 class AdminHeaderCard extends StatelessWidget {
   final String adminName;
   final String schoolName;
-
   const AdminHeaderCard({super.key, required this.adminName, required this.schoolName});
 
   @override
@@ -14,9 +12,7 @@ class AdminHeaderCard extends StatelessWidget {
       margin: const EdgeInsets.all(20),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppTheme.nightBlue, Color(0xFF5B21B6)],
-        ),
+        gradient: const LinearGradient(colors: [AppTheme.nightBlue, Color(0xFF5B21B6)]),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
@@ -47,7 +43,6 @@ class AdminHeaderCard extends StatelessWidget {
   }
 }
 
-// --- LES STATISTIQUES ---
 class AdminStatsGrid extends StatelessWidget {
   const AdminStatsGrid({super.key});
 
@@ -60,21 +55,21 @@ class AdminStatsGrid extends StatelessWidget {
         children: [
           const Text('Vue d\'ensemble', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.nightBlue)),
           const SizedBox(height: 16),
-          _row([
-            _stat(Icons.people, '452', 'Élèves', AppTheme.violet),
-            _stat(Icons.school, '28', 'Classes', const Color(0xFF14B8A6)),
+          Row(children: [
+            _stat(Icons.people, '---', 'Élèves', AppTheme.violet),
+            const SizedBox(width: 12),
+            _stat(Icons.school, '---', 'Classes', const Color(0xFF14B8A6)),
           ]),
           const SizedBox(height: 12),
-          _row([
-            _stat(Icons.person, '34', 'Profs', const Color(0xFFF59E0B)),
-            _stat(Icons.family_restroom, '386', 'Parents', const Color(0xFFFB7185)),
+          Row(children: [
+            _stat(Icons.person, '---', 'Profs', const Color(0xFFF59E0B)),
+            const SizedBox(width: 12),
+            _stat(Icons.family_restroom, '---', 'Parents', const Color(0xFFFB7185)),
           ]),
         ],
       ),
     );
   }
-
-  Widget _row(List<Widget> children) => Row(children: children.expand((w) => [w, const SizedBox(width: 12)]).toList()..removeLast());
 
   Widget _stat(IconData icon, String val, String label, Color color) {
     return Expanded(
@@ -99,13 +94,11 @@ class AdminStatsGrid extends StatelessWidget {
   }
 }
 
-// --- LA TUILE D'ACTION ---
 class AdminActionTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
   final VoidCallback onTap;
-
   const AdminActionTile({super.key, required this.icon, required this.label, required this.color, required this.onTap});
 
   @override

@@ -1,414 +1,121 @@
 // lib/presentation/pages/parent/child_detail_page.dart
 import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
+import '/services/child_detail_service.dart';
+import 'widgets/summary_tab.dart';
+import 'widgets/attendance_tab.dart';
+import 'widgets/grades_tab.dart';
+import 'widgets/timetable_tab.dart';
+import 'widgets/comments_tab.dart';
 
-class ChildDetailPage extends StatelessWidget {
-  final Map<String, dynamic> childData;
-  final Map<String, dynamic> parentData;
-  final String relationship;
+class ChildDetailPage extends StatefulWidget {
+  final String studentName;
+  final String studentMatricule;
+  final String className;
+  final String? parentName;
+  final String schoolName;
+  final String studentId;
 
   const ChildDetailPage({
     super.key,
-    required this.childData,
-    required this.parentData,
-    required this.relationship,
+    required this.studentName,
+    required this.studentMatricule,
+    required this.className,
+    this.parentName,
+    required this.schoolName,
+    required this.studentId,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final name = '${childData['first_name']} ${childData['last_name']}';
-    final className = childData['classes']?['name'] ?? 'Classe inconnue';
-    final matricule = childData['matricule'];
+  State<ChildDetailPage> createState() => _ChildDetailPageState();
+}
 
+class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final _service = ChildDetailService();
+  bool _isLoading = true;
+  
+  List<Map<String, dynamic>> _attendance = [];
+  List<Map<String, dynamic>> _grades = [];
+  List<Map<String, dynamic>> _timetable = [];
+  List<Map<String, dynamic>> _comments = [];
+  Map<String, dynamic> _stats = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 5, vsync: this);
+    _loadAllData();
+  }
+
+  Future<void> _loadAllData() async {
+    setState(() => _isLoading = true);
+    
+    final results = await Future.wait([
+      _service.getAttendance(widget.studentId),
+      _service.getGrades(widget.studentId),
+      _service.getTimetable(widget.studentId),
+      _service.getComments(widget.studentId),
+      _service.getStats(widget.studentId),
+    ]);
+    
+    setState(() {
+      _attendance = results[0] as List<Map<String, dynamic>>;
+      _grades = results[1] as List<Map<String, dynamic>>;
+      _timetable = results[2] as List<Map<String, dynamic>>;
+      _comments = results[3] as List<Map<String, dynamic>>;
+      _stats = results[4] as Map<String, dynamic>;
+      _isLoading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bisLight,
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            // Header avec retour
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.arrow_back),
-                      color: AppTheme.nightBlue,
-                    ),
-                    const Spacer(),
-                  ],
-                ),
-              ),
-            ),
-
-            // Info enfant
-            SliverToBoxAdapter(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20),
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  gradient: AppTheme.violetGradient,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Column(
-                  children: [
-                    // Avatar
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 4),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${childData['first_name'][0]}${childData['last_name'][0]}',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.violet,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    // Nom
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    
-                    // Classe & Matricule
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(20),
-                    ),
-                      child: Text(
-                        '$className • Matricule: $matricule',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Onglets: Semaine | Jour
-            SliverToBoxAdapter(
-              child: Container(
-                margin: const EdgeInsets.all(20),
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: AppTheme.bisDark,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: AppTheme.violet,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Text(
-                          'Semaine',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Text(
-                          'Aujourd\'hui',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AppTheme.nightBlue,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Vue semaine détaillée
-            SliverToBoxAdapter(
-              child: _buildWeeklyView(),
-            ),
-
-            // Stats résumé
-            SliverToBoxAdapter(
-              child: Container(
-                margin: const EdgeInsets.all(20),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppTheme.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Résumé de la semaine',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.nightBlue,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildStatItem('Présent', '8', AppTheme.success, '🟢'),
-                        _buildStatItem('Absent', '1', AppTheme.rose, '🔴'),
-                        _buildStatItem('Retard', '1', AppTheme.warning, '🟠'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SliverPadding(padding: EdgeInsets.only(bottom: 30)),
+      appBar: AppBar(
+        backgroundColor: AppTheme.violet,
+        foregroundColor: Colors.white,
+        title: const Text('Suivi de l\'élève'),
+        elevation: 0,
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          tabs: const [
+            Tab(icon: Icon(Icons.dashboard), text: 'Résumé'),
+            Tab(icon: Icon(Icons.calendar_today), text: 'Présences'),
+            Tab(icon: Icon(Icons.school), text: 'Notes'),
+            Tab(icon: Icon(Icons.schedule), text: 'Emploi du temps'),
+            Tab(icon: Icon(Icons.chat), text: 'Commentaires'),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildWeeklyView() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Lundi 10 Avril',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.nightBlue,
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          // Cours du jour
-          _buildCourseRow(
-            subject: 'Mathématiques',
-            time: '08h00 - 10h00',
-            status: 'present',
-            room: 'Salle 12',
-          ),
-          const Divider(),
-          _buildCourseRow(
-            subject: 'Histoire-Géographie',
-            time: '10h00 - 11h30',
-            status: 'present',
-            room: 'Salle 8',
-          ),
-          
-          const SizedBox(height: 20),
-          
-          const Text(
-            'Mardi 11 Avril',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.nightBlue,
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          _buildCourseRow(
-            subject: 'Sciences',
-            time: '08h00 - 10h00',
-            status: 'present',
-            room: 'Labo 3',
-          ),
-          const Divider(),
-          _buildCourseRow(
-            subject: 'Physique-Chimie',
-            time: '10h00 - 11h30',
-            status: 'absent',
-            room: 'Labo 1',
-            note: 'Absence non justifiée',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCourseRow({
-    required String subject,
-    required String time,
-    required String status,
-    required String room,
-    String? note,
-  }) {
-    final statusColor = _getStatusColor(status);
-    
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        children: [
-          // Point status
-          Container(
-            width: 16,
-            height: 16,
-            decoration: BoxDecoration(
-              color: statusColor,
-              shape: BoxShape.circle,
-              border: Border.all(color: statusColor.withOpacity(0.3), width: 4),
-            ),
-          ),
-          const SizedBox(width: 16),
-          
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : TabBarView(
+              controller: _tabController,
               children: [
-                Text(
-                  subject,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.nightBlue,
-                  ),
+                SummaryTab(
+                  stats: _stats,
+                  attendance: _attendance,
+                  timetable: _timetable,
+                  studentId: widget.studentId,
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.access_time, size: 14, color: AppTheme.nightBlueLight),
-                    const SizedBox(width: 4),
-                    Text(
-                      time,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.nightBlueLight.withOpacity(0.8),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Icon(Icons.meeting_room, size: 14, color: AppTheme.nightBlueLight),
-                    const SizedBox(width: 4),
-                    Text(
-                      room,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.nightBlueLight.withOpacity(0.8),
-                      ),
-                    ),
-                  ],
-                ),
-                if (note != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    note,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: statusColor,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
+                AttendanceTab(attendance: _attendance),
+                GradesTab(grades: _grades, stats: _stats),
+                TimetableTab(timetable: _timetable),
+                CommentsTab(comments: _comments),
               ],
             ),
-          ),
-          
-          // Badge status
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              _getStatusLabel(status),
-              style: TextStyle(
-                color: statusColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _buildStatItem(String label, String value, Color color, String emoji) {
-    return Column(
-      children: [
-        Text(emoji, style: const TextStyle(fontSize: 24)),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: AppTheme.nightBlueLight.withOpacity(0.7),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'present':
-        return AppTheme.success;
-      case 'absent':
-        return AppTheme.rose;
-      case 'late':
-        return AppTheme.warning;
-      default:
-        return AppTheme.bisDark;
-    }
-  }
-
-  String _getStatusLabel(String status) {
-    switch (status) {
-      case 'present':
-        return 'Présent';
-      case 'absent':
-        return 'Absent';
-      case 'late':
-        return 'Retard';
-      default:
-        return '-';
-    }
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 }

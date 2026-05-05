@@ -4,13 +4,16 @@ class AttendanceBottomBar extends StatelessWidget {
   final int present, absent, late, remaining, total;
   final double percentage;
   final bool isSubmitting;
+  final String buttonText;  // ✅ AJOUTÉ
   final VoidCallback? onValidate;
 
   const AttendanceBottomBar({
     super.key,
     required this.present, required this.absent, required this.late,
     required this.remaining, required this.total, required this.percentage,
-    required this.isSubmitting, this.onValidate,
+    required this.isSubmitting, 
+    required this.buttonText,  // ✅ AJOUTÉ
+    this.onValidate,
   });
 
   @override
@@ -52,7 +55,7 @@ class AttendanceBottomBar extends StatelessWidget {
                 ),
                 child: isSubmitting 
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : Text('Valider l\'appel ($present/$total)'),
+                  : Text(buttonText),  // ✅ Utilise le paramètre
               ),
             ),
           ],

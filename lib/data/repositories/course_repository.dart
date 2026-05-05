@@ -16,6 +16,7 @@ class CourseRepository {
           start_time,
           end_time,
           room,
+          school_id,
           subjects(id, name),
           classes(id, name),
           teacher:teacher_id(id, first_name, last_name)
@@ -62,7 +63,7 @@ class CourseRepository {
       subjectName: json['subjects']?['name'],
       teacherName: json['teacher'] != null
           ? '${json['teacher']['first_name']} ${json['teacher']['last_name']}'
-          : null,
+          : null, schoolId: '',
     );
   }
 }

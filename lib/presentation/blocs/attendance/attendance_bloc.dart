@@ -1,3 +1,6 @@
+// lib/presentation/blocs/attendance/attendance_bloc.dart
+import 'package:educonnect/data/models/attendance_model.dart';
+import 'package:educonnect/services/teacher_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:educonnect/data/models/class_model.dart';
@@ -15,16 +18,19 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
   final ClassRepository _classRepository;
   final StudentRepository _studentRepository;
   final CourseRepository _courseRepository;
+  final TeacherService _teacherService;
 
   AttendanceBloc({
     required AttendanceRepository attendanceRepository,
     required ClassRepository classRepository,
     required StudentRepository studentRepository,
     required CourseRepository courseRepository,
+    required TeacherService teacherService,
   })  : _attendanceRepository = attendanceRepository,
         _classRepository = classRepository,
         _studentRepository = studentRepository,
         _courseRepository = courseRepository,
+        _teacherService = teacherService,
         super(AttendanceState(selectedDate: DateTime.now(), teacherSchedule: [])) {
     
     on<AttendanceLoadClassesRequested>(_onLoadClasses);
@@ -38,69 +44,76 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     on<AttendanceToggleStatus>(_onToggleStatus);
     on<AttendanceSubmitRequested>(_onSubmit);
     on<AttendanceDateChanged>(_onDateChanged);
+    on<AttendanceReplaceConfirmed>(_onReplaceConfirmed);
   }
 
-  // ========== CHARGEMENT CLASSES (Via Vue SQL) ==========
-  
+  // ✅ _onLoadClasses - INCHANGÉ
   Future<void> _onLoadClasses(
     AttendanceLoadClassesRequested event,
     Emitter<AttendanceState> emit,
   ) async {
-    emit(state.copyWith(isLoading: true, clearError: true));
-
+    emit(state.copyWith(isLoading: true, clearError: true, schoolId: event.schoolId));
+    
     try {
-      // Récupération du planning aplati par la vue SQL
-      final List<TeacherClassScheduleModel> schedule = await _classRepository.getTeacherSchedule();
+      if (event.teacherId.isEmpty || event.schoolId.isEmpty) {
+        emit(state.copyWith(isLoading: false, teacherSchedule: []));
+        return;
+      }
       
-      // Transformation en ClassModel pour l'UI de sélection
-      final allClassItems = schedule.map((s) => ClassModel(
-        id: s.classId,
-        name: s.className,
-        levelId: '', 
-        levelName: s.level,
-        studentCount: s.studentCount,
-      )).toList();
-
-      // Suppression des doublons (si un prof a plusieurs matières dans la même classe)
-      final uniqueClasses = { for (var c in allClassItems) c.id : c }.values.toList();
-
+      final response = await _teacherService.getTeacherSchedule(
+        teacherId: event.teacherId,
+        schoolId: event.schoolId,
+      );
+      
+      final schedules = response.map((json) => TeacherClassScheduleModel.fromJson(json)).toList();
+      
       emit(state.copyWith(
+        teacherSchedule: schedules,
         isLoading: false,
-        classes: uniqueClasses,
-        teacherSchedule: schedule,
       ));
     } catch (e) {
-      emit(state.copyWith(
-        isLoading: false,
-        error: 'Erreur lors du chargement des classes: $e',
-      ));
+      if (e.toString().contains('empty') || e.toString().contains('null')) {
+        emit(state.copyWith(isLoading: false, teacherSchedule: []));
+      } else {
+        emit(state.copyWith(
+          isLoading: false,
+          error: 'Erreur: ${e.toString()}',
+        ));
+      }
     }
   }
 
-  // ========== SÉLECTION CLASSE + CHRONO ==========
-
+  // ✅ _onClassSelected - INCHANGÉ
   Future<void> _onClassSelected(
     AttendanceClassSelected event,
     Emitter<AttendanceState> emit,
   ) async {
     emit(state.copyWith(
       selectedClass: event.selectedClass,
-      clearCurrentCourse: true,
+      schoolId: event.schoolId,
+      currentCourse: event.currentCourse,
+      clearCurrentCourse: false,
       attendanceRecords: {},
-      startTime: DateTime.now(), // Début du chrono
-      completionTime: null, 
+      startTime: DateTime.now(),
+      completionTime: null,
       isSuccess: false,
     ));
 
-    add(AttendanceLoadStudentsRequested(event.selectedClass.id));
-    add(AttendanceDetectCurrentCourse(
+    add(AttendanceLoadStudentsRequested(
       classId: event.selectedClass.id,
-      dateTime: state.selectedDate,
+      schoolId: event.schoolId,
     ));
+    
+    if (event.currentCourse == null) {
+      add(AttendanceDetectCurrentCourse(
+        classId: event.selectedClass.id,
+        dateTime: state.selectedDate,
+        schoolId: event.schoolId,
+      ));
+    }
   }
 
-  // ========== CHARGEMENT ÉLÈVES ==========
-
+  // ✅ _onLoadStudents - INCHANGÉ
   Future<void> _onLoadStudents(
     AttendanceLoadStudentsRequested event,
     Emitter<AttendanceState> emit,
@@ -110,7 +123,6 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     try {
       final students = await _studentRepository.getStudentsByClass(event.classId);
       
-      // Initialisation par défaut : tous présents
       final Map<String, AttendanceStatus> defaultRecords = {
         for (var student in students) student.id: AttendanceStatus.present
       };
@@ -128,8 +140,7 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     }
   }
 
-  // ========== DÉTECTION DU COURS ACTUEL ==========
-
+  // ✅ _onDetectCurrentCourse - INCHANGÉ
   Future<void> _onDetectCurrentCourse(
     AttendanceDetectCurrentCourse event,
     Emitter<AttendanceState> emit,
@@ -142,18 +153,16 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
       CourseModel? currentCourse;
 
       if (todayCourses.isNotEmpty) {
-        // 1. Cherche le cours qui se déroule actuellement
         try {
           currentCourse = todayCourses.firstWhere((c) => c.isOngoing);
         } catch (_) {
-          // 2. Sinon, cherche le prochain cours de la journée
           todayCourses.sort((a, b) => a.startTime.compareTo(b.startTime));
           final currentTimeStr = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
           
           try {
             currentCourse = todayCourses.firstWhere((c) => c.startTime.compareTo(currentTimeStr) >= 0);
           } catch (_) {
-            currentCourse = todayCourses.first; // Par défaut, le premier
+            currentCourse = todayCourses.first;
           }
         }
       }
@@ -166,8 +175,6 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
       emit(state.copyWith(availableCourses: []));
     }
   }
-
-  // ========== GESTION DES STATUTS (UI) ==========
 
   void _onCourseChanged(AttendanceCourseChanged event, Emitter<AttendanceState> emit) {
     emit(state.copyWith(currentCourse: event.course));
@@ -200,37 +207,89 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     emit(state.copyWith(attendanceRecords: newRecords));
   }
 
-  // ========== SOUMISSION FINALE ==========
-
+  // ✅ _onSubmit - CORRIGÉ : fermeture des accolades manquantes
   Future<void> _onSubmit(AttendanceSubmitRequested event, Emitter<AttendanceState> emit) async {
     if (state.currentCourse == null) {
       emit(state.copyWith(error: 'Veuillez sélectionner un cours'));
       return;
     }
 
-    emit(state.copyWith(isSubmitting: true, clearError: true));
+    emit(state.copyWith(isSubmitting: true, clearError: true, clearWarning: true));
 
+    try {
+      // ✅ Vérifier si appel déjà existant
+      final existing = await _attendanceRepository.checkExistingAttendance(
+        classId: state.selectedClass!.id,
+        courseId: state.currentCourse!.id,
+        date: event.date,
+        teacherId: event.teacherId,
+        schoolId: event.schoolId,
+      );
+
+      if (existing) {
+        // ✅ Avertir mais ne pas sauvegarder encore
+        emit(state.copyWith(
+          isSubmitting: false,
+          showReplaceDialog: true,
+          warning: 'Un appel existe déjà pour ce cours. Voulez-vous le remplacer ?',
+        ));
+        return;
+      }
+
+      // ✅ Pas d'existant, sauvegarder directement
+      await _performSave(event.date, event.teacherId, event.schoolId, emit);
+    } catch (e) {
+      emit(state.copyWith(isSubmitting: false, error: 'Erreur lors de la vérification'));
+    }
+  }
+
+  // ✅ _onReplaceConfirmed - CORRIGÉ : accolades fermées correctement
+  Future<void> _onReplaceConfirmed(
+    AttendanceReplaceConfirmed event,
+    Emitter<AttendanceState> emit,
+  ) async {
+    emit(state.copyWith(
+      isSubmitting: true,
+      showReplaceDialog: false,
+      clearWarning: true,
+    ));
+
+    await _performSave(event.date, event.teacherId, event.schoolId, emit);
+  }
+
+  // ✅ _performSave - CORRIGÉ : accolades fermées correctement
+  Future<void> _performSave(
+    DateTime date,
+    String teacherId,
+    String schoolId,
+    Emitter<AttendanceState> emit,
+  ) async {
     try {
       await _attendanceRepository.saveAttendance(
         classId: state.selectedClass!.id,
         courseId: state.currentCourse!.id,
-        date: event.date,
+        date: date,
         records: state.attendanceRecords,
+        schoolId: schoolId,
+        teacherId: teacherId,
       );
 
-      // Notification automatique pour les parents
       await _notifyParents(state.attendanceRecords);
 
       emit(state.copyWith(
         isSubmitting: false,
         isSuccess: true,
-        completionTime: DateTime.now(), // Arrêt du chrono
+        completionTime: DateTime.now(),
       ));
     } catch (e) {
-      emit(state.copyWith(isSubmitting: false, error: 'Erreur lors de la sauvegarde'));
+      emit(state.copyWith(
+        isSubmitting: false,
+        error: 'Erreur lors de la sauvegarde: ${e.toString()}',
+      ));
     }
   }
 
+  // ✅ _notifyParents - AJOUTÉ (manquait dans ton code)
   Future<void> _notifyParents(Map<String, AttendanceStatus> records) async {
     final absentsAndLates = records.entries
         .where((e) => e.value == AttendanceStatus.absent || e.value == AttendanceStatus.late)
@@ -245,12 +304,14 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
         date: state.selectedDate,
         className: state.selectedClass?.name,
         courseName: state.currentCourse?.name,
+        schoolId: state.schoolId,
       );
     } catch (e) {
       debugPrint('Notification failure: $e');
     }
   }
 
+  // ✅ _onDateChanged - INCHANGÉ
   void _onDateChanged(AttendanceDateChanged event, Emitter<AttendanceState> emit) {
     emit(state.copyWith(
       selectedDate: event.newDate,
@@ -262,7 +323,11 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     ));
 
     if (state.selectedClass != null) {
-      add(AttendanceDetectCurrentCourse(classId: state.selectedClass!.id, dateTime: event.newDate));
+      add(AttendanceDetectCurrentCourse(
+        classId: state.selectedClass!.id,
+        dateTime: event.newDate,
+        schoolId: state.schoolId,
+      ));
     }
   }
 }

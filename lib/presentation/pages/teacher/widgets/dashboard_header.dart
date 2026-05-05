@@ -43,9 +43,16 @@ class DashboardHeader extends StatelessWidget {
                       const SizedBox(height: 4),
                       BlocBuilder<auth.AuthBloc, auth.AuthState>(
                         builder: (context, state) {
-                          String name = 'Enseignant';
-                          if (state is auth.TeacherAuthenticated) {
-                            name = '${state.userData['first_name']} ${state.userData['last_name']}';
+                          String name = 'Utilisateur';
+                          // ✅ CORRIGÉ : Utiliser Authenticated (classe de base)
+                          if (state is auth.Authenticated) {
+                            name = '${state.firstName} ${state.lastName}'.trim();
+                            if (name.isEmpty) {
+                              // Déterminer le label par défaut selon le rôle
+                              if (state is auth.TeacherAuthenticated) name = 'Enseignant';
+                              else if (state is auth.AdminAuthenticated) name = 'Administrateur';
+                              else if (state is auth.ParentAuthenticated) name = 'Parent';
+                            }
                           }
                           return Text(
                             name,
@@ -93,30 +100,24 @@ class DashboardHeader extends StatelessWidget {
 
   Widget _buildSchoolBadge() {
     return BlocBuilder<auth.AuthBloc, auth.AuthState>(
-      builder: (context, state) {
-        String schoolName = (state is auth.TeacherAuthenticated) ? state.schoolName : 'Mon École';
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppTheme.white.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.school, color: AppTheme.white, size: 18),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  schoolName,
-                  style: const TextStyle(color: AppTheme.white, fontSize: 14, fontWeight: FontWeight.w500),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+  builder: (context, state) {
+    String name = 'Enseignant'; // ✅ Default "Enseignant" au lieu de "Utilisateur"
+    if (state is auth.Authenticated) {
+      name = '${state.firstName} ${state.lastName}'.trim();
+      if (name.isEmpty) name = 'Enseignant';
+    }
+    return Text(
+      name,
+      style: const TextStyle(
+        fontSize: 24,
+        fontWeight: FontWeight.bold,
+        color: AppTheme.white,
+      ),
+      overflow: TextOverflow.ellipsis,
     );
+  },
+);
+
   }
 }
+
