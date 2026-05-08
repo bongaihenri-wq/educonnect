@@ -80,34 +80,48 @@ class _AttendanceClassesPageState extends State<AttendanceClassesPage> with Sing
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: _buildAppBar(),
-      body: BlocConsumer<AttendanceBloc, AttendanceState>(
-        listener: (context, state) {
-          if (state.error != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.error!),
-                backgroundColor: Colors.red,
-                action: SnackBarAction(label: 'Réessayer', onPressed: _loadClasses),
+Widget build(BuildContext context) {
+  return Scaffold(
+    backgroundColor: const Color(0xFFF8FAFC),
+    appBar: _buildAppBar(),
+    body: BlocConsumer<AttendanceBloc, AttendanceState>(
+      listener: (context, state) {
+        print('🔥🔥🔥 LISTENER - isLoading: ${state.isLoading}, schedule: ${state.teacherSchedule.length}, error: ${state.error}');
+        
+        if (state.error != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.error!),
+              backgroundColor: Colors.red,
+              action: SnackBarAction(
+                label: 'Réessayer',
+                onPressed: _loadClasses,
               ),
-            );
-          }
-        },
-        builder: (context, state) {
-          if (state.isLoading && state.teacherSchedule.isEmpty) return const LoadingView();
-          if (state.teacherSchedule.isEmpty) return EmptyView(onRetry: _loadClasses);
-          
-          return FadeTransition(
-            opacity: _fadeAnimation,
-            child: _buildScheduleList(state.teacherSchedule),
+            ),
           );
-        },
-      ),
-    );
-  }
+        }
+      },
+      builder: (context, state) {
+        print('🔥🔥🔥 BUILDER - isLoading: ${state.isLoading}, schedule: ${state.teacherSchedule.length}');
+        
+        if (state.isLoading && state.teacherSchedule.isEmpty) {
+          print('🔥🔥🔥 SHOWING LOADING');
+          return const LoadingView();
+        }
+        if (state.teacherSchedule.isEmpty) {
+          print('🔥🔥🔥 SHOWING EMPTY');
+          return EmptyView(onRetry: _loadClasses);
+        }
+        
+        print('🔥🔥🔥 SHOWING LIST with ${state.teacherSchedule.length} items');
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: _buildScheduleList(state.teacherSchedule),
+        );
+      },
+    ),
+  );
+}
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
@@ -184,6 +198,7 @@ class _AttendanceScheduleCard extends StatelessWidget {
       ),
     );
   }
+  
 
   Widget _buildTimeBadge() {
     return Container(

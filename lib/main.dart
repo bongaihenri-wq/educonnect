@@ -1,3 +1,4 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -34,9 +35,8 @@ void main() async {
   runApp(
     MultiRepositoryProvider(
       providers: [
-        // ✅ CORRIGÉ : Passer supabase au constructeur
         RepositoryProvider<TeacherService>(
-          create: (context) => TeacherService(supabase),
+          create: (context) => TeacherService(supabase: supabase),  // ✅ CORRIGÉ
         ),
         RepositoryProvider<AttendanceRepository>(
           create: (context) => AttendanceRepository(supabase),

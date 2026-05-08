@@ -30,6 +30,7 @@ class TeacherClassScheduleModel extends Equatable {
   });
 
   factory TeacherClassScheduleModel.fromJson(Map<String, dynamic> json) {
+    print('🔥🔥🔥 fromJson input: $json');
     // Cette logique supporte à la fois la Vue SQL (plate) et le .select() (imbriqué)
     return TeacherClassScheduleModel(
       scheduleId: json['id'] as String?,           // ✅ AJOUTÉ : schedule.id

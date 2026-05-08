@@ -2,11 +2,10 @@
 import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
 import '/services/child_detail_service.dart';
-import 'widgets/summary_tab.dart';
-import 'widgets/attendance_tab.dart';
 import 'widgets/grades_tab.dart';
 import 'widgets/timetable_tab.dart';
-import 'widgets/comments_tab.dart';
+import '../parent/widgets/comments/comments_tab.dart';
+import 'parent_attendance_page.dart'; // ✅ Utilise le widget unifié
 
 class ChildDetailPage extends StatefulWidget {
   final String studentName;
@@ -15,6 +14,7 @@ class ChildDetailPage extends StatefulWidget {
   final String? parentName;
   final String schoolName;
   final String studentId;
+  final int initialTab;
 
   const ChildDetailPage({
     super.key,
@@ -24,6 +24,7 @@ class ChildDetailPage extends StatefulWidget {
     this.parentName,
     required this.schoolName,
     required this.studentId,
+    this.initialTab = 0,
   });
 
   @override
@@ -44,7 +45,11 @@ class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProv
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(
+      length: 4, // ✅ 4 onglets au lieu de 5
+      vsync: this,
+      initialIndex: widget.initialTab,
+    );
     _loadAllData();
   }
 
@@ -85,7 +90,7 @@ class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProv
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
           tabs: const [
-            Tab(icon: Icon(Icons.dashboard), text: 'Résumé'),
+            // ✅ SUPPRIMÉ : Tab(icon: Icon(Icons.dashboard), text: 'Résumé'),
             Tab(icon: Icon(Icons.calendar_today), text: 'Présences'),
             Tab(icon: Icon(Icons.school), text: 'Notes'),
             Tab(icon: Icon(Icons.schedule), text: 'Emploi du temps'),
@@ -98,16 +103,19 @@ class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProv
           : TabBarView(
               controller: _tabController,
               children: [
-                SummaryTab(
-                  stats: _stats,
-                  attendance: _attendance,
-                  timetable: _timetable,
+                // ✅ SUPPRIMÉ : SummaryTab(...)
+                ParentAttendancePage(
                   studentId: widget.studentId,
-                ),
-                AttendanceTab(attendance: _attendance),
+                  studentName: widget.studentName,
+                  isEmbedded: true, // ✅ Mode intégré (pas d'AppBar)
+                ), // ✅ Utilise le widget unifié avec filtres
                 GradesTab(grades: _grades, stats: _stats),
                 TimetableTab(timetable: _timetable),
-                CommentsTab(comments: _comments),
+                CommentsTab(
+                  comments: _comments,
+                  studentId: widget.studentId,
+                  parentName: widget.parentName ?? 'Parent',
+                ),
               ],
             ),
     );

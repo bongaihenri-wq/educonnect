@@ -1,4 +1,5 @@
 // lib/presentation/pages/parent/widgets/child_card.dart
+import 'package:educonnect/presentation/pages/parent/parent_attendance_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../config/theme.dart';
@@ -98,31 +99,33 @@ class ChildCard extends StatelessWidget {
     );
   }
 
-  void _navigateToDetail(BuildContext context, ParentAuthenticated state) {
-    if (state.studentId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erreur: ID élève manquant'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChildDetailPage(
-          studentId: state.studentId,
-          studentName: state.studentName,
-          studentMatricule: state.studentMatricule,
-          className: state.className,
-          parentName: '${state.firstName} ${state.lastName}',
-          schoolName: state.schoolName,
-        ),
+void _navigateToDetail(BuildContext context, ParentAuthenticated state) {
+  if (state.studentId.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Erreur: ID élève manquant'),
+        backgroundColor: Colors.red,
       ),
     );
+    return;
   }
+
+  // ✅ NAVIGATION VERS SUIVI DE L'ÉLÈVE (pas ParentAttendancePage)
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => ChildDetailPage(
+        studentId: state.studentId,
+        studentName: state.studentName,
+        studentMatricule: state.studentMatricule,
+        className: state.className,
+        parentName: '${state.firstName} ${state.lastName}',
+        schoolName: state.schoolName,
+        initialTab: 0, // Onglet Présences (premier)
+      ),
+    ),
+  );
+}
 
   Widget _buildCard({
     required String firstName,

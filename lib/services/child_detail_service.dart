@@ -75,19 +75,40 @@ class ChildDetailService {
   }
 
   // ─── COMMENTAIRES ────────────────────────
-  Future<List<Map<String, dynamic>>> getComments(String studentId) async {
-    final response = await _supabase
-        .from('comments')
-        .select('''
-          content,
-          created_at,
-          app_users(first_name, last_name, role)
+Future<List<Map<String, dynamic>>> getComments(String studentId) async {
+  final response = await _supabase
+      .from('comments')
+      .select('''
+        id,
+        content,
+        created_at,
+        expires_at,
+        teacher_id,
+        recipients,
+        parent_reply,
+        replied_at
       ''')
-        .eq('student_id', studentId)
-        .order('created_at', ascending: false);
+      .eq('student_id', studentId)
+      .order('created_at', ascending: false);
 
-    return (response as List).cast<Map<String, dynamic>>();
-  }
+  // ✅ Normaliser recipients en List<String>
+  return (response as List).map((c) {
+    final map = c as Map<String, dynamic>;
+    final recipients = map['recipients'];
+    
+    if (recipients is String) {
+      // Convertir string JSON en List
+      try {
+        // Si c'est '["parent","admin"]', on pourrait parser
+        // Mais pour l'instant, on garde comme String
+      } catch (e) {
+        // Ignorer
+      }
+    }
+    
+    return map;
+  }).cast<Map<String, dynamic>>().toList();
+}
 
   // ─── STATS ───────────────────────────────
   Future<Map<String, dynamic>> getStats(String studentId) async {
@@ -122,69 +143,37 @@ class ChildDetailService {
   }
 
   // ─── ALERTES 24H ─────────────────────────
-  Future<List<Map<String, dynamic>>> getRecentAlerts(String studentId) async {
-    final now = DateTime.now();
-    final yesterday = now.subtract(const Duration(hours: 24));
+Future<List<Map<String, dynamic>>> getRecentAlerts(String studentId) async {
+  final now = DateTime.now();
+  final yesterday = now.subtract(const Duration(hours: 24));
 
-    final newGrades = await _supabase
-        .from('grades')
-        .select('score, max_score, type, date, subjects(name)')
-        .eq('student_id', studentId)
-        .gte('date', yesterday.toIso8601String())
-        .order('date', ascending: false);
+  // Nouvelles présences (absences/retards)
+  final attendance = await _supabase
+      .from('attendance')
+      .select('date, status, schedules(start_time, subjects(name))')
+      .eq('student_id', studentId)
+      .gte('date', '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}')
+      .order('date', ascending: false);
 
-    final newAttendance = await _supabase
-        .from('attendance')
-        .select('date, status, schedules(start_time, subjects(name))')
-        .eq('student_id', studentId)
-        .gte('date', yesterday.toIso8601String())
-        .order('date', ascending: false);
+  final alerts = <Map<String, dynamic>>[];
 
-    final newComments = await _supabase
-        .from('comments')
-        .select('content, created_at, users(first_name, last_name)')
-        .eq('student_id', studentId)
-        .gte('created_at', yesterday.toIso8601String())
-        .order('created_at', ascending: false);
-
-    final alerts = <Map<String, dynamic>>[];
-
-    for (final g in newGrades as List) {
-      alerts.add({
-        'type': 'note',
-        'message': 'Nouvelle note : ${g['score']}/${g['max_score']} en ${g['subjects']?['name'] ?? 'Matière'}',
-        'time': g['date'],
-        'icon': Icons.grade,
-        'color': Colors.green,
-      });
-    }
-
-    for (final a in newAttendance as List) {
-      final status = a['status'] as String;
-      alerts.add({
-        'type': 'attendance',
-        'message': status == 'absent'
-            ? 'Absence en ${a['schedules']?['subjects']?['name'] ?? 'cours'}'
-            : 'Présence marquée',
-        'time': a['date'],
-        'icon': status == 'absent' ? Icons.cancel : Icons.check_circle,
-        'color': status == 'absent' ? Colors.red : Colors.green,
-      });
-    }
-
-    for (final c in newComments as List) {
-      final author = c['app_users'] as Map<String, dynamic>?;
-      alerts.add({
-        'type': 'comment',
-        'message': 'Nouveau commentaire de ${author?['first_name'] ?? 'Professeur'}',
-        'time': c['created_at'],
-        'icon': Icons.chat,
-        'color': Colors.purple, // ✅ Pas d'import theme, couleur directe
-      });
-    }
-
-    return alerts;
+  for (final a in attendance as List) {
+    final status = a['status'] as String;
+    if (status == 'present') continue; // On ne garde que absences et retards
+    
+    alerts.add({
+      'type': status == 'absent' ? 'absence' : 'late',
+      'message': status == 'absent' 
+          ? 'Absence en ${a['schedules']?['subjects']?['name'] ?? 'cours'}'
+          : 'Retard en ${a['schedules']?['subjects']?['name'] ?? 'cours'}',
+      'date': a['date'],
+      'icon': status == 'absent' ? Icons.cancel : Icons.access_time,
+      'color': status == 'absent' ? Colors.red : Colors.orange,
+    });
   }
+
+  return alerts;
+}
 
   // ─── PROCHAIN COURS ──────────────────────
   Future<Map<String, dynamic>?> getNextClass(String studentId) async {
