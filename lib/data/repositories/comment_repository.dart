@@ -19,10 +19,13 @@ class CommentRepository {
     required String content,
     required List<String> recipients,
     required String studentName,
+    required String senderName,
+    required String targetSubject,
+    
     String? className,
     DateTime? effectiveDate,
-    String? senderName,
-    String? targetSubject,
+   
+    
   }) async {
     if (schoolId.isEmpty) throw Exception('schoolId requis');
     if (teacherId.isEmpty) throw Exception('teacherId requis');
@@ -44,7 +47,7 @@ class CommentRepository {
         'created_at': now.toIso8601String(),
         'expires_at': expiresAt.toIso8601String(), // ✅ Date d'effet/expiration
         'is_archived': false,
-        'sender_name': senderName ?? 'Enseignant',
+        'sender_name': senderName,
         'sender_type': 'teacher',
         'recipient_type': recipients.contains('parent') ? 'parent' : 'admin',
         'target_subject': targetSubject,
@@ -67,7 +70,7 @@ class CommentRepository {
         expiresAt: expiresAt,
       );
 
-      debugPrint('✅ Commentaire sauvegardé (expire le ${expiresAt.day}/${expiresAt.month})');
+      debugPrint('✅ Commentaire sauvegardé - Enseignant: $senderName, Matière: $targetSubject');
     } catch (e) {
       debugPrint('❌ Erreur commentaire: $e');
       throw Exception('Erreur sauvegarde commentaire: $e');

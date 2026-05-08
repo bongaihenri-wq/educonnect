@@ -61,7 +61,16 @@ class _CommentsTabState extends State<CommentsTab> {
     }
   }
 
-  void _showReplyDialog(String commentId, String? teacherId, String content) {
+void _showReplyDialog(String commentId, String? teacherId, String content) {
+    // ✅ RÉCUPÉRER les infos du commentaire pour le ReplyDialog
+    final comment = _comments.firstWhere(
+      (c) => c['id'] == commentId,
+      orElse: () => {},
+    );
+    
+    final teacherName = comment['sender_name'] as String?;
+    final subjectName = comment['target_subject'] as String?;
+
     showDialog(
       context: context,
       builder: (context) => ReplyDialog(
@@ -69,7 +78,10 @@ class _CommentsTabState extends State<CommentsTab> {
         teacherId: teacherId,
         originalContent: content,
         parentName: widget.parentName,
-        onReplySent: () => _loadComments(), // ✅ AJOUTÉ : rafraîchir
+        // ✅ PASSER NOM + MATIÈRE
+        teacherName: teacherName,
+        subjectName: subjectName,
+        onReplySent: () => _loadComments(),
       ),
     );
   }
