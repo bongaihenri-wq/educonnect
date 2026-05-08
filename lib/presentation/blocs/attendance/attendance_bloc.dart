@@ -48,40 +48,52 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
   }
 
   // ✅ _onLoadClasses - INCHANGÉ
-  Future<void> _onLoadClasses(
-    AttendanceLoadClassesRequested event,
-    Emitter<AttendanceState> emit,
-  ) async {
-    emit(state.copyWith(isLoading: true, clearError: true, schoolId: event.schoolId));
-    
-    try {
-      if (event.teacherId.isEmpty || event.schoolId.isEmpty) {
-        emit(state.copyWith(isLoading: false, teacherSchedule: []));
-        return;
-      }
-      
-      final response = await _teacherService.getTeacherSchedule(
-        teacherId: event.teacherId,
-        schoolId: event.schoolId,
-      );
-      
-      final schedules = response.map((json) => TeacherClassScheduleModel.fromJson(json)).toList();
-      
-      emit(state.copyWith(
-        teacherSchedule: schedules,
-        isLoading: false,
-      ));
-    } catch (e) {
-      if (e.toString().contains('empty') || e.toString().contains('null')) {
-        emit(state.copyWith(isLoading: false, teacherSchedule: []));
-      } else {
-        emit(state.copyWith(
-          isLoading: false,
-          error: 'Erreur: ${e.toString()}',
-        ));
-      }
+ Future<void> _onLoadClasses(
+  AttendanceLoadClassesRequested event,
+  Emitter<AttendanceState> emit,
+) async {
+  print('🔥🔥🔥 _onLoadClasses START');
+  print('🔥🔥🔥 teacherId: "${event.teacherId}"');
+  print('🔥🔥🔥 schoolId: "${event.schoolId}"');
+  
+  emit(state.copyWith(isLoading: true, clearError: true, schoolId: event.schoolId));
+  
+  try {
+    if (event.teacherId.isEmpty || event.schoolId.isEmpty) {
+      print('🔥🔥🔥 EMPTY - RETURNING');
+      emit(state.copyWith(isLoading: false, teacherSchedule: []));
+      return;
     }
+    
+    print('🔥🔥🔥 Calling getTeacherSchedule...');
+    
+    final response = await _teacherService.getTeacherSchedule(
+      teacherId: event.teacherId,
+      schoolId: event.schoolId,
+    );
+    
+    print('🔥🔥🔥 response length: ${response.length}');
+    print('🔥🔥🔥 first item: ${response.isNotEmpty ? response.first : "empty"}');
+    
+    final schedules = response.map((json) {
+      print('🔥🔥🔥 Mapping JSON: $json');
+      return TeacherClassScheduleModel.fromJson(json);
+    }).toList();
+    
+    print('🔥🔥🔥 mapped schedules: ${schedules.length}');
+    
+    emit(state.copyWith(
+      teacherSchedule: schedules,
+      isLoading: false,
+    ));
+    
+    print('🔥🔥🔥 SUCCESS');
+  } catch (e, stackTrace) {
+    print('🔥🔥🔥 ERROR: $e');
+    print('🔥🔥🔥 STACK: $stackTrace');
+    emit(state.copyWith(isLoading: false, error: 'Erreur: $e'));
   }
+}
 
   // ✅ _onClassSelected - INCHANGÉ
   Future<void> _onClassSelected(

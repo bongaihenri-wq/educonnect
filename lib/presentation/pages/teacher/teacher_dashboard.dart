@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../config/theme.dart';
 import '../../../services/teacher_service.dart';
-import '../../../data/models/course_model.dart'; // ✅ AJOUTÉ : Import CourseModel
+import '../../../data/models/course_model.dart';
 import '../../blocs/auth_bloc/auth_bloc.dart';
 import 'widgets/dashboard_header.dart';
 import 'widgets/stat_cards_row.dart';
 import 'widgets/quick_actions_grid.dart';
 import 'widgets/course_list_section.dart';
-import 'widgets/comment_list_section.dart';
+import 'widgets/teacher_comment_list_section.dart'; // ✅ NOUVEAU WIDGET
 
 class TeacherDashboard extends StatefulWidget {
   const TeacherDashboard({super.key});
@@ -20,7 +20,7 @@ class TeacherDashboard extends StatefulWidget {
 }
 
 class _TeacherDashboardState extends State<TeacherDashboard> {
-  List<CourseModel> _assignedCourses = []; // ✅ Maintenant reconnu
+  List<CourseModel> _assignedCourses = [];
   bool _isLoading = true;
 
   @override
@@ -38,7 +38,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         final data = await context.read<TeacherService>().getTeacherAssignments(teacherId);
         
         setState(() {
-          _assignedCourses = data.map((json) => CourseModel.fromJson(json)).toList(); // ✅ Maintenant reconnu
+          _assignedCourses = data.map((json) => CourseModel.fromJson(json)).toList();
           _isLoading = false;
         });
       } catch (e) {
@@ -53,7 +53,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     final authState = context.read<AuthBloc>().state;
     final teacherId = authState is Authenticated ? authState.userId : '';
     final schoolId = authState is Authenticated ? authState.schoolId : '';
-    print('🔍 [1] Dashboard - teacherId: "$teacherId"');
+    
     return Scaffold(
       backgroundColor: AppTheme.bisLight,
       body: SafeArea(
@@ -77,14 +77,15 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                   ),
                 ),
               ),
-             QuickActionsGrid(
-              teacherId: teacherId,     // ← AJOUTÉ
-              schoolId: schoolId,      // ← AJOUTÉ
-            ),
+              QuickActionsGrid(
+                teacherId: teacherId,
+                schoolId: schoolId,
+              ),
               _isLoading 
                 ? const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()))
-                : CourseListSection(courses: _assignedCourses), 
-              const CommentListSection(studentId: '',),
+                : CourseListSection(courses: _assignedCourses),
+              // ✅ SECTION MESSAGES POUR L'ENSEIGNANT
+              TeacherCommentListSection(teacherId: teacherId),
               const LogoutButton(),
               const SliverPadding(padding: EdgeInsets.only(bottom: 40)),
             ],
@@ -100,12 +101,6 @@ class LogoutButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.read<AuthBloc>().state;
-    
-    if (state is Authenticated) {
-      print("🚀 User connecté : ${state.firstName} ${state.lastName}");
-    }
-
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       sliver: SliverToBoxAdapter(

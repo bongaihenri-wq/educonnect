@@ -20,7 +20,9 @@ class CommentRepository {
     required List<String> recipients,
     required String studentName,
     String? className,
-    DateTime? effectiveDate, // ✅ Date d'effet = date d'expiration
+    DateTime? effectiveDate,
+    String? senderName,
+    String? targetSubject,
   }) async {
     if (schoolId.isEmpty) throw Exception('schoolId requis');
     if (teacherId.isEmpty) throw Exception('teacherId requis');
@@ -42,6 +44,12 @@ class CommentRepository {
         'created_at': now.toIso8601String(),
         'expires_at': expiresAt.toIso8601String(), // ✅ Date d'effet/expiration
         'is_archived': false,
+        'sender_name': senderName ?? 'Enseignant',
+        'sender_type': 'teacher',
+        'recipient_type': recipients.contains('parent') ? 'parent' : 'admin',
+        'target_subject': targetSubject,
+        'is_broadcast': false,
+        'is_read': false,
       }).select('id');
 
       final commentId = (commentResponse as List).first['id'];

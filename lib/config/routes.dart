@@ -138,7 +138,7 @@ class AppRoutes {
       classRepository: ClassRepository(supabase),
       studentRepository: StudentRepository(supabase),
       courseRepository: CourseRepository(supabase),
-      teacherService: TeacherService(supabase),
+      teacherService: TeacherService(supabase: supabase),
     );
   }
 

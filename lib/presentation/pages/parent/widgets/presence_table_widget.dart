@@ -1,33 +1,37 @@
-// lib/presentation/pages/parent/widgets/attendance_tab.dart
+// lib/presentation/pages/parent/widgets/presence_table_widget.dart
 import 'package:flutter/material.dart';
 import '../../../../config/theme.dart';
-import 'common_widgets.dart';
 
-class AttendanceTab extends StatelessWidget {
+class PresenceTableWidget extends StatelessWidget {
   final List<Map<String, dynamic>> attendance;
 
-  const AttendanceTab({super.key, required this.attendance});
+  const PresenceTableWidget({super.key, required this.attendance});
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CommonWidgets.buildSectionTitle('Historique des présences'),
-          const SizedBox(height: 12),
-          
-          if (attendance.isEmpty)
-            CommonWidgets.buildEmptyState('Aucune donnée de présence')
-          else
-            _buildAttendanceTable(),
-        ],
-      ),
-    );
-  }
+    if (attendance.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.inbox_outlined, size: 48, color: Colors.grey.shade300),
+              const SizedBox(height: 12),
+              Text(
+                'Aucune présence pour cette période',
+                style: TextStyle(color: Colors.grey.shade500),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
-  Widget _buildAttendanceTable() {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -37,10 +41,10 @@ class AttendanceTab extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // En-tête
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
               decoration: BoxDecoration(
                 color: AppTheme.violet.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
@@ -55,22 +59,20 @@ class AttendanceTab extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-
-            // Lignes
-            ...attendance.map((a) => _buildAttendanceRow(a)),
+            ...attendance.map((a) => _buildRow(a)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAttendanceRow(Map<String, dynamic> attendance) {
-    final date = DateTime.parse(attendance['date']);
+  Widget _buildRow(Map<String, dynamic> attendance) {
+    final date = DateTime.parse(attendance['date'] as String);
     final status = attendance['status'] as String;
     final schedule = attendance['schedules'] as Map<String, dynamic>?;
     final subject = schedule?['subjects']?['name'] ?? 'Cours';
-    final startTime = schedule?['start_time'] ?? '--:--';
-    final endTime = schedule?['end_time'] ?? '--:--';
+    final startTime = _formatTime(schedule?['start_time']);
+    final endTime = _formatTime(schedule?['end_time']);
 
     Color color;
     String label;
@@ -96,7 +98,7 @@ class AttendanceTab extends StatelessWidget {
     final dateStr = '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}';
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
       ),
@@ -163,5 +165,12 @@ class AttendanceTab extends StatelessWidget {
       fontWeight: FontWeight.w700,
       color: AppTheme.violet,
     );
+  }
+
+  String _formatTime(String? timeStr) {
+    if (timeStr == null || timeStr.isEmpty) return '--:--';
+    final parts = timeStr.split(':');
+    if (parts.length >= 2) return '${parts[0]}:${parts[1]}';
+    return timeStr;
   }
 }

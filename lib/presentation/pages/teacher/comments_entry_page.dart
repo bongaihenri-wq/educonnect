@@ -208,6 +208,18 @@ class _CommentsEntryPageState extends State<CommentsEntryPage> {
                 try {
                   final authState = context.read<AuthBloc>().state;
                   if (authState is! Authenticated) throw Exception('Non authentifié');
+                  final attendanceState = context.read<AttendanceBloc>().state;
+                  final subjectName = attendanceState.currentCourse?.name ?? 'Matière';
+
+                  final teacherData = await Supabase.instance.client
+                      .from('app_users')
+                      .select('first_name, last_name')
+                      .eq('id', authState.userId)
+                      .single();
+                  final teacherName = teacherData != null 
+                      ? '${teacherData['first_name']} ${teacherData['last_name']}'
+                      : 'Enseignant';
+                  
 
                   final repo = CommentRepository(Supabase.instance.client);
                   
@@ -220,7 +232,9 @@ class _CommentsEntryPageState extends State<CommentsEntryPage> {
                     recipients: recipients,
                     studentName: student.fullName,
                     className: widget.className,
-                    effectiveDate: effectiveDate, // ✅ PASSÉ ICI
+                    effectiveDate: effectiveDate,
+                    senderName: teacherName,
+                    targetSubject: subjectName,
                   );
 
                   Navigator.pop(context);

@@ -24,7 +24,7 @@ class EduConnectApp extends StatelessWidget {
         RepositoryProvider(create: (_) => ClassRepository(supabase)),
         RepositoryProvider(create: (_) => StudentRepository(supabase)),
         RepositoryProvider(create: (_) => CourseRepository(supabase)),
-        RepositoryProvider(create: (_) => TeacherService(supabase)),
+        RepositoryProvider(create: (_) => TeacherService(supabase: supabase)),  // ✅ CORRIGÉ
       ],
       child: MultiBlocProvider(
         providers: [
