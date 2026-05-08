@@ -23,16 +23,28 @@ class CommentItem extends StatelessWidget {
         : null;
     final isExpired = expiresAt != null && DateTime.now().isAfter(expiresAt);
     final parentReply = comment['parent_reply'] as String?;
-    final senderName = comment['sender_name'] as String? ?? 'Enseignant';
+    
+    // ✅ RÉCUPÉRATION DÉFENSIVE
+    final senderNameRaw = comment['sender_name'] as String?;
     final senderType = comment['sender_type'] as String? ?? 'teacher';
-    final targetSubject = comment['target_subject'] as String?;
+    final targetSubjectRaw = comment['target_subject'] as String?;
     final isBroadcast = comment['is_broadcast'] as bool? ?? false;
     final isRead = comment['is_read'] as bool? ?? true;
+    final teacherId = comment['teacher_id'] as String?;
 
     final isFromTeacher = senderType == 'teacher';
-    final displayName = isFromTeacher 
-        ? (senderName != 'Enseignant' ? senderName : 'Professeur')
-        : (senderType == 'parent' ? 'Vous' : 'Administration');
+    
+    // ✅ NOM : si null/vide/"Enseignant" → "Professeur", sinon vrai nom
+    final senderName = (senderNameRaw != null && 
+                        senderNameRaw.isNotEmpty && 
+                        senderNameRaw != 'Enseignant') 
+        ? senderNameRaw 
+        : 'Professeur';
+    
+    // ✅ MATIÈRE : si null/vide → rien, sinon affiche
+    final targetSubject = (targetSubjectRaw != null && targetSubjectRaw.isNotEmpty)
+        ? targetSubjectRaw
+        : null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -40,10 +52,13 @@ class CommentItem extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.bisDark),
+        border: Border.all(
+          color: isRead ? AppTheme.bisDark : AppTheme.violet.withOpacity(0.5),
+          width: isRead ? 1 : 2,
+        ),
         boxShadow: isRead ? null : [
           BoxShadow(
-            color: AppTheme.violet.withOpacity(0.15),
+            color: AppTheme.violet.withOpacity(0.1),
             blurRadius: 4,
             spreadRadius: 1,
           ),
@@ -52,19 +67,19 @@ class CommentItem extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeader(displayName, isFromTeacher, targetSubject, isBroadcast, date, isRead),
+          _buildHeader(senderName, isFromTeacher, targetSubject, isBroadcast, date, isRead),
           const SizedBox(height: 8),
           Text(content, style: const TextStyle(fontSize: 13, color: AppTheme.nightBlue)),
           if (expiresAt != null) _buildExpiry(expiresAt, isExpired),
           if (parentReply != null && parentReply.isNotEmpty) _buildParentReply(parentReply),
           if ((parentReply == null || parentReply.isEmpty) && isFromTeacher && !isExpired)
-            _buildReplyButton(context, comment['id'] as String, comment['teacher_id'] as String?, content),
+            _buildReplyButton(context, comment['id'] as String, teacherId, content),
         ],
       ),
     );
   }
 
-  Widget _buildHeader(String displayName, bool isFromTeacher, String? targetSubject, bool isBroadcast, DateTime date, bool isRead) {
+  Widget _buildHeader(String senderName, bool isFromTeacher, String? targetSubject, bool isBroadcast, DateTime date, bool isRead) {
     return Row(
       children: [
         Container(
@@ -86,13 +101,20 @@ class CommentItem extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Text(displayName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.nightBlue)),
+                  Text(
+                    senderName,  // ✅ "Doué Marie" ou "Professeur"
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.nightBlue,
+                    ),
+                  ),
                   if (!isRead) ...[
                     const SizedBox(width: 6),
                     Container(
                       width: 8,
                       height: 8,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: Colors.red,
                         shape: BoxShape.circle,
                       ),
@@ -100,13 +122,15 @@ class CommentItem extends StatelessWidget {
                   ],
                 ],
               ),
-              if (targetSubject != null && targetSubject.isNotEmpty)
+              if (targetSubject != null)  // ✅ "Anglais" si présent
                 Text(
-                  isBroadcast ? 'À tous • ${_capitalize(targetSubject)}' : 'Matière: ${_capitalize(targetSubject)}',
-                  style: TextStyle(fontSize: 10, color: AppTheme.violet),
+                 isBroadcast ? 'À tous • ${_capitalize(targetSubject)}' : _capitalize(targetSubject),
+                  style: TextStyle(fontSize: 10, color: AppTheme.violet, fontWeight: FontWeight.w500),
                 ),
-              Text('${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}', 
-                   style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              Text(
+                '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              ),
             ],
           ),
         ),
@@ -118,7 +142,11 @@ class CommentItem extends StatelessWidget {
           ),
           child: Text(
             isFromTeacher ? 'Professeur' : 'Parent',
-            style: TextStyle(color: isFromTeacher ? AppTheme.violet : Colors.green, fontSize: 10, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: isFromTeacher ? AppTheme.violet : Colors.green,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ],
@@ -130,13 +158,20 @@ class CommentItem extends StatelessWidget {
       padding: const EdgeInsets.only(top: 6),
       child: Row(
         children: [
-          Icon(isExpired ? Icons.timer_off : Icons.timer, size: 12, color: isExpired ? Colors.red : Colors.grey),
+          Icon(
+            isExpired ? Icons.timer_off : Icons.timer,
+            size: 12,
+            color: isExpired ? Colors.red : Colors.grey,
+          ),
           const SizedBox(width: 4),
           Text(
             isExpired 
                 ? 'Expiré le ${expiresAt.day.toString().padLeft(2, '0')}/${expiresAt.month.toString().padLeft(2, '0')}/${expiresAt.year}'
                 : 'Valide jusqu\'au ${expiresAt.day.toString().padLeft(2, '0')}/${expiresAt.month.toString().padLeft(2, '0')}/${expiresAt.year}',
-            style: TextStyle(fontSize: 10, color: isExpired ? Colors.red : Colors.grey.shade600),
+            style: TextStyle(
+              fontSize: 10,
+              color: isExpired ? Colors.red : Colors.grey.shade600,
+            ),
           ),
         ],
       ),
@@ -159,11 +194,21 @@ class CommentItem extends StatelessWidget {
             children: [
               Icon(Icons.reply, size: 12, color: Colors.green),
               const SizedBox(width: 4),
-              Text('Votre réponse', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.green)),
+              Text(
+                'Votre réponse',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.green,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
-          Text(parentReply, style: TextStyle(fontSize: 12, color: AppTheme.nightBlue)),
+          Text(
+            parentReply,
+            style: const TextStyle(fontSize: 12, color: AppTheme.nightBlue),
+          ),
         ],
       ),
     );
@@ -187,7 +232,14 @@ class CommentItem extends StatelessWidget {
             children: [
               Icon(Icons.reply, size: 14, color: AppTheme.violet),
               const SizedBox(width: 4),
-              Text('Répondre', style: TextStyle(fontSize: 11, color: AppTheme.violet, fontWeight: FontWeight.w600)),
+              Text(
+                'Répondre',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppTheme.violet,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),

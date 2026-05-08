@@ -44,7 +44,7 @@ class _CommentsEntryPageState extends State<CommentsEntryPage> {
   void _showCommentDialog(StudentModel student) {
     final commentController = TextEditingController();
     List<String> recipients = ['parent'];
-    DateTime? effectiveDate; // ✅ Date d'effet = date d'expiration
+    DateTime? effectiveDate;
 
     showDialog(
       context: context,
@@ -56,12 +56,11 @@ class _CommentsEntryPageState extends State<CommentsEntryPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ✅ Champ commentaire
                 TextField(
                   controller: commentController,
                   maxLines: 4,
                   decoration: const InputDecoration(
-                    hintText: 'Saisissez votre commentaire...\n\nEx: Progrès remarquables en participation. Encourager à continuer.',
+                    hintText: 'Saisissez votre commentaire...',
                     border: OutlineInputBorder(),
                     filled: true,
                     fillColor: Color(0xFFF8FAFC),
@@ -69,7 +68,7 @@ class _CommentsEntryPageState extends State<CommentsEntryPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // ✅ SÉLECTEUR DATE D'EFFET
+                // Date d'effet
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -98,7 +97,7 @@ class _CommentsEntryPageState extends State<CommentsEntryPage> {
                       Text(
                         effectiveDate != null
                             ? 'Valable jusqu\'au ${effectiveDate?.day.toString().padLeft(2, '0')}/${effectiveDate?.month.toString().padLeft(2, '0')}/${effectiveDate?.year}'
-                            : 'Par défaut: 7 jours (jusqu\'au ${DateTime.now().add(const Duration(days: 7)).day.toString().padLeft(2, '0')}/${DateTime.now().add(const Duration(days: 7)).month.toString().padLeft(2, '0')})',
+                            : 'Par défaut: 7 jours',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade600,
@@ -144,7 +143,7 @@ class _CommentsEntryPageState extends State<CommentsEntryPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // ✅ Destinataires
+                // Destinataires
                 const Text(
                   'Envoyer à :',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
@@ -208,18 +207,51 @@ class _CommentsEntryPageState extends State<CommentsEntryPage> {
                 try {
                   final authState = context.read<AuthBloc>().state;
                   if (authState is! Authenticated) throw Exception('Non authentifié');
-                  final attendanceState = context.read<AttendanceBloc>().state;
-                  final subjectName = attendanceState.currentCourse?.name ?? 'Matière';
 
-                  final teacherData = await Supabase.instance.client
-                      .from('app_users')
-                      .select('first_name, last_name')
-                      .eq('id', authState.userId)
-                      .single();
-                  final teacherName = teacherData != null 
-                      ? '${teacherData['first_name']} ${teacherData['last_name']}'
-                      : 'Enseignant';
-                  
+                  // ✅ RÉCUPÉRATION NOM ENSEIGNANT - AVEC DEBUG
+                  String teacherName = 'Enseignant';
+                  try {
+                    print('🔍 [DEBUG] authState.userId: ${authState.userId}');
+                    
+                    final teacherData = await Supabase.instance.client
+                        .from('app_users')
+                        .select('first_name, last_name')
+                        .eq('id', authState.userId)
+                        .maybeSingle();
+                    
+                    print('🔍 [DEBUG] teacherData: $teacherData');
+                    
+                    if (teacherData != null) {
+                      final firstName = teacherData['first_name'] as String? ?? '';
+                      final lastName = teacherData['last_name'] as String? ?? '';
+                      if (firstName.isNotEmpty || lastName.isNotEmpty) {
+                        teacherName = '$firstName $lastName'.trim();
+                      }
+                    }
+                  } catch (e) {
+                    print('❌ Erreur récupération nom enseignant: $e');
+                  }
+
+                  // ✅ RÉCUPÉRATION MATIÈRE - AVEC DEBUG
+                String subjectName = 'Matière';
+                  try {
+                    final scheduleData = await Supabase.instance.client
+                        .from('schedules')
+                        .select('subjects(name)')
+                        .eq('class_id', widget.classId)
+                        .eq('teacher_id', authState.userId)
+                        .eq('is_active', true)
+                        .maybeSingle();
+                    
+                    if (scheduleData != null && scheduleData['subjects'] != null) {
+                      subjectName = scheduleData['subjects']['name'] as String? ?? 'Matière';
+                    }
+                  } catch (e) {
+                    print('❌ Erreur récupération matière: $e');
+                  }
+
+                  print('🔍 [DEBUG] FINAL teacherName: "$teacherName"');
+                  print('🔍 [DEBUG] FINAL subjectName: "$subjectName"');
 
                   final repo = CommentRepository(Supabase.instance.client);
                   

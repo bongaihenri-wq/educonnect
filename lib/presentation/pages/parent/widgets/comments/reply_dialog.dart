@@ -1,14 +1,16 @@
 // lib/presentation/pages/parent/widgets/comments/reply_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '/../../config/theme.dart'; // ✅ CORRIGÉ : chemin relatif correct
+import '/../../config/theme.dart';
 
-class ReplyDialog extends StatefulWidget { // ✅ CHANGÉ : StatefulWidget
+class ReplyDialog extends StatefulWidget {
   final String commentId;
   final String? teacherId;
   final String originalContent;
   final String parentName;
-  final VoidCallback? onReplySent; // ✅ AJOUTÉ
+  final String? teacherName; // ✅ AJOUTÉ : nom de l'enseignant pour l'affichage
+  final String? subjectName;  // ✅ AJOUTÉ : matière pour l'affichage
+  final VoidCallback? onReplySent;
 
   const ReplyDialog({
     super.key,
@@ -16,6 +18,8 @@ class ReplyDialog extends StatefulWidget { // ✅ CHANGÉ : StatefulWidget
     required this.teacherId,
     required this.originalContent,
     required this.parentName,
+    this.teacherName,
+    this.subjectName,
     this.onReplySent,
   });
 
@@ -45,12 +49,15 @@ class _ReplyDialogState extends State<ReplyDialog> {
         'is_read': false,
       }).eq('id', widget.commentId);
       
+      // ✅ NOTIFICATION À L'ENSEIGNANT SPÉCIFIQUE
       if (widget.teacherId != null) {
         await supabase.from('notifications').insert({
           'user_id': widget.teacherId,
-          'title': 'Réponse d\'un parent',
-          'content': '${widget.parentName} a répondu à votre commentaire',
-          'type': 'parent_reply',
+          'title': 'Réponse de ${widget.parentName}',
+          'content': widget.subjectName != null 
+              ? '${widget.parentName} a répondu à votre message (${widget.subjectName})'
+              : '${widget.parentName} a répondu à votre message',
+          'type': 'comment', // ✅ Utiliser 'message' au lieu de 'parent_reply' pour éviter contrainte
           'is_read': false,
           'created_at': DateTime.now().toIso8601String(),
           'reference_id': widget.commentId,
@@ -59,15 +66,22 @@ class _ReplyDialogState extends State<ReplyDialog> {
       
       if (mounted) {
         Navigator.pop(context);
-        widget.onReplySent?.call(); // ✅ AJOUTÉ
+        widget.onReplySent?.call();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Réponse envoyée'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text('✅ Réponse envoyée'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ Erreur: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('❌ Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -78,20 +92,44 @@ class _ReplyDialogState extends State<ReplyDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Répondre', style: TextStyle(fontSize: 16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Row(
+        children: [
+          Icon(Icons.reply, color: AppTheme.violet, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Répondre ${widget.teacherName != null ? 'à ${widget.teacherName}' : ''}',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: AppTheme.violet.withOpacity(0.05),
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppTheme.violet.withOpacity(0.2)),
             ),
-            child: Text(
-              'Message: "${widget.originalContent}"', // ✅ widget.
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Message original ${widget.subjectName != null ? '(${widget.subjectName})' : ''}',
+                  style: TextStyle(fontSize: 10, color: AppTheme.violet, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '"${widget.originalContent}"',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontStyle: FontStyle.italic),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
@@ -99,10 +137,19 @@ class _ReplyDialogState extends State<ReplyDialog> {
             controller: replyController,
             maxLines: 3,
             style: const TextStyle(fontSize: 13),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'Votre réponse...',
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.all(10),
+              hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: AppTheme.violet),
+              ),
+              contentPadding: const EdgeInsets.all(10),
             ),
           ),
         ],
@@ -110,16 +157,22 @@ class _ReplyDialogState extends State<ReplyDialog> {
       actions: [
         TextButton(
           onPressed: _isSending ? null : () => Navigator.pop(context),
-          child: const Text('Annuler', style: TextStyle(fontSize: 12)),
+          child: Text('Annuler', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
         ),
         ElevatedButton(
-          onPressed: _isSending ? null : _sendReply, // ✅ _sendReply
+          onPressed: _isSending ? null : _sendReply,
           style: ElevatedButton.styleFrom(
             backgroundColor: AppTheme.violet,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
-          child: _isSending // ✅ _isSending
-              ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+          child: _isSending
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
               : const Text('Envoyer', style: TextStyle(fontSize: 12)),
         ),
       ],
