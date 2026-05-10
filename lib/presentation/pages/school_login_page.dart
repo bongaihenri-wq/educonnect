@@ -64,7 +64,12 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
 
   void _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_schoolName == null) {
+
+    // ⭐ NOUVEAU : Vérifier si c'est un super admin (pas besoin de code école)
+    final phone = _phoneController.text.replaceAll(RegExp(r'\s'), '');
+    final isSuperAdmin = await _checkIfSuperAdmin(phone);
+    
+    if (!isSuperAdmin && _schoolName == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Veuillez valider le code école')),
       );
@@ -73,15 +78,26 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('saved_school_code', _schoolCodeController.text.trim().toUpperCase());
-    await prefs.setString('saved_phone', _phoneController.text.trim());
-
-    // Nettoyer le téléphone
-    String phone = _phoneController.text.replaceAll(RegExp(r'\s'), '');
+    await prefs.setString('saved_phone', phone);
 
     context.read<auth.AuthBloc>().add(auth.LoginWithPhoneRequested(
       phone: phone,
       password: _passwordController.text,
     ));
+  }
+
+  // ⭐ NOUVEAU : Vérifier si le téléphone appartient à un super admin
+  Future<bool> _checkIfSuperAdmin(String phone) async {
+    try {
+      final user = await Supabase.instance.client
+          .from('app_users')
+          .select('role')
+          .eq('phone', phone)
+          .maybeSingle();
+      return user != null && user['role'] == 'super_admin';
+    } catch (e) {
+      return false;
+    }
   }
 
   @override
@@ -90,7 +106,9 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
       backgroundColor: Colors.white,
       body: BlocListener<auth.AuthBloc, auth.AuthState>(
         listener: (context, state) {
-          if (state is auth.TeacherAuthenticated) {
+          if (state is auth.SuperAdminAuthenticated) {
+            Navigator.pushReplacementNamed(context, AppRoutes.superAdminDashboard);
+          } else if (state is auth.TeacherAuthenticated) {
             Navigator.pushReplacementNamed(context, AppRoutes.teacherDashboard);
           } else if (state is auth.AdminAuthenticated) {
             Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
@@ -132,7 +150,12 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
                             : null,
                       ),
                       onChanged: _verifySchool,
-                      validator: (v) => v?.isEmpty ?? true ? 'Code requis' : null,
+                      // ⭐ MODIFIÉ : Code école optionnel pour super admin
+                      validator: (v) {
+                        // Le code école n'est pas requis si on est super admin
+                        // La vérification se fait dans _submit
+                        return null;
+                      },
                     ),
                     if (_schoolName != null)
                       Padding(
@@ -181,8 +204,11 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
                     BlocBuilder<auth.AuthBloc, auth.AuthState>(
                       builder: (context, state) {
                         final isLoading = state is auth.AuthLoading;
+                        // ⭐ MODIFIÉ : Bouton actif si super admin (pas besoin de schoolName)
+                        // ou si schoolName est validé
+                        final canSubmit = isLoading ? false : true;
                         return ElevatedButton(
-                          onPressed: (_schoolName == null || isLoading) ? null : _submit,
+                          onPressed: canSubmit ? _submit : null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.violet,
                             minimumSize: const Size(double.infinity, 56),

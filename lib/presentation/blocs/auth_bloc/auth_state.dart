@@ -39,6 +39,26 @@ abstract class Authenticated extends AuthState {
   });
 }
 
+// ⭐ NOUVEAU : Super Admin — pas lié à une école spécifique
+class SuperAdminAuthenticated extends AuthState {
+  final String userId;
+  final String firstName;
+  final String lastName;
+  final String email;
+  final String phone;
+
+  const SuperAdminAuthenticated({
+    required this.userId,
+    required this.firstName,
+    required this.lastName,
+    required this.email,
+    required this.phone,
+  });
+
+  @override
+  get schoolId => null;
+}
+
 class AdminAuthenticated extends Authenticated {
   const AdminAuthenticated({
     required super.userId,

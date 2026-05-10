@@ -1,0 +1,3 @@
+classe,jour,heure_debut,heure_fin,matiere,enseignant_email,salle
+6ème A,Lundi,08:00,10:00,Mathématiques,paul.durand@email.com,Salle 1
+5ème B,Mardi,10:00,12:00,Français,sophie.legrand@email.com,Salle 2

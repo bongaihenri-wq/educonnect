@@ -2,16 +2,18 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:csv/csv.dart';
-import 'package:excel/excel.dart' as excel_lib; // Préfixé pour éviter les conflits
+import 'package:excel/excel.dart' as excel_lib;
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class BulkImportService {
-  static const String _functionUrl = 
+  static String get _functionUrl => 
+      dotenv.env['SUPABASE_FUNCTION_URL'] ?? 
       'https://vethtvfdkywbzxzwckdl.supabase.co/functions/v1/bulk-import';
   
-  static const String _serviceRoleKey = 
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZldGh0dmZka3l3Ynp4endja2RsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTcyNTY4NCwiZXhwIjoyMDkxMzAxNjg0fQ.T5UwEMr4bOr8zfylJX1fbSnSq1gwWuufq-gA94UQR-Q';
+  static String get _serviceRoleKey => 
+      dotenv.env['SUPABASE_SERVICE_ROLE_KEY'] ?? '';
 
   static const List<String> validTypes = [
     'students_parents',
@@ -19,7 +21,6 @@ class BulkImportService {
     'schedules'
   ];
 
-  // --- AJOUT : FONCTION DE FORMATAGE D'HEURE ---
   static String _formatTimeToSupabase(dynamic value) {
     if (value == null || value.toString().isEmpty) return "00:00:00";
     String s = value.toString().trim();
@@ -37,7 +38,7 @@ class BulkImportService {
     required String schoolId,
     required String schoolCode,
     String? schoolYear,
-    FilePickerResult? fileResult,
+    required List<Map<String, dynamic>> data,
   }) async {
     if (!validTypes.contains(type)) {
       return ImportResult(
@@ -46,67 +47,33 @@ class BulkImportService {
       );
     }
 
-    // 1. Sélection du fichier (CSV ou Excel)
-    FilePickerResult? pickerResult = fileResult ?? await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['csv', 'xlsx', 'xls', 'txt'],
-      withData: true,
-    );
-
-    if (pickerResult == null) {
-      return ImportResult(success: false, cancelled: true, message: 'Aucun fichier sélectionné');
+    if (data.isEmpty) {
+      return ImportResult(success: false, message: 'Aucune donnée à importer');
     }
 
     try {
-      final file = pickerResult.files.first;
-      final bytes = file.bytes ?? (file.path != null ? await File(file.path!).readAsBytes() : null);
-
-      if (bytes == null || bytes.isEmpty) {
-        return ImportResult(success: false, message: 'Impossible de lire le fichier');
-      }
-
-      List<Map<String, dynamic>> data = [];
-
-      // 2. Branchement selon l'extension
-      if (file.extension == 'xlsx' || file.extension == 'xls') {
-        data = _readExcel(bytes);
-      } else {
-        data = _readCsv(bytes);
-      }
-
-      if (data.isEmpty) {
-        return ImportResult(success: false, message: 'Le fichier ne contient aucune donnée valide');
-      }
-
-      // ==========================================================
-      // INJECTION SYSTÉMATIQUE DU SCHOOL_ID ET DES MÉTADONNÉES
-      // ==========================================================
       final formattedData = data.map((row) {
         final Map<String, dynamic> cleanRow = Map<String, dynamic>.from(row);
-        // --- AJOUT : CORRECTION DES HEURES SI TYPE SCHEDULES ---
+        
         if (type == 'schedules') {
           final rawStart = cleanRow['heure_debut'] ?? cleanRow['heure_début'] ?? cleanRow['start_time'];
           final rawEnd = cleanRow['heure_fin'] ?? cleanRow['end_time'];
           
-             cleanRow['start_time'] = _formatTimeToSupabase(rawStart);
-             cleanRow['end_time'] = _formatTimeToSupabase(rawEnd);
-
-             cleanRow.remove('heure_debut');
-             cleanRow.remove('heure_début');
-             cleanRow.remove('heure_fin');
-
-             cleanRow['school_id'] = schoolId;
-             cleanRow['school_code'] = schoolCode;
-             cleanRow['school_year'] = schoolYear ?? '2024-2025';
-
+          cleanRow['start_time'] = _formatTimeToSupabase(rawStart);
+          cleanRow['end_time'] = _formatTimeToSupabase(rawEnd);
+          
+          cleanRow.remove('heure_debut');
+          cleanRow.remove('heure_début');
+          cleanRow.remove('heure_fin');
         }
         
-        return {
-          ...cleanRow,
-        };
+        cleanRow['school_id'] = schoolId;
+        cleanRow['school_code'] = schoolCode;
+        cleanRow['school_year'] = schoolYear ?? '2024-2025';
+        
+        return cleanRow;
       }).toList();
 
-      // 3. Envoi à la Edge Function
       final response = await http.post(
         Uri.parse(_functionUrl),
         headers: {
@@ -133,6 +100,7 @@ class BulkImportService {
         updated: responseData['updated'] ?? 0,
         deleted: responseData['deleted'] ?? 0,
         errors: (responseData['errors'] as List?)?.cast<Map<String, dynamic>>() ?? [],
+        credentials: (responseData['credentials'] as List?)?.cast<Map<String, dynamic>>() ?? [],
         requestId: responseData['requestId'],
         duration: responseData['duration'],
         message: responseData['message'] ?? '${responseData['created'] ?? 0} créé(s), ${responseData['updated'] ?? 0} mis à jour',
@@ -143,7 +111,21 @@ class BulkImportService {
     }
   }
 
-  // --- LOGIQUE DE LECTURE CSV ---
+  static List<Map<String, dynamic>> parseFile(FilePickerResult pickerResult) {
+    final file = pickerResult.files.first;
+    final bytes = file.bytes ?? (file.path != null ? File(file.path!).readAsBytesSync() : null);
+
+    if (bytes == null || bytes.isEmpty) {
+      throw Exception('Impossible de lire le fichier');
+    }
+
+    if (file.extension == 'xlsx' || file.extension == 'xls') {
+      return _readExcel(bytes);
+    } else {
+      return _readCsv(bytes);
+    }
+  }
+
   static List<Map<String, dynamic>> _readCsv(Uint8List bytes) {
     final csvString = _decodeWithFallback(bytes);
     final separator = _detectSeparator(csvString);
@@ -172,7 +154,6 @@ class BulkImportService {
     }).toList();
   }
 
-  // --- LOGIQUE DE LECTURE EXCEL ---
   static List<Map<String, dynamic>> _readExcel(Uint8List bytes) {
     var excel = excel_lib.Excel.decodeBytes(bytes);
     List<Map<String, dynamic>> list = [];
@@ -196,7 +177,7 @@ class BulkImportService {
           list.add(map);
         }
       }
-      break; // On ne prend que la première feuille
+      break;
     }
     return list;
   }
@@ -231,6 +212,7 @@ class ImportResult {
   final int? processed;
   final int? total;
   final List<Map<String, dynamic>> errors;
+  final List<Map<String, dynamic>> credentials;
   final String? requestId;
   final String? duration;
   final String message;
@@ -245,11 +227,28 @@ class ImportResult {
     this.processed,
     this.total,
     this.errors = const [],
+    this.credentials = const [],
     this.requestId,
     this.duration,
     this.message = '',
     this.rawResponse,
   });
+
+  factory ImportResult.fromJson(Map<String, dynamic> json) {
+    return ImportResult(
+      success: json['success'] ?? false,
+      created: json['created'] ?? 0,
+      updated: json['updated'] ?? 0,
+      deleted: json['deleted'] ?? 0,
+      total: json['total'],
+      errors: List<Map<String, dynamic>>.from(json['errors'] ?? []),
+      credentials: List<Map<String, dynamic>>.from(json['credentials'] ?? []),
+      message: json['message'] ?? '',
+      requestId: json['requestId'],
+      duration: json['duration'],
+      rawResponse: json.toString(),
+    );
+  }
 
   bool get hasErrors => errors.isNotEmpty;
   bool get isPartialSuccess => success && hasErrors;
@@ -258,7 +257,7 @@ class ImportResult {
   @override
   String toString() {
     return 'ImportResult(success: $success, created: $created, updated: $updated, '
-        'deleted: $deleted, errors: ${errors.length}, message: $message)';
+        'deleted: $deleted, errors: ${errors.length}, credentials: ${credentials.length}, message: $message)';
   }
 }
 

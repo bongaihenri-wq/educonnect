@@ -24,14 +24,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final role = prefs.getString('role');
       
       if (userId != null && role != null) {
-        // Récupérer les infos depuis Supabase
         final user = await _supabase
             .from('app_users')
-            .select('id, first_name, last_name, role, school_id')
+            .select('id, first_name, last_name, role, school_id, email, phone')
             .eq('id', userId)
             .single();
         
-        // ✅ CORRIGÉ : Récupérer schoolName AVANT emit
         final schoolName = await _getSchoolName(user['school_id']);
         
         _emitAuthenticated(user, schoolName, emit);
@@ -63,18 +61,22 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final result = response[0];
       
       if (result['success'] == true) {
-        // Sauvegarder la session
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('user_id', result['user_id']);
         await prefs.setString('role', result['role']);
         await prefs.setString('first_name', result['first_name']);
         await prefs.setString('last_name', result['last_name']);
-        await prefs.setString('school_id', result['school_id']);
         
-        // ✅ CORRIGÉ : Récupérer schoolName AVANT emit
-        final schoolName = await _getSchoolName(result['school_id']);
+        // ⭐ CORRIGÉ : school_id peut être null pour super_admin
+        final schoolId = result['school_id'] as String?;
+        if (schoolId != null) {
+          await prefs.setString('school_id', schoolId);
+        } else {
+          await prefs.remove('school_id');
+        }
         
-        // ✅ CORRIGÉ : Récupérer données parent si nécessaire
+        final schoolName = await _getSchoolName(schoolId);
+        
         Map<String, dynamic> parentData = {};
         if (result['role'] == 'parent') {
           parentData = await _getParentData(result['user_id']);
@@ -85,7 +87,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           'first_name': result['first_name'],
           'last_name': result['last_name'],
           'role': result['role'],
-          'school_id': result['school_id'],
+          'school_id': schoolId, // peut être null
+          'email': result['email'],
+          'phone': result['phone'],
         }, schoolName, emit, parentData: parentData);
       } else {
         emit(AuthError(result['message']));
@@ -101,8 +105,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(Unauthenticated());
   }
 
-  // ✅ CORRIGÉ : Helper pour récupérer le nom de l'école
-  Future<String> _getSchoolName(String schoolId) async {
+  Future<String> _getSchoolName(String? schoolId) async {
+    if (schoolId == null) return 'Toutes les écoles';
     try {
       final school = await _supabase
           .from('schools')
@@ -115,7 +119,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  // ✅ CORRIGÉ : Helper pour récupérer les données parent
   Future<Map<String, dynamic>> _getParentData(String parentId) async {
     try {
       final parentStudent = await _supabase
@@ -146,7 +149,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     return {};
   }
 
-  // ✅ CORRIGÉ : Synchrone - plus d'async ici !
   void _emitAuthenticated(
     Map<String, dynamic> user,
     String schoolName,
@@ -155,12 +157,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }) {
     final role = user['role'];
     
-    if (role == 'admin') {
+    if (role == 'super_admin') {
+      emit(SuperAdminAuthenticated(
+        userId: user['id'],
+        firstName: user['first_name'],
+        lastName: user['last_name'],
+        email: user['email'] ?? '',
+        phone: user['phone'] ?? '',
+      ));
+    } else if (role == 'admin') {
       emit(AdminAuthenticated(
         userId: user['id'],
         firstName: user['first_name'],
         lastName: user['last_name'],
-        schoolId: user['school_id'],
+        schoolId: user['school_id'] ?? '',
         schoolName: schoolName,
       ));
     } else if (role == 'teacher') {
@@ -168,7 +178,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         userId: user['id'],
         firstName: user['first_name'],
         lastName: user['last_name'],
-        schoolId: user['school_id'],
+        schoolId: user['school_id'] ?? '',
         schoolName: schoolName,
       ));
     } else if (role == 'parent') {
@@ -176,7 +186,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         userId: user['id'],
         firstName: user['first_name'],
         lastName: user['last_name'],
-        schoolId: user['school_id'],
+        schoolId: user['school_id'] ?? '',
         schoolName: schoolName,
         studentId: parentData['studentId'] ?? '',
         studentName: parentData['studentName'] ?? '',
