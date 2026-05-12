@@ -1,3 +1,4 @@
+// lib/presentation/pages/admin/bulk_import_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -132,10 +133,22 @@ class _BulkImportPageState extends State<BulkImportPage> {
 
       if (result == null || result.files.isEmpty) return;
 
-      // ⭐ NOUVEAU : Parse le fichier ici
       final parsedData = BulkImportService.parseFile(result);
+       print('📊 Première ligne parsée: ${parsedData.isNotEmpty ? parsedData.first : "VIDE"}');
       
       if (parsedData.isEmpty) {
+
+         print('📊 heure_debut type: ${parsedData.first['heure_debut']?.runtimeType}');
+    print('📊 heure_debut valeur: ${parsedData.first['heure_debut']}');
+    print('📊 heure_fin type: ${parsedData.first['heure_fin']?.runtimeType}');
+    print('📊 heure_fin valeur: ${parsedData.first['heure_fin']}');
+       
+       if (parsedData.isNotEmpty) {
+    print('📊 Clés première ligne: ${parsedData.first.keys.toList()}');
+    print('📊 Valeurs heure: ${parsedData.first['heure_debut']} - ${parsedData.first['heure_fin']}');
+  }
+
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Le fichier ne contient aucune donnée valide'),
@@ -145,23 +158,23 @@ class _BulkImportPageState extends State<BulkImportPage> {
         return;
       }
 
-      print('📄 Fichier: ${result.files.first.name}');
-      print('📄 Lignes parsées: ${parsedData.length}');
-
       final previewResult = await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => ImportPreviewPage(
-            data: parsedData,           // ⭐ Passe les données parsées
+            data: parsedData,
             type: type,
             schoolId: _selectedSchoolId!,
-            schoolCode: _selectedSchoolCode!, csvContent: '',
+            schoolCode: _selectedSchoolCode!,
+            csvContent: '',
           ),
         ),
       );
 
+      // ⭐ CORRIGÉ : Utilise validRows du preview au lieu de parsedData
       if (previewResult != null && previewResult['confirmed'] == true) {
-        _proceedImport(type, parsedData);  // ⭐ Passe les données directement
+        final validRows = previewResult['validRows'] as List<Map<String, dynamic>>? ?? parsedData;
+        _proceedImport(type, validRows);
       }
     } catch (e, stackTrace) {
       print('❌ Erreur pick file: $e');
@@ -172,7 +185,6 @@ class _BulkImportPageState extends State<BulkImportPage> {
     }
   }
 
-  // ⭐ CORRIGÉ : Accepte List<Map<String, dynamic>> au lieu de List<dynamic>
   Future<void> _proceedImport(String type, List<Map<String, dynamic>> data) async {
     setState(() => _isLoading = true);
 
@@ -182,7 +194,7 @@ class _BulkImportPageState extends State<BulkImportPage> {
         schoolId: _selectedSchoolId!,
         schoolCode: _selectedSchoolCode!,
         schoolYear: widget.schoolYear,
-        data: data,  // ⭐ Passe les données parsées
+        data: data,
       );
 
       if (!mounted) return;
@@ -324,7 +336,7 @@ class _BulkImportPageState extends State<BulkImportPage> {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            Icon(Icons.school, color: Colors.blue),
+            const Icon(Icons.school, color: Colors.blue),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -347,7 +359,7 @@ class _BulkImportPageState extends State<BulkImportPage> {
                 ],
               ),
             ),
-            Icon(Icons.check_circle, color: Colors.green),
+            const Icon(Icons.check_circle, color: Colors.green),
           ],
         ),
       ),

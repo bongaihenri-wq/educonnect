@@ -46,6 +46,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     emit(AuthLoading());
+
+    // ⭐ DEBUG
+    print('🔍 AUTHBLOC PHONE RECU: "${event.phone}"');
     
     try {
       final response = await _supabase.rpc('login_by_phone', params: {
