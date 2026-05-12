@@ -276,8 +276,20 @@ class _SchoolCard extends StatelessWidget {
     }
   }
 
+  // ⭐ CORRIGÉ : Navigation vers BulkImportPage
   void _showImportMenu(BuildContext context) {
-    // Navigation vers l'import
+    final schoolId = school['id']?.toString() ?? '';
+    final schoolCode = school['school_code']?.toString() ?? '';
+    
+    Navigator.pushNamed(
+      context,
+      AppRoutes.adminBulkImport,
+      arguments: {
+        'schoolId': schoolId,
+        'schoolCode': schoolCode,
+        'schoolYear': '2024-2025',
+      },
+    );
   }
 }
 

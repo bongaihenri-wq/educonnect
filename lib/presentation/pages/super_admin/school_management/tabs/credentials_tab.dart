@@ -1,9 +1,9 @@
+// lib/presentation/pages/admin/tabs/credentials_tab.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
-import '/../../config/theme.dart';
+import '/../config/theme.dart';
 
-class CredentialsTab extends StatelessWidget {
+class CredentialsTab extends StatefulWidget {
   final String schoolCode;
   final List<Map<String, dynamic>> teachers;
   final List<Map<String, dynamic>> parents;
@@ -17,11 +17,36 @@ class CredentialsTab extends StatelessWidget {
     required this.students,
   });
 
+  @override
+  State<CredentialsTab> createState() => _CredentialsTabState();
+}
+
+class _CredentialsTabState extends State<CredentialsTab> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> _filterCredentials(List<Map<String, dynamic>> credentials) {
+    if (_searchQuery.isEmpty) return credentials;
+    return credentials.where((c) {
+      final query = _searchQuery.toLowerCase();
+      return (c['name']?.toString().toLowerCase().contains(query) ?? false) ||
+          (c['phone']?.toString().toLowerCase().contains(query) ?? false) ||
+          (c['type']?.toString().toLowerCase().contains(query) ?? false) ||
+          (c['matricule']?.toString().toLowerCase().contains(query) ?? false);
+    }).toList();
+  }
+
   List<Map<String, dynamic>> get _credentials {
     final credentials = <Map<String, dynamic>>[];
     
     // Credentials des parents
-    for (final parent in parents) {
+    for (final parent in widget.parents) {
       final linkedStudents = parent['parent_students'] as List<dynamic>? ?? [];
       String? studentMatricule;
       
@@ -32,10 +57,9 @@ class CredentialsTab extends StatelessWidget {
         }
       }
       
-      // Chercher le matricule dans la liste des élèves si pas trouvé
       if (studentMatricule == null && linkedStudents.isNotEmpty) {
         final studentId = linkedStudents.first['student_id']?.toString();
-        final matchedStudent = students.firstWhere(
+        final matchedStudent = widget.students.firstWhere(
           (s) => s['id'].toString() == studentId,
           orElse: () => {},
         );
@@ -44,26 +68,30 @@ class CredentialsTab extends StatelessWidget {
       
       final matricule = studentMatricule ?? 'DEFAULT';
       
+      // ⭐ MDP COURT = MATRICULE
       credentials.add({
         'type': 'parent',
         'name': '${parent['first_name'] ?? ''} ${parent['last_name'] ?? ''}',
         'phone': parent['phone'] ?? '',
-        'password': '${matricule}Edu2024!',
+        'password': matricule, // ⭐ COURT !
         'matricule': matricule,
       });
     }
     
     // Credentials des enseignants
-    for (final teacher in teachers) {
+    for (final teacher in widget.teachers) {
       final firstName = teacher['first_name'] ?? '';
       final lastName = teacher['last_name'] ?? '';
       final initial = firstName.isNotEmpty ? firstName[0].toUpperCase() : 'A';
+      
+      // ⭐ MDP COURT = INITALE + NOM
+      final password = '${initial}${lastName.toUpperCase()}';
       
       credentials.add({
         'type': 'teacher',
         'name': '$firstName $lastName',
         'phone': teacher['phone'] ?? '',
-        'password': '${initial}${lastName.toLowerCase()}@2024',
+        'password': password, // ⭐ COURT !
       });
     }
     
@@ -73,6 +101,7 @@ class CredentialsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final credentials = _credentials;
+    final filteredCredentials = _filterCredentials(credentials);
     
     if (credentials.isEmpty) {
       return Center(
@@ -85,12 +114,6 @@ class CredentialsTab extends StatelessWidget {
               'Aucun credential disponible',
               style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Importez des élèves/parents ou des enseignants pour générer des credentials',
-              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-              textAlign: TextAlign.center,
-            ),
           ],
         ),
       );
@@ -99,12 +122,52 @@ class CredentialsTab extends StatelessWidget {
     return Column(
       children: [
         _buildHeader(credentials.length),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: credentials.length,
-            itemBuilder: (context, index) => _buildCredentialCard(context, credentials[index]),
+        // 🔍 BARRE DE RECHERCHE
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Rechercher par nom, téléphone, rôle...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              filled: true,
+              fillColor: Colors.grey[100],
+            ),
+            onChanged: (value) => setState(() => _searchQuery = value),
           ),
+        ),
+        Expanded(
+          child: filteredCredentials.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Aucun résultat pour "$_searchQuery"',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: filteredCredentials.length,
+                  itemBuilder: (context, index) => _buildCredentialCard(context, filteredCredentials[index]),
+                ),
         ),
       ],
     );
@@ -125,18 +188,13 @@ class CredentialsTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'École: $schoolCode',
+              'École: ${widget.schoolCode}',
               style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14),
             ),
             const SizedBox(height: 8),
             Text(
               '$count comptes',
               style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Connexion par numéro de téléphone',
-              style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
             ),
           ],
         ),
@@ -213,7 +271,6 @@ class CredentialsTab extends StatelessWidget {
                     label: const Text('Copier'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppTheme.violet,
-                      side: BorderSide(color: AppTheme.violet.withOpacity(0.3)),
                     ),
                   ),
                 ),
@@ -263,8 +320,7 @@ class CredentialsTab extends StatelessWidget {
       'Votre compte EduConnect est créé :\n'
       '• Téléphone (Login): $phone\n'
       '• Mot de passe: $password\n\n'
-      'Téléchargez l\'application EduConnect pour suivre la scolarité.\n\n'
-      'Cordialement,\nL\'équipe EduConnect';
+      'Téléchargez l\'application EduConnect.';
 
     Clipboard.setData(ClipboardData(text: message));
     ScaffoldMessenger.of(context).showSnackBar(

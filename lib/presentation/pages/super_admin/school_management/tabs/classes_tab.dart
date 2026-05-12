@@ -1,6 +1,6 @@
+// lib/presentation/pages/admin/tabs/classes_tab.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '/../../config/theme.dart';
 import '../dialogs/class_form_dialog.dart';
 
 class ClassesTab extends StatefulWidget {
@@ -20,56 +20,82 @@ class ClassesTab extends StatefulWidget {
 }
 
 class _ClassesTabState extends State<ClassesTab> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> _filterClasses(List<Map<String, dynamic>> classes) {
+    if (_searchQuery.isEmpty) return classes;
+    return classes.where((c) {
+      final query = _searchQuery.toLowerCase();
+      return (c['name']?.toString().toLowerCase().contains(query) ?? false) ||
+          (c['level']?.toString().toLowerCase().contains(query) ?? false);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
+        // 🔍 BARRE DE RECHERCHE
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              const Icon(Icons.class_, color: AppTheme.violet),
-              const SizedBox(width: 8),
-              Text(
-                'Classes (${widget.classes.length})',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          padding: const EdgeInsets.all(16.0),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Rechercher une classe...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-              const Spacer(),
-              ElevatedButton.icon(
-                onPressed: () => _showAddDialog(),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Ajouter'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.violet,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
+              filled: true,
+              fillColor: Colors.grey[100],
+            ),
+            onChanged: (value) => setState(() => _searchQuery = value),
           ),
         ),
+        
         Expanded(
           child: widget.classes.isEmpty
-              ? _buildEmptyState()
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+                      const SizedBox(height: 16),
+                      Text(
+                        _searchQuery.isEmpty
+                            ? 'Aucune classe trouvée'
+                            : 'Aucun résultat pour "$_searchQuery"',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: widget.classes.length,
-                  itemBuilder: (context, index) => _buildClassCard(widget.classes[index]),
+                  itemCount: _filterClasses(widget.classes).length,
+                  itemBuilder: (context, index) {
+                    final classData = _filterClasses(widget.classes)[index];
+                    return _buildClassCard(classData);
+                  },
                 ),
         ),
       ],
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.class_, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text('Aucune classe', style: TextStyle(fontSize: 16, color: Colors.grey[600])),
-        ],
-      ),
     );
   }
 
@@ -95,15 +121,6 @@ class _ClassesTabState extends State<ClassesTab> {
         ),
       ),
     );
-  }
-
-  void _showAddDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => ClassFormDialog(schoolId: widget.schoolId),
-    ).then((result) {
-      if (result == true) widget.onDataChanged();
-    });
   }
 
   void _showEditDialog(Map<String, dynamic> classData) {

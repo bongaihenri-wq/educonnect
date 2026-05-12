@@ -1,3 +1,4 @@
+// lib/presentation/pages/super_admin/import_preview_page.dart
 import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
 
@@ -12,7 +13,8 @@ class ImportPreviewPage extends StatefulWidget {
     required this.data,
     required this.type,
     required this.schoolId,
-    required this.schoolCode, required String csvContent,
+    required this.schoolCode,
+    required String csvContent,
   });
 
   @override
@@ -187,7 +189,7 @@ class _ImportPreviewPageState extends State<ImportPreviewPage> {
       child: SingleChildScrollView(
         scrollDirection: Axis.vertical,
         child: DataTable(
-          headingRowColor: MaterialStateProperty.all(Colors.grey[100]),
+          headingRowColor: WidgetStateProperty.all(Colors.grey[100]),
           border: TableBorder.all(color: Colors.grey.shade300),
           columns: [
             DataColumn(
@@ -268,6 +270,7 @@ class _ImportPreviewPageState extends State<ImportPreviewPage> {
                 onPressed: _selectedRows.isEmpty
                     ? null
                     : () {
+                        // ⭐ CORRIGÉ : Retourne validRows (lignes sélectionnées)
                         Navigator.pop(context, {
                           'confirmed': true,
                           'validRows': _validRows,

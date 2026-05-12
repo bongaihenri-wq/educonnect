@@ -65,11 +65,14 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
   void _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // ⭐ NOUVEAU : Vérifier si c'est un super admin (pas besoin de code école)
+    // ⭐ COMME AVANT : L'utilisateur tape le numéro complet avec +225
     final phone = _phoneController.text.replaceAll(RegExp(r'\s'), '');
-    final isSuperAdmin = await _checkIfSuperAdmin(phone);
-    
-    if (!isSuperAdmin && _schoolName == null) {
+      print('🔍 TELEPHONE ENVOYE: "$phone"');
+  print('🔍 LONGUEUR: ${phone.length}');
+  print('🔍 CODEPOINTS: ${phone.runes.toList()}');
+
+    // Code école optionnel pour super admin
+    if (_schoolCodeController.text.isNotEmpty && _schoolName == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Veuillez valider le code école')),
       );
@@ -81,23 +84,9 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
     await prefs.setString('saved_phone', phone);
 
     context.read<auth.AuthBloc>().add(auth.LoginWithPhoneRequested(
-      phone: phone,
+      phone: phone, // ⭐ ENVOIE TEL QUE TAPÉ (+2250506224449)
       password: _passwordController.text,
     ));
-  }
-
-  // ⭐ NOUVEAU : Vérifier si le téléphone appartient à un super admin
-  Future<bool> _checkIfSuperAdmin(String phone) async {
-    try {
-      final user = await Supabase.instance.client
-          .from('app_users')
-          .select('role')
-          .eq('phone', phone)
-          .maybeSingle();
-      return user != null && user['role'] == 'super_admin';
-    } catch (e) {
-      return false;
-    }
   }
 
   @override
@@ -128,50 +117,43 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
                 key: _formKey,
                 child: Column(
                   children: [
-                    // Logo
                     Icon(Icons.school, size: 80, color: AppTheme.violet),
                     const SizedBox(height: 16),
                     Text('EduConnect', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.violet)),
                     const SizedBox(height: 40),
 
-                    // Code école
+                    // Code école - OPTIONNEL
                     TextFormField(
                       controller: _schoolCodeController,
                       textCapitalization: TextCapitalization.characters,
                       decoration: InputDecoration(
-                        labelText: 'Code école',
+                        labelText: 'Code école (optionnel)',
                         hintText: 'COL2024',
-                        prefixIcon: Icon(Icons.school_outlined),
+                        prefixIcon: const Icon(Icons.school_outlined),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         suffixIcon: _isValidatingSchool 
-                          ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                           : _schoolName != null 
-                            ? Icon(Icons.check_circle, color: Colors.green)
+                            ? const Icon(Icons.check_circle, color: Colors.green)
                             : null,
                       ),
                       onChanged: _verifySchool,
-                      // ⭐ MODIFIÉ : Code école optionnel pour super admin
-                      validator: (v) {
-                        // Le code école n'est pas requis si on est super admin
-                        // La vérification se fait dans _submit
-                        return null;
-                      },
                     ),
                     if (_schoolName != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
-                        child: Text(_schoolName!, style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                        child: Text(_schoolName!, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                       ),
                     const SizedBox(height: 24),
 
-                    // Téléphone
+                    // ⭐ COMME AVANT : Téléphone complet avec +225
                     TextFormField(
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
                       decoration: InputDecoration(
                         labelText: 'Téléphone',
-                        hintText: '+225 01 02 03 04 05',
-                        prefixIcon: Icon(Icons.phone),
+                        hintText: '+225 05 06 22 44 49', // ⭐ EXEMPLE AVEC +225
+                        prefixIcon: const Icon(Icons.phone),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       validator: (v) => v?.isEmpty ?? true ? 'Téléphone requis' : null,
@@ -184,7 +166,7 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
                       obscureText: _obscurePassword,
                       decoration: InputDecoration(
                         labelText: 'Mot de passe',
-                        prefixIcon: Icon(Icons.lock),
+                        prefixIcon: const Icon(Icons.lock),
                         suffixIcon: IconButton(
                           icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
                           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
@@ -195,8 +177,8 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Mot de passe par défaut: Prénom@2024!',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                      'Mot de passe: Matricule ou Initiale+Nom',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                     ),
                     const SizedBox(height: 32),
 
@@ -204,11 +186,8 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
                     BlocBuilder<auth.AuthBloc, auth.AuthState>(
                       builder: (context, state) {
                         final isLoading = state is auth.AuthLoading;
-                        // ⭐ MODIFIÉ : Bouton actif si super admin (pas besoin de schoolName)
-                        // ou si schoolName est validé
-                        final canSubmit = isLoading ? false : true;
                         return ElevatedButton(
-                          onPressed: canSubmit ? _submit : null,
+                          onPressed: isLoading ? null : _submit,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.violet,
                             minimumSize: const Size(double.infinity, 56),

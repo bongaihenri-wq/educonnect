@@ -1,3 +1,4 @@
+// lib/services/bulk_import_service.dart
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -12,6 +13,7 @@ class BulkImportService {
       dotenv.env['SUPABASE_FUNCTION_URL'] ?? 
       'https://vethtvfdkywbzxzwckdl.supabase.co/functions/v1/bulk-import';
   
+  // 🔥 REVIENT À TA VERSION ORIGINALE : Service Role Key
   static String get _serviceRoleKey => 
       dotenv.env['SUPABASE_SERVICE_ROLE_KEY'] ?? '';
 
@@ -21,17 +23,86 @@ class BulkImportService {
     'schedules'
   ];
 
+  // ============================================
+  // FORMATAGE HEURE
+  // ============================================
+
   static String _formatTimeToSupabase(dynamic value) {
-    if (value == null || value.toString().isEmpty) return "00:00:00";
-    String s = value.toString().trim();
-    if (RegExp(r'^\d{2}:\d{2}:\d{2}$').hasMatch(s)) return s;
-    if (RegExp(r'^\d{2}:\d{2}$').hasMatch(s)) return "$s:00";
-    if (s.contains(' ')) {
-      String timePart = s.split(' ')[1];
-      return timePart.length == 5 ? "$timePart:00" : timePart;
+    if (value == null || value.toString().trim().isEmpty) {
+      throw FormatException('Heure vide ou null');
     }
-    return s;
+    
+    String s = value.toString().trim();
+    print('🔍 _formatTimeToSupabase input: "$s"');
+
+    if (RegExp(r'^\d{2}:\d{2}:\d{2}$').hasMatch(s)) {
+      print('✅ Format HH:MM:SS');
+      return s;
+    }
+
+    if (RegExp(r'^\d{2}:\d{2}$').hasMatch(s)) {
+      print('✅ Format HH:MM -> $s:00');
+      return "$s:00";
+    }
+
+    if (RegExp(r'^\d{1}:\d{2}$').hasMatch(s)) {
+      final padded = "0$s:00";
+      print('✅ Format H:MM -> $padded');
+      return padded;
+    }
+
+    final hMatch = RegExp(r'^(\d{1,2})[hH](\d{2})$').firstMatch(s);
+    if (hMatch != null) {
+      final result = "${hMatch.group(1)!.padLeft(2, '0')}:${hMatch.group(2)!}:00";
+      print('✅ Format HeureMinute -> $result');
+      return result;
+    }
+
+    if (RegExp(r'^\d{4}$').hasMatch(s)) {
+      final result = "${s.substring(0, 2)}:${s.substring(2)}:00";
+      print('✅ Format 4chiffres -> $result');
+      return result;
+    }
+
+    if (s.contains(' ')) {
+      final parts = s.split(' ');
+      final timePart = parts.last;
+      if (RegExp(r'^\d{2}:\d{2}(:\d{2})?$').hasMatch(timePart)) {
+        final result = timePart.length == 5 ? "$timePart:00" : timePart;
+        print('✅ Format datetime -> $result');
+        return result;
+      }
+    }
+
+    if (s.contains('T')) {
+      final timePart = s.split('T')[1];
+      final result = timePart.substring(0, 8);
+      print('✅ Format ISO -> $result');
+      return result;
+    }
+
+    if (RegExp(r'^\d+\.\d+$').hasMatch(s)) {
+      try {
+        final fraction = double.parse(s);
+        if (fraction > 0 && fraction < 1) {
+          final totalSeconds = (fraction * 24 * 60 * 60).round();
+          final hours = (totalSeconds ~/ 3600).toString().padLeft(2, '0');
+          final minutes = ((totalSeconds % 3600) ~/ 60).toString().padLeft(2, '0');
+          final seconds = (totalSeconds % 60).toString().padLeft(2, '0');
+          final result = "$hours:$minutes:$seconds";
+          print('✅ Format Excel fraction -> $result');
+          return result;
+        }
+      } catch (_) {}
+    }
+
+    print('❌ Format non reconnu: "$s"');
+    throw FormatException('Format d\'heure non reconnu: "$s"');
   }
+
+  // ============================================
+  // EXECUTION IMPORT - VERSION ORIGINALE CORRIGÉE
+  // ============================================
 
   static Future<ImportResult> executeImport({
     required String type,
@@ -74,10 +145,13 @@ class BulkImportService {
         return cleanRow;
       }).toList();
 
+      print('📤 Envoi ${formattedData.length} lignes à $_functionUrl');
+
+      // 🔥 VERSION ORIGINALE : Service Role Key dans Authorization
       final response = await http.post(
         Uri.parse(_functionUrl),
         headers: {
-          'Authorization': 'Bearer $_serviceRoleKey',
+          'Authorization': 'Bearer $_serviceRoleKey',  // ← TA VERSION ORIGINALE
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
@@ -91,6 +165,9 @@ class BulkImportService {
         const Duration(minutes: 2),
         onTimeout: () => throw ImportTimeoutException('Le serveur a mis trop de temps à répondre'),
       );
+
+      print('📥 Status: ${response.statusCode}');
+      print('📥 Body: ${response.body.substring(0, response.body.length > 1000 ? 1000 : response.body.length)}');
 
       final responseData = jsonDecode(response.body);
       
@@ -111,6 +188,10 @@ class BulkImportService {
     }
   }
 
+  // ============================================
+  // PARSING FICHIER - VERSION CORRIGÉE EXCEL
+  // ============================================
+
   static List<Map<String, dynamic>> parseFile(FilePickerResult pickerResult) {
     final file = pickerResult.files.first;
     final bytes = file.bytes ?? (file.path != null ? File(file.path!).readAsBytesSync() : null);
@@ -118,6 +199,8 @@ class BulkImportService {
     if (bytes == null || bytes.isEmpty) {
       throw Exception('Impossible de lire le fichier');
     }
+
+    print('📁 Fichier: ${file.name}, extension: ${file.extension}, taille: ${bytes.length} bytes');
 
     if (file.extension == 'xlsx' || file.extension == 'xls') {
       return _readExcel(bytes);
@@ -139,7 +222,33 @@ class BulkImportService {
 
     if (rows.length < 2) return [];
 
-    final headers = rows.first.map((e) => e.toString().trim().toLowerCase()).toList();
+    final headers = rows.first.map((e) {
+      return e.toString()
+        .trim()
+        .toLowerCase()
+        .replaceAll('\ufeff', '')
+        .replaceAll('\u00a0', '')
+        .replaceAll(' ', '_')
+        .replaceAll('-', '_')
+        .replaceAll('é', 'e')
+        .replaceAll('è', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('à', 'a')
+        .replaceAll('ç', 'c')
+        .replaceAll('ô', 'o')
+        .replaceAll('ê', 'e')
+        .replaceAll('ù', 'u')
+        .replaceAll('û', 'u')
+        .replaceAll('î', 'i')
+        .replaceAll('ï', 'i')
+        .replaceAll('â', 'a')
+        .replaceAll('ä', 'a')
+        .replaceAll('ö', 'o')
+        .replaceAll('ü', 'u')
+        .replaceAll('ñ', 'n');
+    }).toList();
+
+    print('📋 Headers nettoyés: $headers');
 
     return rows.skip(1)
         .where((row) => row.any((cell) => cell.toString().trim().isNotEmpty))
@@ -155,31 +264,48 @@ class BulkImportService {
   }
 
   static List<Map<String, dynamic>> _readExcel(Uint8List bytes) {
-    var excel = excel_lib.Excel.decodeBytes(bytes);
-    List<Map<String, dynamic>> list = [];
+    try {
+      final excel = excel_lib.Excel.decodeBytes(bytes);
+      List<Map<String, dynamic>> list = [];
 
-    for (var table in excel.tables.keys) {
-      var sheet = excel.tables[table]!;
-      if (sheet.maxRows < 2) continue;
+      for (var table in excel.tables.keys) {
+        var sheet = excel.tables[table]!;
+        if (sheet.maxRows < 2) continue;
 
-      final headers = sheet.rows.first.map((cell) => 
-        cell?.value.toString().trim().toLowerCase() ?? "").toList();
+        final headers = sheet.rows.first.map((cell) => 
+          _extractCellValue(cell)?.toString().trim().toLowerCase() ?? "").toList();
 
-      for (int i = 1; i < sheet.maxRows; i++) {
-        var row = sheet.rows[i];
-        if (row.any((cell) => cell?.value != null)) {
-          var map = <String, dynamic>{};
-          for (int j = 0; j < headers.length; j++) {
-            if (j < row.length) {
-              map[headers[j]] = row[j]?.value.toString().trim() ?? "";
+        for (int i = 1; i < sheet.maxRows; i++) {
+          var row = sheet.rows[i];
+          if (row.any((cell) => _extractCellValue(cell) != null)) {
+            var map = <String, dynamic>{};
+            for (int j = 0; j < headers.length; j++) {
+              if (j < row.length) {
+                final value = _extractCellValue(row[j]);
+                map[headers[j]] = value?.toString().trim() ?? "";
+              }
             }
+            list.add(map);
           }
-          list.add(map);
         }
+        break;
       }
-      break;
+      return list;
+    } catch (e) {
+      throw Exception('Impossible de lire le fichier Excel: $e');
     }
-    return list;
+  }
+
+  // 🔥 EXTRACTEUR ULTRA-SIMPLE: toString() uniquement
+  static dynamic _extractCellValue(dynamic cell) {
+    if (cell == null) return null;
+    try {
+      final value = cell.value;
+      if (value == null) return null;
+      return value.toString();
+    } catch (e) {
+      return cell.toString();
+    }
   }
 
   static String _decodeWithFallback(Uint8List bytes) {
@@ -202,6 +328,10 @@ class BulkImportService {
     return semicolons > commas ? ';' : ',';
   }
 }
+
+// ============================================
+// CLASSES RÉSULTAT
+// ============================================
 
 class ImportResult {
   final bool success;
@@ -257,7 +387,7 @@ class ImportResult {
   @override
   String toString() {
     return 'ImportResult(success: $success, created: $created, updated: $updated, '
-        'deleted: $deleted, errors: ${errors.length}, credentials: ${credentials.length}, message: $message)';
+        'errors: ${errors.length}, message: $message)';
   }
 }
 

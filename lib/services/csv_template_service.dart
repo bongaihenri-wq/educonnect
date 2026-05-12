@@ -1,47 +1,54 @@
-import 'package:flutter/services.dart';
-
+// lib/services/csv_template_service.dart
 class CsvTemplateService {
-  static const Map<String, String> _templates = {
-    'students_parents': 'assets/templates/students_parents_template.csv',
-    'teachers': 'assets/templates/teachers_template.csv',
-    'schedules': 'assets/templates/schedules_template.csv',
-  };
-
-  static Future<String> getTemplate(String type) async {
-    final path = _templates[type];
-    if (path == null) throw Exception('Template inconnu: $type');
-    return await rootBundle.loadString(path);
+  static String getTemplate(String type) {
+    switch (type) {
+      case 'students_parents':
+        return '''matricule,eleve_nom,eleve_prenom,classe,parent_nom,parent_prenom,parent_telephone
+ABC123,Kouassi,Jean,6eme A,Kouassi,Marie,+2250506224449
+DEF456,Konan,Aline,6eme B,Konan,Pierre,+2250506224450''';
+      
+      case 'teachers':
+        return '''nom,prenom,telephone,matiere
+Dupont,Jean,+2250123456789,Mathematiques
+Martin,Sophie,+2250123456790,Francais''';
+      
+      case 'schedules':
+        return '''classe,jour,heure_debut,heure_fin,matiere,enseignant_telephone,salle
+6eme A,lundi,08:00,10:00,Mathematiques,+2250123456789,Salle 101
+6eme A,lundi,10:00,12:00,Francais,+2250123456790,Salle 102''';
+      
+      default:
+        throw Exception('Type inconnu: $type');
+    }
   }
 
   static String getTemplateDescription(String type) {
     switch (type) {
       case 'students_parents':
-        return '''Colonnes obligatoires:
-- matricule: Identifiant unique de l'élève
-- eleve_nom: Nom de famille de l'élève
-- eleve_prenom: Prénom de l'élève
-- classe: Nom de la classe (ex: 6ème A)
-- parent_nom: Nom du parent
-- parent_prenom: Prénom du parent
-- parent_telephone: Téléphone avec indicatif (ex: +22501020304)''';
+        return 'Importez les eleves et leurs parents.\nLe parent est cree automatiquement avec le telephone comme identifiant.\nMot de passe = matricule de l\'eleve.';
+      
       case 'teachers':
-        return '''Colonnes obligatoires:
-- matiere: Matière enseignée (ex: Mathématiques)
-- nom: Nom de l'enseignant
-- prenom: Prénom de l'enseignant
-- email: Email valide
-- telephone: Téléphone avec indicatif''';
+        return 'Importez les enseignants.\nTelephone = identifiant de connexion.\nMot de passe = Initiale + Nom en majuscule (ex: JDUPONT).';
+      
       case 'schedules':
-        return '''Colonnes obligatoires:
-- classe: Nom de la classe
-- jour: Jour de la semaine (Lundi, Mardi...)
-- heure_debut: HH:MM (ex: 08:00)
-- heure_fin: HH:MM (ex: 10:00)
-- matiere: Nom de la matière
-- enseignant_email: Email de l'enseignant
-- salle: Numéro ou nom de salle''';
+        return 'Importez l\'emploi du temps.\nUtilisez le telephone de l\'enseignant (pas l\'email).\nL\'enseignant doit deja etre importe.\nFormat heure: HH:MM (ex: 08:00) ou HH:MM:SS (ex: 08:00:00)';
+      
       default:
         return '';
+    }
+  }
+  
+  /// Retourne les headers attendus pour un type
+  static List<String> getExpectedHeaders(String type) {
+    switch (type) {
+      case 'students_parents':
+        return ['matricule', 'eleve_nom', 'eleve_prenom', 'classe', 'parent_nom', 'parent_prenom', 'parent_telephone'];
+      case 'teachers':
+        return ['nom', 'prenom', 'telephone', 'matiere'];
+      case 'schedules':
+        return ['classe', 'jour', 'heure_debut', 'heure_fin', 'matiere', 'enseignant_telephone', 'salle'];
+      default:
+        return [];
     }
   }
 }
