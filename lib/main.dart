@@ -14,6 +14,9 @@ import 'data/repositories/course_repository.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   print('🚀 MAIN - Début initialisation');
+    print('🔍 SUPABASE_URL: ${const String.fromEnvironment('SUPABASE_URL')}');
+  print('🔍 FUNCTION_URL: ${const String.fromEnvironment('SUPABASE_FUNCTION_URL')}');
+  print('🔍 SERVICE_KEY empty: ${const String.fromEnvironment('SUPABASE_SERVICE_ROLE_KEY').isEmpty}');
 
   try {
     await dotenv.load(fileName: ".env");

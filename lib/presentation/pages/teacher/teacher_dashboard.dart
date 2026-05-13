@@ -63,7 +63,10 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               const DashboardHeader(),
-              const StatCardsRow(),
+              StatCardsRow(
+                teacherId: teacherId,
+                schoolId: schoolId,
+                ),
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(20, 24, 20, 16),
