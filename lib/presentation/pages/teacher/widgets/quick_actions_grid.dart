@@ -112,6 +112,7 @@ class _ActionCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: Container(
         width: 100,
+        height: 120,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: AppTheme.white,
