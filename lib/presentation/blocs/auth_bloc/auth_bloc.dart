@@ -12,8 +12,147 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc(this._supabase) : super(AuthInitial()) {
     on<AppStarted>(_onAppStarted);
     on<LoginWithPhoneRequested>(_onLoginWithPhone);
+    on<PaymentReferenceSubmitted>(_onPaymentReferenceSubmitted);
     on<LogoutRequested>(_onLogout);
   }
+
+  // ============================================================
+  // 🔥 VÉRIFICATION ABONNEMENT PARENT
+  // ============================================================
+  
+  Future<Map<String, dynamic>?> _checkSubscription(
+    String parentId,
+    String? schoolId,
+  ) async {
+    try {
+      final response = await _supabase
+          .from('parent_subscriptions')
+          .select('''
+            id,
+            status,
+            plan_type,
+            trial_ends_at,
+            current_period_end,
+            amount,
+            currency
+          ''')
+          .eq('parent_id', parentId)
+          .maybeSingle();
+
+      if (response == null) return null;
+
+      String? paymentPhoneNumber;
+      if (schoolId != null) {
+        try {
+          final school = await _supabase
+              .from('schools')
+              .select('payment_phone_number')
+              .eq('id', schoolId)
+              .maybeSingle();
+          paymentPhoneNumber = school?['payment_phone_number'];
+        } catch (e) {
+          print('⚠️ Erreur récupération école: $e');
+        }
+      }
+
+      return {
+        'id': response['id'],
+        'status': response['status'],
+        'plan_type': response['plan_type'],
+        'trial_ends_at': response['trial_ends_at'] != null
+            ? DateTime.parse(response['trial_ends_at'])
+            : null,
+        'current_period_end': response['current_period_end'] != null
+            ? DateTime.parse(response['current_period_end'])
+            : null,
+        'amount': response['amount'],
+        'currency': response['currency'],
+        'payment_phone_number': paymentPhoneNumber,
+      };
+    } catch (e) {
+      print('❌ Erreur vérification abonnement: $e');
+      return null;
+    }
+  }
+
+  // ============================================================
+  // ⭐ VÉRIFICATION PAIEMENT PENDING
+  // ============================================================
+  
+  Future<Map<String, dynamic>?> _checkPendingPayment(String parentId) async {
+    try {
+      final response = await _supabase
+          .from('payment_transactions')
+          .select('id, external_ref, amount, status, created_at')
+          .eq('parent_id', parentId)
+          .eq('status', 'pending')
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (response == null) return null;
+
+      return {
+        'id': response['id'],
+        'external_ref': response['external_ref'],
+        'amount': (response['amount'] as num).toDouble(),
+        'status': response['status'],
+        'created_at': response['created_at'],
+      };
+    } catch (e) {
+      print('❌ Erreur vérification paiement pending: $e');
+      return null;
+    }
+  }
+
+  bool _isSubscriptionExpired(Map<String, dynamic>? sub) {
+    if (sub == null) {
+      print('🔴 SUBSCRIPTION NULL → CONSIDÉRÉ COMME EXPIRÉ');
+      return true;
+    }
+    
+    final status = sub['status'] as String?;
+    if (status == null) {
+      print('🔴 STATUT NULL → CONSIDÉRÉ COMME EXPIRÉ');
+      return true;
+    }
+
+    print('🟡 Statut trouvé: $status');
+
+    if (status == 'expired') {
+      print('🔴 STATUT = expired');
+      return true;
+    }
+
+    if (status == 'trial') {
+      final trialEndsAt = sub['trial_ends_at'] as DateTime?;
+      if (trialEndsAt != null && DateTime.now().isAfter(trialEndsAt)) {
+        print('🔴 TRIAL EXPIRÉ: $trialEndsAt');
+        return true;
+      }
+      print('🟢 TRIAL EN COURS jusquà $trialEndsAt');
+    }
+
+    if (status == 'active') {
+      final currentPeriodEnd = sub['current_period_end'] as DateTime?;
+      if (currentPeriodEnd != null && DateTime.now().isAfter(currentPeriodEnd)) {
+        print('🔴 ACTIF EXPIRÉ: $currentPeriodEnd');
+        return true;
+      }
+      print('🟢 ACTIF jusquà $currentPeriodEnd');
+    }
+
+    if (status != 'trial' && status != 'active') {
+      print('🔴 STATUT INCONNU: $status → EXPIRÉ');
+      return true;
+    }
+
+    return false;
+  }
+
+  // ============================================================
+  // HANDLERS
+  // ============================================================
 
   Future<void> _onAppStarted(AppStarted event, Emitter<AuthState> emit) async {
     emit(AuthLoading());
@@ -30,13 +169,53 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             .eq('id', userId)
             .single();
         
+        if (role == 'parent') {
+          print('🔍 [AppStarted] Vérification abonnement pour parent: $userId');
+          final sub = await _checkSubscription(userId, user['school_id']);
+          print('🔍 [AppStarted] Subscription: $sub');
+          
+          final pendingPayment = await _checkPendingPayment(userId);
+          print('🔍 [AppStarted] Paiement pending: $pendingPayment');
+          
+          if (pendingPayment != null) {
+            print('🟡 [AppStarted] PAIEMENT PENDING → PaymentPendingPage');
+            emit(PaymentSubmittedSuccessfully(
+              parentId: userId,
+              reference: pendingPayment['external_ref'],
+              amount: pendingPayment['amount'],
+              submittedAt: DateTime.parse(pendingPayment['created_at']),
+            ));
+            return;
+          }
+          
+          if (_isSubscriptionExpired(sub)) {
+            print('🔴 [AppStarted] ABONNEMENT EXPIRÉ → SubscriptionExpired');
+            emit(SubscriptionExpired(
+              parentId: userId,
+              schoolId: user['school_id'],
+              expiresAt: sub?['trial_ends_at'] ?? sub?['current_period_end'],
+              amount: sub?['amount'] ?? 1000,
+              currency: sub?['currency'] ?? 'XOF',
+              paymentPhoneNumber: sub?['payment_phone_number'],
+            ));
+            return;
+          }
+          print('🟢 [AppStarted] Abonnement OK');
+        }
+        
         final schoolName = await _getSchoolName(user['school_id']);
         
-        _emitAuthenticated(user, schoolName, emit);
+        Map<String, dynamic> parentData = {};
+        if (role == 'parent') {
+          parentData = await _getParentData(userId);
+        }
+        
+        _emitAuthenticated(user, schoolName, emit, parentData: parentData);
       } else {
         emit(Unauthenticated());
       }
     } catch (e) {
+      print('❌ [AppStarted] Erreur: $e');
       emit(Unauthenticated());
     }
   }
@@ -47,7 +226,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
 
-    // ⭐ DEBUG
     print('🔍 AUTHBLOC PHONE RECU: "${event.phone}"');
     
     try {
@@ -70,12 +248,45 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         await prefs.setString('first_name', result['first_name']);
         await prefs.setString('last_name', result['last_name']);
         
-        // ⭐ CORRIGÉ : school_id peut être null pour super_admin
         final schoolId = result['school_id'] as String?;
         if (schoolId != null) {
           await prefs.setString('school_id', schoolId);
         } else {
           await prefs.remove('school_id');
+        }
+        
+        if (result['role'] == 'parent') {
+          print('🔍 [Login] Vérification abonnement pour parent: ${result['user_id']}');
+          final sub = await _checkSubscription(result['user_id'], schoolId);
+          print('🔍 [Login] Subscription: $sub');
+          
+          final pendingPayment = await _checkPendingPayment(result['user_id']);
+          print('🔍 [Login] Paiement pending: $pendingPayment');
+          
+          if (pendingPayment != null) {
+            print('🟡 [Login] PAIEMENT PENDING → PaymentPendingPage');
+            emit(PaymentSubmittedSuccessfully(
+              parentId: result['user_id'],
+              reference: pendingPayment['external_ref'],
+              amount: pendingPayment['amount'],
+              submittedAt: DateTime.parse(pendingPayment['created_at']),
+            ));
+            return;
+          }
+          
+          if (_isSubscriptionExpired(sub)) {
+            print('🔴 [Login] ABONNEMENT EXPIRÉ → SubscriptionExpired');
+            emit(SubscriptionExpired(
+              parentId: result['user_id'],
+              schoolId: schoolId,
+              expiresAt: sub?['trial_ends_at'] ?? sub?['current_period_end'],
+              amount: sub?['amount'] ?? 1000,
+              currency: sub?['currency'] ?? 'XOF',
+              paymentPhoneNumber: sub?['payment_phone_number'],
+            ));
+            return;
+          }
+          print('🟢 [Login] Abonnement OK');
         }
         
         final schoolName = await _getSchoolName(schoolId);
@@ -90,7 +301,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           'first_name': result['first_name'],
           'last_name': result['last_name'],
           'role': result['role'],
-          'school_id': schoolId, // peut être null
+          'school_id': schoolId,
           'email': result['email'],
           'phone': result['phone'],
         }, schoolName, emit, parentData: parentData);
@@ -98,7 +309,49 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         emit(AuthError(result['message']));
       }
     } catch (e) {
+      print('❌ [Login] Erreur: $e');
       emit(AuthError('Erreur de connexion: $e'));
+    }
+  }
+
+  // ✅ CORRIGÉ : Ajout schoolId + gestion propre
+  Future<void> _onPaymentReferenceSubmitted(
+    PaymentReferenceSubmitted event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+
+    try {
+      // ⭐ CORRIGÉ : Ajout school_id obligatoire
+      await _supabase.from('payment_transactions').insert({
+        'parent_id': event.parentId,
+        'school_id': event.schoolId, // ⭐ AJOUTÉ
+        'external_ref': event.reference,
+        'amount': event.amount.toInt(),
+        'currency': 'XOF',
+        'provider': 'wave',
+        'status': 'pending',
+        'notes': event.phoneNumber,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      print('✅ Paiement inséré: ${event.reference}');
+
+      // ✅ CORRIGÉ : Recharger ParentAuthenticated au lieu de bloquer
+      final user = await _supabase
+          .from('app_users')
+          .select('id, first_name, last_name, role, school_id, email, phone')
+          .eq('id', event.parentId)
+          .single();
+
+      final schoolName = await _getSchoolName(user['school_id']);
+      final parentData = await _getParentData(event.parentId);
+
+      _emitAuthenticated(user, schoolName, emit, parentData: parentData);
+      
+    } catch (e) {
+      print('❌ Erreur paiement: $e');
+      emit(AuthError('Erreur lors de la soumission: $e'));
     }
   }
 
@@ -107,6 +360,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     await prefs.clear();
     emit(Unauthenticated());
   }
+
+  // ============================================================
+  // HELPERS
+  // ============================================================
 
   Future<String> _getSchoolName(String? schoolId) async {
     if (schoolId == null) return 'Toutes les écoles';
@@ -130,6 +387,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           .eq('parent_id', parentId)
           .single();
       
+      Map<String, dynamic> studentData = {};
       if (parentStudent != null) {
         final student = await _supabase
             .from('students')
@@ -138,7 +396,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             .single();
         
         if (student != null) {
-          return {
+          studentData = {
             'studentId': student['id'],
             'studentName': '${student['first_name']} ${student['last_name']}',
             'studentMatricule': student['matricule'] ?? '',
@@ -146,10 +404,47 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           };
         }
       }
+
+      final sub = await _checkSubscription(parentId, studentData.isNotEmpty ? null : null);
+      
+      String? status;
+      DateTime? endDate;
+      int? daysRemaining;
+      int? amount;
+      String? currency;
+      String? paymentPhone;
+      
+      if (sub != null) {
+        status = sub['status'] as String?;
+        endDate = sub['trial_ends_at'] ?? sub['current_period_end'];
+        amount = sub['amount'] as int?;
+        currency = sub['currency'] as String?;
+        paymentPhone = sub['payment_phone_number'] as String?;
+        
+        if (endDate != null) {
+          daysRemaining = endDate.difference(DateTime.now()).inDays;
+        }
+      } else {
+        status = 'no_subscription';
+      }
+
+      return {
+        ...studentData,
+        'subscriptionStatus': status,
+        'subscriptionEndDate': endDate,
+        'daysRemaining': daysRemaining,
+        'subscriptionAmount': amount ?? 1000,
+        'subscriptionCurrency': currency ?? 'XOF',
+        'paymentPhoneNumber': paymentPhone,
+      };
     } catch (e) {
       print('❌ Erreur récupération parent data: $e');
+      return {
+        'subscriptionStatus': 'no_subscription',
+        'subscriptionAmount': 1000,
+        'subscriptionCurrency': 'XOF',
+      };
     }
-    return {};
   }
 
   void _emitAuthenticated(
@@ -195,6 +490,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         studentName: parentData['studentName'] ?? '',
         studentMatricule: parentData['studentMatricule'] ?? '',
         className: parentData['className'] ?? '',
+        subscriptionStatus: parentData['subscriptionStatus'],
+        subscriptionEndDate: parentData['subscriptionEndDate'],
+        daysRemaining: parentData['daysRemaining'],
+        subscriptionAmount: parentData['subscriptionAmount'],
+        subscriptionCurrency: parentData['subscriptionCurrency'],
+        paymentPhoneNumber: parentData['paymentPhoneNumber'],
       ));
     } else {
       emit(AuthError('Rôle inconnu: $role'));

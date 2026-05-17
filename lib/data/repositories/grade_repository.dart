@@ -11,74 +11,71 @@ class GradeRepository {
   // ============================================================
   // SAUVEGARDE DES NOTES (Bulk Insert)
   // ============================================================
- Future<void> saveGrades({
-  required String classId,
-  required String subjectId,
-  required String scheduleId,
-  required String teacherId,
-  required String schoolId,
-  required String evaluationType,
-  required String evaluationName,
-  required DateTime date,
-  required Map<String, double> scores,
-  required double maxScore,
-  int coefficient = 1, // ✅ PARAMÈTRE REÇU
-}) async {
-  
-  print('🔥 COEFFICIENT REÇU: $coefficient'); // Debug
+  Future<void> saveGrades({
+    required String classId,
+    required String subjectId,
+    required String scheduleId,
+    required String teacherId,
+    required String schoolId,
+    required String evaluationType,
+    required String evaluationName,
+    required DateTime date,
+    required Map<String, double> scores,
+    required double maxScore,
+    int coefficient = 1,
+  }) async {
+    print('🔥 COEFFICIENT REÇU: $coefficient');
 
-  final normalizedType = evaluationType.toLowerCase().trim();
-  const validTypes = ['devoir', 'interro', 'examen', 'participation'];
+    final normalizedType = evaluationType.toLowerCase().trim();
+    const validTypes = ['devoir', 'interro', 'examen', 'participation'];
 
-  if (!validTypes.contains(normalizedType)) {
-    throw Exception('Type "$evaluationType" invalide');
-  }
-
-  if (schoolId.isEmpty) throw Exception('schoolId requis');
-  if (teacherId.isEmpty) throw Exception('teacherId requis');
-  if (classId.isEmpty) throw Exception('classId requis');
-
-  final now = DateTime.now().toIso8601String();
-
-  final grades = scores.entries.map((entry) => {
-    'student_id': entry.key,
-    'class_id': classId,
-    'subject_id': subjectId,
-    'schedule_id': scheduleId.isNotEmpty ? scheduleId : null,
-    'teacher_id': teacherId,
-    'school_id': schoolId,
-    'type': normalizedType,
-    'score': entry.value,
-    'max_score': maxScore,
-    'coefficient': coefficient, // ✅ BIEN UTILISÉ ICI
-    'comment': evaluationName,
-    'date': date.toIso8601String().split('T')[0],
-    'created_at': now,
-  }).toList();
-
-  try {
-    // Delete existing
-    await _supabase
-        .from('grades')
-        .delete()
-        .eq('class_id', classId)
-        .eq('subject_id', subjectId)
-        .eq('teacher_id', teacherId)
-        .eq('date', date.toIso8601String().split('T')[0])
-        .eq('type', normalizedType)
-        .eq('comment', evaluationName)
-        .eq('school_id', schoolId);
-
-    // Insert
-    if (grades.isNotEmpty) {
-      await _supabase.from('grades').insert(grades);
-      debugPrint('✅ ${grades.length} notes sauvegardées (coef: $coefficient)');
+    if (!validTypes.contains(normalizedType)) {
+      throw Exception('Type "$evaluationType" invalide');
     }
-  } catch (e) {
-    debugPrint('❌ Erreur sauvegarde notes: $e');
-    throw Exception('Erreur sauvegarde notes: $e');
+
+    if (schoolId.isEmpty) throw Exception('schoolId requis');
+    if (teacherId.isEmpty) throw Exception('teacherId requis');
+    if (classId.isEmpty) throw Exception('classId requis');
+
+    final now = DateTime.now().toIso8601String();
+
+    final grades = scores.entries.map((entry) => {
+      'student_id': entry.key,
+      'class_id': classId,
+      'subject_id': subjectId,
+      'schedule_id': scheduleId.isNotEmpty ? scheduleId : null,
+      'teacher_id': teacherId,
+      'school_id': schoolId,
+      'type': normalizedType,
+      'score': entry.value,
+      'max_score': maxScore,
+      'coefficient': coefficient,
+      'comment': evaluationName,
+      'date': date.toIso8601String().split('T')[0],
+      'created_at': now,
+    }).toList();
+
+    try {
+      await _supabase
+          .from('grades')
+          .delete()
+          .eq('class_id', classId)
+          .eq('subject_id', subjectId)
+          .eq('teacher_id', teacherId)
+          .eq('date', date.toIso8601String().split('T')[0])
+          .eq('type', normalizedType)
+          .eq('comment', evaluationName)
+          .eq('school_id', schoolId);
+
+      if (grades.isNotEmpty) {
+        await _supabase.from('grades').insert(grades);
+        debugPrint('✅ ${grades.length} notes sauvegardées (coef: $coefficient)');
+      }
+    } catch (e) {
+      debugPrint('❌ Erreur sauvegarde notes: $e');
+      throw Exception('Erreur sauvegarde notes: $e');
+    }
   }
-}
 
   // ============================================================
   // RÉCUPÉRATION — Notes d'une classe/matière/date
@@ -94,9 +91,10 @@ class GradeRepository {
   }) async {
     final dateStr = date.toIso8601String().split('T')[0];
 
+    // 🔥 CORRECTION : .order() AVANT les filtres, pas après
     var query = _supabase
         .from('grades')
-        .select()  // ✅ Pas de colonnes spécifiques = PostgrestFilterBuilder
+        .select('*, students!inner(first_name, last_name)')
         .eq('class_id', classId)
         .eq('subject_id', subjectId)
         .eq('teacher_id', teacherId)
@@ -108,7 +106,10 @@ class GradeRepository {
       query = query.eq('school_id', schoolId);
     }
 
-    final response = await query;
+    // 🔥 ORDER À LA FIN (après tous les eq)
+    final response = await query
+        .order('students(last_name)', ascending: true);
+  
 
     final result = <String, GradeModel>{};
     for (final record in response as List) {
@@ -130,7 +131,7 @@ class GradeRepository {
   }) async {
     var query = _supabase
         .from('grades')
-        .select()  // ✅ Pas de colonnes spécifiques
+        .select('*, students!inner(first_name, last_name)')
         .eq('student_id', studentId);
 
     if (schoolId != null && schoolId.isNotEmpty) {
@@ -214,7 +215,7 @@ class GradeRepository {
 
     var query = _supabase
         .from('grades')
-        .select()  // ✅ Pas de colonnes spécifiques
+        .select('*, students!inner(first_name, last_name)')
         .eq('class_id', classId)
         .eq('subject_id', subjectId)
         .eq('date', dateStr);
