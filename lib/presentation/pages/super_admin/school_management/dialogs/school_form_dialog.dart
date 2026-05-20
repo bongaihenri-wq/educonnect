@@ -46,7 +46,7 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
     _phoneController = TextEditingController(text: s?['phone'] ?? '');
     _emailController = TextEditingController(text: s?['email'] ?? '');
     _codeController = TextEditingController(text: s?['school_code'] ?? '');
-    _monthlyFeeController = TextEditingController(text: (s?['monthly_fee'] ?? 5000).toString());
+    _monthlyFeeController = TextEditingController(text: (s?['monthly_fee'] ?? 1000).toString());
     if (s != null) {
       _planType = s['plan_type'] ?? 'basic';
       _countryCode = s['country_code'] ?? 'CI';

@@ -312,7 +312,9 @@ class AttendanceRepository {
         ''')
         .eq('school_id', schoolId)
         .eq('date', today)
-        .neq('status', 'present');
+        .neq('status', 'present')
+        .order('students(last_name)', ascending: true);
+      
 
     return (response as List).cast<Map<String, dynamic>>();
   }

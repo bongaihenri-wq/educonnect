@@ -30,8 +30,8 @@ class StudentRepository {
         .from('students')
         .select('*')  // ✅ Simplifié - juste les colonnes de students
         .eq('class_id', classId)
-        .order('last_name')
-        .order('first_name');
+        .order('last_name', ascending: true);
+    
 
     print('✅ ${response.length} élèves trouvés pour classId: $classId');
     

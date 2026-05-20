@@ -20,6 +20,23 @@ class LoginWithPhoneRequested extends AuthEvent {
   });
 }
 
+/// ⭐ NOUVEAU : Parent soumet une référence de paiement
+class PaymentReferenceSubmitted extends AuthEvent {
+  final String parentId;
+  final String schoolId;
+  final String reference;
+  final double amount;
+  final String? phoneNumber; // Numéro utilisé pour le dépôt
+
+  const PaymentReferenceSubmitted({
+    required this.parentId,
+    required this.schoolId,
+    required this.reference,
+    required this.amount,
+    this.phoneNumber,
+  });
+}
+
 class LogoutRequested extends AuthEvent {
   const LogoutRequested();
 }

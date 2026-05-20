@@ -3,9 +3,37 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../blocs/auth_bloc/auth_bloc.dart' as auth;
 import '../../../config/routes.dart';
+import '../../../services/subscription_service.dart';
 
-class SuperAdminDashboardPage extends StatelessWidget {
+class SuperAdminDashboardPage extends StatefulWidget {
   const SuperAdminDashboardPage({super.key});
+
+  @override
+  State<SuperAdminDashboardPage> createState() => _SuperAdminDashboardPageState();
+}
+
+class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
+  int _pendingPaymentsCount = 0;
+  bool _isLoadingPending = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPendingCount();
+  }
+
+  Future<void> _loadPendingCount() async {
+    try {
+      final service = SubscriptionService(Supabase.instance.client);
+      final pending = await service.getPendingPayments();
+      setState(() {
+        _pendingPaymentsCount = pending.length;
+        _isLoadingPending = false;
+      });
+    } catch (e) {
+      setState(() => _isLoadingPending = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,6 +52,7 @@ class SuperAdminDashboardPage extends StatelessWidget {
             title: const Text('EduConnect — Super Admin'),
             backgroundColor: const Color(0xFF6B4EFF),
             actions: [
+              // ❌ SUPPRIMÉ : Badge notification dans l'app bar
               IconButton(
                 icon: const Icon(Icons.logout),
                 onPressed: () {
@@ -33,17 +62,22 @@ class SuperAdminDashboardPage extends StatelessWidget {
               ),
             ],
           ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(superAdmin),
-                const SizedBox(height: 24),
-                _buildGlobalStats(),
-                const SizedBox(height: 24),
-                _buildActionsGrid(context),
-              ],
+          body: RefreshIndicator(
+            onRefresh: _loadPendingCount,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(superAdmin),
+                  const SizedBox(height: 24),
+                  // ❌ SUPPRIMÉ : Banner alerte orange
+                  _buildGlobalStats(),
+                  const SizedBox(height: 24),
+                  _buildActionsGrid(context),
+                ],
+              ),
             ),
           ),
         );
@@ -219,16 +253,10 @@ class SuperAdminDashboardPage extends StatelessWidget {
         ),
       ),
       _AdminAction(
-        icon: Icons.payment,
-        label: 'Suivi Paiements',
+        icon: Icons.monetization_on,
+        label: '💰 Suivi Abonnements',
         color: Colors.green,
-        onTap: () => Navigator.pushNamed(context, AppRoutes.subscriptionTracking),
-      ),
-      _AdminAction(
-        icon: Icons.people,
-        label: 'Utilisateurs',
-        color: Colors.orange,
-        onTap: () {},
+        onTap: () => Navigator.pushNamed(context, AppRoutes.subscriptionDashboard),
       ),
       _AdminAction(
         icon: Icons.bar_chart,
@@ -242,6 +270,12 @@ class SuperAdminDashboardPage extends StatelessWidget {
         color: Colors.grey,
         onTap: () {},
       ),
+      _AdminAction(
+        icon: Icons.manage_accounts,
+        label: 'Gestion des Rôles',
+        color: Colors.indigo,
+        onTap: () => Navigator.pushNamed(context, AppRoutes.roleManagement),
+),
     ];
 
     return Column(

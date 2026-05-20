@@ -146,7 +146,7 @@ class OverviewTab extends StatelessWidget {
             InfoRow(icon: Icons.phone, label: 'Téléphone', value: school['phone'] ?? 'Non renseigné'),
             InfoRow(icon: Icons.email, label: 'Email', value: school['email'] ?? 'Non renseigné'),
             InfoRow(icon: Icons.payment, label: 'Forfait', value: (school['plan_type'] ?? 'basic').toUpperCase()),
-            InfoRow(icon: Icons.attach_money, label: 'Frais mensuel', value: '${school['monthly_fee'] ?? 5000} XOF'),
+            InfoRow(icon: Icons.attach_money, label: 'Frais mensuel', value: '${school['monthly_fee'] ?? 1000} XOF'),
           ],
         ),
       ),

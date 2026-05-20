@@ -3,24 +3,18 @@ part of 'auth_bloc.dart';
 
 abstract class AuthState {
   const AuthState();
-
   get userId => null;
-
   get schoolId => null;
 }
 
 class AuthInitial extends AuthState {}
-
 class AuthLoading extends AuthState {}
-
 class Unauthenticated extends AuthState {}
-
 class AuthError extends AuthState {
   final String message;
   const AuthError(this.message);
 }
 
-/// État de base authentifié
 abstract class Authenticated extends AuthState {
   final String userId;
   final String firstName;
@@ -39,7 +33,27 @@ abstract class Authenticated extends AuthState {
   });
 }
 
-// ⭐ NOUVEAU : Super Admin — pas lié à une école spécifique
+class SubscriptionExpired extends AuthState {
+  final String parentId;
+  final String? schoolId;
+  final DateTime? expiresAt;
+  final int amount;
+  final String currency;
+  final String? paymentPhoneNumber;
+
+  const SubscriptionExpired({
+    required this.parentId,
+    this.schoolId,
+    this.expiresAt,
+    this.amount = 1000,
+    this.currency = 'XOF',
+    this.paymentPhoneNumber,
+  });
+
+  @override
+  get userId => parentId;
+}
+
 class SuperAdminAuthenticated extends AuthState {
   final String userId;
   final String firstName;
@@ -66,7 +80,7 @@ class AdminAuthenticated extends Authenticated {
     required super.lastName,
     required super.schoolId,
     required super.schoolName,
-       }) : super(role: 'admin');
+  }) : super(role: 'admin');
 }
 
 class TeacherAuthenticated extends Authenticated {
@@ -76,17 +90,23 @@ class TeacherAuthenticated extends Authenticated {
     required super.lastName,
     required super.schoolId,
     required super.schoolName,
- }) : super(role: 'teacher');
-// ignore: empty_constructor_bodies
+  }) : super(role: 'teacher');
 }
 
+// ✅ MODIFIÉ : Ajout des infos subscription
 class ParentAuthenticated extends Authenticated {
   final String studentId;
   final String studentName;
   final String studentMatricule;
   final String className;
-
-
+  
+  // ⭐ NOUVEAU : Infos subscription
+  final String? subscriptionStatus;   // 'active', 'trial', 'expired', 'no_subscription'
+  final DateTime? subscriptionEndDate;
+  final int? daysRemaining;
+  final int? subscriptionAmount;
+  final String? subscriptionCurrency;
+  final String? paymentPhoneNumber;
 
   const ParentAuthenticated({
     required super.userId,
@@ -98,5 +118,38 @@ class ParentAuthenticated extends Authenticated {
     required this.studentName,
     required this.studentMatricule,
     required this.className,
+    // ⭐ NOUVEAU
+    this.subscriptionStatus,
+    this.subscriptionEndDate,
+    this.daysRemaining,
+    this.subscriptionAmount,
+    this.subscriptionCurrency,
+    this.paymentPhoneNumber,
   }) : super(role: 'parent');
+}
+
+class PaymentPending extends AuthState {
+  final String parentId;
+  final String reference;
+  final double amount;
+  const PaymentPending({
+    required this.parentId,
+    required this.reference,
+    required this.amount,
+  });
+  @override
+  get userId => parentId;
+}
+
+class PaymentSubmittedSuccessfully extends AuthState {
+  final String parentId;
+  final String reference;
+  final double amount;
+  final DateTime submittedAt;
+  const PaymentSubmittedSuccessfully({
+    required this.parentId,
+    required this.reference,
+    required this.amount,
+    required this.submittedAt,
+  });
 }
