@@ -12,12 +12,58 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc(this._supabase) : super(AuthInitial()) {
     on<AppStarted>(_onAppStarted);
     on<LoginWithPhoneRequested>(_onLoginWithPhone);
-    on<PaymentReferenceSubmitted>(_onPaymentReferenceSubmitted);
     on<LogoutRequested>(_onLogout);
   }
 
   // ============================================================
-  // 🔥 VÉRIFICATION ABONNEMENT PARENT
+  // ⭐ NOUVEAU : Détection rôle spécifique par pays/école
+  // ============================================================
+
+  /// Extraire l'indicatif du téléphone
+  String? _extractCountryCode(String phone) {
+    if (phone.startsWith('+225')) return '+225';
+    if (phone.startsWith('+237')) return '+237';
+    if (phone.startsWith('+221')) return '+221';
+    if (phone.startsWith('+233')) return '+233';
+    if (phone.startsWith('+226')) return '+226';
+    if (phone.startsWith('+241')) return '+241';
+    return null;
+  }
+
+  /// Récupérer le rôle spécifique selon priorité École > Pays > Global
+  Future<Map<String, dynamic>?> _getSpecificRole(
+    String userId,
+    String phone,
+    String? schoolId,
+  ) async {
+    try {
+      final countryCode = _extractCountryCode(phone);
+      if (countryCode == null) return null;
+
+      final response = await _supabase.rpc('get_role_for_user', params: {
+        'p_user_id': userId,
+        'p_country_code': countryCode,
+        'p_school_id': schoolId,
+      });
+
+      if (response == null) return null;
+      
+      final data = response is List ? (response.isNotEmpty ? response[0] : null) : response;
+      if (data == null) return null;
+
+      return {
+        'code': data['code']?.toString(),
+        'name': data['name']?.toString(),
+        'level': data['level'],
+      };
+    } catch (e) {
+      print('⚠️ Erreur rôle spécifique: $e');
+      return null;
+    }
+  }
+
+  // ============================================================
+  // VÉRIFICATION ABONNEMENT PARENT (EXISTANT - inchangé)
   // ============================================================
   
   Future<Map<String, dynamic>?> _checkSubscription(
@@ -27,15 +73,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       final response = await _supabase
           .from('parent_subscriptions')
-          .select('''
-            id,
-            status,
-            plan_type,
-            trial_ends_at,
-            current_period_end,
-            amount,
-            currency
-          ''')
+          .select('id, status, plan_type, trial_ends_at, current_period_end, amount, currency')
           .eq('parent_id', parentId)
           .maybeSingle();
 
@@ -76,7 +114,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   // ============================================================
-  // ⭐ VÉRIFICATION PAIEMENT PENDING
+  // VÉRIFICATION PAIEMENT PENDING (EXISTANT - inchangé)
   // ============================================================
   
   Future<Map<String, dynamic>?> _checkPendingPayment(String parentId) async {
@@ -107,13 +145,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   bool _isSubscriptionExpired(Map<String, dynamic>? sub) {
     if (sub == null) {
-      print('🔴 SUBSCRIPTION NULL → CONSIDÉRÉ COMME EXPIRÉ');
+      print('🔴 SUBSCRIPTION NULL → EXPIRÉ');
       return true;
     }
     
     final status = sub['status'] as String?;
     if (status == null) {
-      print('🔴 STATUT NULL → CONSIDÉRÉ COMME EXPIRÉ');
+      print('🔴 STATUT NULL → EXPIRÉ');
       return true;
     }
 
@@ -151,7 +189,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   // ============================================================
-  // HANDLERS
+  // HANDLERS (AVEC MODIFICATIONS MINIMALES)
   // ============================================================
 
   Future<void> _onAppStarted(AppStarted event, Emitter<AuthState> emit) async {
@@ -255,6 +293,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           await prefs.remove('school_id');
         }
         
+        // ⭐ NOUVEAU : Détection rôle spécifique pour teacher/admin
+        String finalRole = result['role'];
+        if (result['role'] == 'teacher' || result['role'] == 'admin') {
+          final specificRole = await _getSpecificRole(
+            result['user_id'],
+            result['phone'] ?? event.phone,
+            schoolId,
+          );
+          
+          if (specificRole != null) {
+            print('🎯 [Login] Rôle spécifique trouvé: ${specificRole['code']}');
+            finalRole = specificRole['code']!;
+          }
+        }
+        
         if (result['role'] == 'parent') {
           print('🔍 [Login] Vérification abonnement pour parent: ${result['user_id']}');
           final sub = await _checkSubscription(result['user_id'], schoolId);
@@ -300,7 +353,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           'id': result['user_id'],
           'first_name': result['first_name'],
           'last_name': result['last_name'],
-          'role': result['role'],
+          'role': finalRole,
           'school_id': schoolId,
           'email': result['email'],
           'phone': result['phone'],
@@ -314,7 +367,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  // ✅ CORRIGÉ : Ajout schoolId + gestion propre
   Future<void> _onPaymentReferenceSubmitted(
     PaymentReferenceSubmitted event,
     Emitter<AuthState> emit,
@@ -322,10 +374,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(AuthLoading());
 
     try {
-      // ⭐ CORRIGÉ : Ajout school_id obligatoire
       await _supabase.from('payment_transactions').insert({
         'parent_id': event.parentId,
-        'school_id': event.schoolId, // ⭐ AJOUTÉ
+        'school_id': event.schoolId,
         'external_ref': event.reference,
         'amount': event.amount.toInt(),
         'currency': 'XOF',
@@ -337,7 +388,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
       print('✅ Paiement inséré: ${event.reference}');
 
-      // ✅ CORRIGÉ : Recharger ParentAuthenticated au lieu de bloquer
       final user = await _supabase
           .from('app_users')
           .select('id, first_name, last_name, role, school_id, email, phone')
@@ -362,7 +412,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   // ============================================================
-  // HELPERS
+  // HELPERS (EXISTANTS - inchangés)
   // ============================================================
 
   Future<String> _getSchoolName(String? schoolId) async {

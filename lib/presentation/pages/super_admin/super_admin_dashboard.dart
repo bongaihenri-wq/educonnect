@@ -270,6 +270,12 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
         color: Colors.grey,
         onTap: () {},
       ),
+      _AdminAction(
+        icon: Icons.manage_accounts,
+        label: 'Gestion des Rôles',
+        color: Colors.indigo,
+        onTap: () => Navigator.pushNamed(context, AppRoutes.roleManagement),
+),
     ];
 
     return Column(

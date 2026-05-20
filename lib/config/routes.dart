@@ -1,5 +1,6 @@
 // lib/config/routes.dart
 import 'package:educonnect/presentation/pages/parent/subscription_renewal_page.dart';
+import 'package:educonnect/presentation/pages/super_admin/role_management/role_management_page.dart';
 import 'package:educonnect/presentation/pages/super_admin/subscriptions/subscription_dashboard_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -26,7 +27,7 @@ import '../presentation/pages/teacher/teacher_reports_page.dart';
 import '../presentation/pages/super_admin/super_admin_dashboard.dart';
 import '../presentation/pages/super_admin/school_management/school_management_page.dart'; // ⭐ CORRIGÉ
 import '../presentation/pages/super_admin/school_management/school_detail_page.dart'; // ⭐ AJOUTÉ
-
+import '../presentation/pages/super_admin/role_management/role_management_page.dart';
 import '../presentation/pages/super_admin/import_report_page.dart';
 import '../presentation/pages/super_admin/import_preview_page.dart';
 import '../presentation/pages/super_admin/subscriptions/subscription_dashboard_page.dart';
@@ -59,6 +60,7 @@ class AppRoutes {
   static const String subscriptionTracking = '/super-admin/subscriptions';
   static const String importReport = '/import-report';
   static const String subscriptionDashboard = '/super-admin/subscription-dashboard';
+  static const String roleManagement = '/super-admin/roles';
   
   static const String teacherAttendanceClasses = '/teacher/attendance/classes';
   static const String teacherAttendance = '/teacher/attendance';
@@ -85,6 +87,7 @@ class AppRoutes {
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       return SchoolDetailPage(school: args?['school'] ?? {});
     },
+    roleManagement: (context) => const RoleManagementPage(),
   
     subscriptionDashboard: (context) => const SubscriptionDashboardPage(),
     teacherScheduleFull: (context) => const TeacherScheduleFullPage(),
