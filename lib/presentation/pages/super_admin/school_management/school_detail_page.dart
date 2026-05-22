@@ -196,7 +196,7 @@ class _SchoolDetailPageState extends State<SchoolDetailPage> with SingleTickerPr
     Navigator.pop(context);
     Navigator.pushNamed(
       context,
-      AppRoutes.adminBulkImport,
+      AppRoutes.superAdminImport,
       arguments: {
         'schoolId': widget.school['id'],
         'schoolCode': widget.school['school_code'] ?? '',

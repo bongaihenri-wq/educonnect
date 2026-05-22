@@ -283,7 +283,7 @@ class _SchoolCard extends StatelessWidget {
     
     Navigator.pushNamed(
       context,
-      AppRoutes.adminBulkImport,
+      AppRoutes.superAdminImport,
       arguments: {
         'schoolId': schoolId,
         'schoolCode': schoolCode,

@@ -1,4 +1,5 @@
 // lib/config/routes.dart
+import 'package:educonnect/presentation/pages/admin/bulk_import_page.dart';
 import 'package:educonnect/presentation/pages/parent/subscription_renewal_page.dart';
 import 'package:educonnect/presentation/pages/super_admin/role_management/role_management_page.dart';
 import 'package:educonnect/presentation/pages/super_admin/subscriptions/subscription_dashboard_page.dart';
@@ -9,8 +10,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // Pages
 import '../presentation/pages/school_login_page.dart';
 import '../presentation/pages/admin/admin_dashboard.dart';
-import '../presentation/pages/admin/bulk_import_page.dart';
 import '../presentation/pages/admin/schedule_page.dart';
+import '../presentation/pages/admin/teachers_list_page.dart';
+import '../presentation/pages/admin/parents_list_page.dart';
+import '../presentation/pages/admin/class_list_page.dart';
+import '../presentation/pages/admin/student_list_page.dart';
 import '../presentation/pages/parent/parent_dashboard.dart';
 import '../presentation/pages/teacher/teacher_dashboard.dart';
 import '../presentation/pages/teacher/attendance/attendance_classes_page.dart';
@@ -22,11 +26,10 @@ import '../presentation/pages/teacher/grades_classes_page.dart';
 import '../presentation/pages/teacher/teacher_schedule_full_page.dart';
 import '../presentation/pages/teacher/teacher_reports_page.dart';
 
-
 // Super Admin pages
 import '../presentation/pages/super_admin/super_admin_dashboard.dart';
-import '../presentation/pages/super_admin/school_management/school_management_page.dart'; // ⭐ CORRIGÉ
-import '../presentation/pages/super_admin/school_management/school_detail_page.dart'; // ⭐ AJOUTÉ
+import '../presentation/pages/super_admin/school_management/school_management_page.dart';
+import '../presentation/pages/super_admin/school_management/school_detail_page.dart';
 import '../presentation/pages/super_admin/role_management/role_management_page.dart';
 import '../presentation/pages/super_admin/import_report_page.dart';
 import '../presentation/pages/super_admin/import_preview_page.dart';
@@ -53,18 +56,29 @@ class AppRoutes {
   static const String adminDashboard = '/admin/dashboard';
   static const String subscriptionRenewal = '/parent/subscription-renewal';
   
+  // Admin routes
+  static const String adminTeachers = '/admin/teachers';
+  static const String adminParents = '/admin/parents';
+  static const String adminClasses = '/admin/classes';
+  static const String adminStudents = '/admin/students';
+  static const String adminClassStudents = '/admin/class-students';
+  static const String adminGradesPending = '/admin/grades-pending';
+  static const String adminReports = '/admin/reports';
+  static const String adminMessages = '/admin/messages';
+  static const String adminTeacherTracking = '/admin/teacher-tracking';
+  static const String adminSettings = '/admin/settings';
+  
   // Super Admin routes
   static const String superAdminDashboard = '/super-admin/dashboard';
   static const String schoolManagement = '/super-admin/schools';
-  static const String schoolDetail = '/super-admin/school-detail'; // ⭐ AJOUTÉ
+  static const String schoolDetail = '/super-admin/school-detail';
   static const String subscriptionTracking = '/super-admin/subscriptions';
-  static const String importReport = '/import-report';
+  static const String superAdminImport = '/super-admin/import';
   static const String subscriptionDashboard = '/super-admin/subscription-dashboard';
   static const String roleManagement = '/super-admin/roles';
   
   static const String teacherAttendanceClasses = '/teacher/attendance/classes';
   static const String teacherAttendance = '/teacher/attendance';
-  static const String adminBulkImport = '/admin/import';
   static const String schedulePage = '/schedule_page';
   static const String classesStudents = '/classes_students';
   static const String teacherGradesClasses = '/teacher/grades-classes';
@@ -80,15 +94,29 @@ class AppRoutes {
     parentDashboard: (context) => const ParentDashboard(),
     adminDashboard: (context) => const AdminDashboard(),
     
+    // Admin routes
+    adminTeachers: (context) => const TeachersListPage(),
+    adminParents: (context) => const ParentsListPage(),
+    adminClasses: (context) => const ClassListPage(),
+    adminStudents: (context) => const StudentListPage(),
+    
     // Super Admin routes
     superAdminDashboard: (context) => const SuperAdminDashboardPage(),
     schoolManagement: (context) => const SchoolManagementPage(),
-    schoolDetail: (context) { // ⭐ AJOUTÉ
+    schoolDetail: (context) {
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       return SchoolDetailPage(school: args?['school'] ?? {});
     },
+    superAdminImport: (context) {
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    return BulkImportPage(
+      schoolId: args?['schoolId'] ?? '',
+      schoolCode: args?['schoolCode'] ?? '',
+      schoolYear: args?['schoolYear'] ?? '2024-2025',
+    );
+  },
+
     roleManagement: (context) => const RoleManagementPage(),
-  
     subscriptionDashboard: (context) => const SubscriptionDashboardPage(),
     teacherScheduleFull: (context) => const TeacherScheduleFullPage(),
   
@@ -119,15 +147,6 @@ class AppRoutes {
         className: args?['className'] ?? 'Classe',
         subjectId: args?['subjectId'],
         subjectName: args?['subjectName'],
-      );
-    },
-    
-    adminBulkImport: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      return BulkImportPage(
-        schoolId: args?['schoolId'] ?? '',
-        schoolCode: args?['schoolCode'] ?? '',
-        schoolYear: args?['schoolYear'] ?? '2024-2025',
       );
     },
     
@@ -170,15 +189,7 @@ class AppRoutes {
     
     teacherCommentsEntry: (context) => const CommentsEntryPage(classId: '', className: '',),
     
-    importReport: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      return ImportReportPage(
-        result: args?['result'] as ImportResult? ?? ImportResult(success: false),
-        schoolId: args?['schoolId'] ?? '',
-        schoolCode: args?['schoolCode'] ?? '',
-        type: args?['type'] ?? '',
-      );
-    },
+  
   };
 
   static AttendanceBloc _createAttendanceBloc(BuildContext context) {
