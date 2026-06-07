@@ -15,8 +15,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // CORRECTION : Syntaxe compatible avec votre version de Kotlin
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+        jvmTarget = "17"
     }
 
     defaultConfig {
@@ -28,6 +29,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        
+        multiDexEnabled = true
     }
 
     buildTypes {
@@ -36,6 +39,10 @@ android {
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
         }
+    }
+
+    dependencies {
+        implementation("androidx.multidex:multidex:2.0.1")
     }
 }
 

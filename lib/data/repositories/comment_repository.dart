@@ -21,38 +21,50 @@ class CommentRepository {
     required String studentName,
     required String senderName,
     required String targetSubject,
-    
     String? className,
     DateTime? effectiveDate,
-   
-    
   }) async {
     if (schoolId.isEmpty) throw Exception('schoolId requis');
     if (teacherId.isEmpty) throw Exception('teacherId requis');
     if (content.trim().isEmpty) throw Exception('Commentaire vide');
 
     final now = DateTime.now();
-    
-    // ✅ Date d'expiration = date d'effet (si fournie) sinon +7 jours par défaut
     final expiresAt = effectiveDate ?? now.add(const Duration(days: 7));
 
     try {
+      // ✅ FIX : recipients est String (pas List) - join avec virgule
+      final recipientsString = recipients.join(',');
+
+      // ✅ FIX : recipient_type gère le cas parent+admin
+      String recipientType;
+      if (recipients.contains('parent') && recipients.contains('admin')) {
+        recipientType = 'parent,admin';
+      } else if (recipients.contains('parent')) {
+        recipientType = 'parent';
+      } else if (recipients.contains('admin')) {
+        recipientType = 'admin';
+      } else {
+        recipientType = recipients.first;
+      }
+
       final commentResponse = await _supabase.from('comments').insert({
         'student_id': studentId,
         'class_id': classId,
         'teacher_id': teacherId,
         'school_id': schoolId,
         'content': content.trim(),
-        'recipients': recipients,
+        'recipients': recipientsString, // ✅ String pas List
         'created_at': now.toIso8601String(),
-        'expires_at': expiresAt.toIso8601String(), // ✅ Date d'effet/expiration
+        'expires_at': expiresAt.toIso8601String(),
         'is_archived': false,
         'sender_name': senderName,
         'sender_type': 'teacher',
-        'recipient_type': recipients.contains('parent') ? 'parent' : 'admin',
+        'recipient_type': recipientType, // ✅ String correct
         'target_subject': targetSubject,
         'is_broadcast': false,
         'is_read': false,
+        'author_type': 'teacher',
+        'author_name': senderName,
       }).select('id');
 
       final commentId = (commentResponse as List).first['id'];
@@ -78,7 +90,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // ENVOI NOTIFICATIONS (avec date d'expiration)
+  // ENVOI NOTIFICATIONS
   // ============================================================
   Future<void> _sendNotifications({
     required String studentId,
@@ -96,25 +108,29 @@ class CommentRepository {
     final now = DateTime.now().toIso8601String();
 
     if (recipients.contains('parent')) {
+      // ✅ FIX : table parent_students ou students avec parent_id
       final parentsResponse = await _supabase
-          .from('parent_students')
+          .from('students')
           .select('parent_id')
-          .eq('student_id', studentId)
-          .eq('school_id', schoolId);
+          .eq('id', studentId)
+          .eq('school_id', schoolId)
+          .not('parent_id', 'is', null);
 
       for (final link in parentsResponse as List) {
-        notifications.add({
-          'user_id': link['parent_id'],
-          'title': 'Commentaire: $studentName',
-          'content': '${className != null ? '$className - ' : ''}$content',
-          'type': 'comment',
-          'is_read': false,
-          'created_at': now,
-          'expires_at': expiresAt.toIso8601String(), // ✅ Propager l'expiration
-          'school_id': schoolId,
-          'sender_id': teacherId,
-          'reference_id': commentId,      
-        });
+        if (link['parent_id'] != null) {
+          notifications.add({
+            'user_id': link['parent_id'],
+            'title': 'Commentaire: $studentName',
+            'content': '${className != null ? '$className - ' : ''}$content',
+            'type': 'comment',
+            'is_read': false,
+            'created_at': now,
+            'expires_at': expiresAt.toIso8601String(),
+            'school_id': schoolId,
+            'sender_id': teacherId,
+            'reference_id': commentId,
+          });
+        }
       }
     }
 
@@ -133,7 +149,7 @@ class CommentRepository {
           'type': 'comment',
           'is_read': false,
           'created_at': now,
-          'expires_at': expiresAt.toIso8601String(), // ✅ Propager l'expiration
+          'expires_at': expiresAt.toIso8601String(),
           'school_id': schoolId,
           'sender_id': teacherId,
           'reference_id': commentId,
@@ -148,7 +164,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // RÉCUPÉRATION — Commentaires ACTIFS d'un élève (non expirés)
+  // RÉCUPÉRATION — Commentaires ACTIFS d'un élève
   // ============================================================
   Future<List<CommentModel>> getStudentActiveComments(
     String studentId, {
@@ -161,8 +177,8 @@ class CommentRepository {
         .from('comments')
         .select()
         .eq('student_id', studentId)
-        .eq('is_archived', false) // ✅ Uniquement actifs
-        .or('expires_at.is.null,expires_at.gte.$now'); // ✅ Non expirés
+        .eq('is_archived', false)
+        .or('expires_at.is.null,expires_at.gte.$now');
 
     if (schoolId != null && schoolId.isNotEmpty) {
       query = query.eq('school_id', schoolId);
@@ -208,7 +224,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // RÉCUPÉRATION — TOUS les commentaires (pour historique/admin)
+  // RÉCUPÉRATION — TOUS les commentaires
   // ============================================================
   Future<List<CommentModel>> getStudentAllComments(
     String studentId, {
@@ -234,7 +250,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // ARCHIVAGE MANUEL d'un commentaire
+  // ARCHIVAGE MANUEL
   // ============================================================
   Future<void> archiveComment(String commentId) async {
     await _supabase.from('comments').update({
@@ -244,7 +260,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // ARCHIVAGE AUTOMATIQUE des commentaires expirés
+  // ARCHIVAGE AUTOMATIQUE
   // ============================================================
   Future<int> archiveExpiredComments() async {
     try {
@@ -262,7 +278,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // RÉCUPÉRATION ARCHIVE d'un élève
+  // RÉCUPÉRATION ARCHIVE
   // ============================================================
   Future<List<CommentModel>> getStudentArchivedComments(
     String studentId, {

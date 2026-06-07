@@ -8,6 +8,21 @@ class AdminStatsService {
 
   final _client = Supabase.instance.client;
 
+  /// Récupère le school_code depuis la table schools
+  Future<String?> getSchoolCode(String schoolId) async {
+    try {
+      final response = await _client
+          .from('schools')
+          .select('school_code')
+          .eq('id', schoolId)
+          .single();
+      return response['school_code'] as String?;
+    } catch (e) {
+      print('⚠️ Erreur getSchoolCode: $e');
+      return null;
+    }
+  }
+
   /// Récupère toutes les stats d'une école
   Future<Map<String, dynamic>> getSchoolStats(String schoolId) async {
     try {
@@ -25,7 +40,7 @@ class AdminStatsService {
           .eq('school_id', schoolId);
       final classesCount = classesResponse.length;
 
-      // 3. Compter les enseignants (CORRIGÉ - via app_users direct + role)
+      // 3. Compter les enseignants
       int teachersCount = 0;
       try {
         final teachersResponse = await _client
@@ -35,7 +50,6 @@ class AdminStatsService {
             .eq('role', 'teacher');
         teachersCount = teachersResponse.length;
       } catch (e) {
-        // Fallback via user_roles
         try {
           final teachersResponse = await _client
               .from('user_roles')
@@ -43,7 +57,6 @@ class AdminStatsService {
               .eq('school_id', schoolId)
               .eq('is_active', true);
           
-          // Filtrer manuellement les teachers
           final roleIds = teachersResponse.map((r) => r['user_id']).toList();
           if (roleIds.isNotEmpty) {
             final usersResponse = await _client
@@ -57,7 +70,7 @@ class AdminStatsService {
         }
       }
 
-      // 4. Parents : compter via app_users avec role='parent'
+      // 4. Parents
       int parentsCount = 0;
       try {
         final parentsResponse = await _client
@@ -67,7 +80,6 @@ class AdminStatsService {
             .eq('role', 'parent');
         parentsCount = parentsResponse.length;
       } catch (e) {
-        // Fallback: compter les students avec parent_id non null
         try {
           final studentsWithParent = await _client
               .from('students')
@@ -158,7 +170,7 @@ class AdminStatsService {
     }
   }
 
-  /// Récupère les classes avec stats détaillées (CORRIGÉ - sans duplication)
+  /// Récupère les classes avec stats détaillées
   Future<List<Map<String, dynamic>>> getClassesWithStats(String schoolId) async {
     try {
       final response = await _client
@@ -241,7 +253,6 @@ class AdminStatsService {
           else if (status == 'late') late++;
         }
 
-        // Calculer les pourcentages pour le graphique cumulé
         final presentRate = total > 0 ? (present / total * 100) : 0;
         final absentRate = total > 0 ? (absent / total * 100) : 0;
         final lateRate = total > 0 ? (late / total * 100) : 0;
@@ -270,10 +281,9 @@ class AdminStatsService {
     }
   }
 
-  /// Récupère les stats des enseignants avec graphique cumulé
+  /// ✅ CORRIGÉ : Récupère les stats des enseignants avec NOMBRE D'APPELS CORRECT
   Future<List<Map<String, dynamic>>> getTeachersWithAttendanceStats(String schoolId) async {
     try {
-      // Récupérer les enseignants
       final teachersResponse = await _client
           .from('app_users')
           .select('id, first_name, last_name, email, phone')
@@ -290,23 +300,24 @@ class AdminStatsService {
       for (var teacher in teachers) {
         final teacherId = teacher['id'] as String;
 
-        // Stats d'appels ce mois
+        // ✅ CORRIGÉ : Compter les SESSIONS d'appel uniques (pas les lignes)
         final callsResponse = await _client
             .from('attendance')
-            .select('id, status')
+            .select('date, class_id, schedule_id')
             .eq('school_id', schoolId)
             .eq('teacher_id', teacherId)
             .gte('date', thirtyDaysAgo);
 
-        int callsThisMonth = callsResponse.length;
-        int lateCalls = 0;
-        int onTimeCalls = 0;
-
+        // Compter les sessions uniques (date + class_id + schedule_id)
+        final uniqueSessions = <String>{};
         for (var call in callsResponse) {
-          final status = call['status']?.toString() ?? '';
-          if (status == 'late') lateCalls++;
-          else onTimeCalls++;
+          final date = call['date']?.toString() ?? '';
+          final classId = call['class_id']?.toString() ?? '';
+          final scheduleId = call['schedule_id']?.toString() ?? '';
+          // Clé unique : date_classId_scheduleId
+          uniqueSessions.add('${date}_${classId}_$scheduleId');
         }
+        final callsThisMonth = uniqueSessions.length;
 
         // Présence des élèves dans les cours de cet enseignant
         final studentAttendanceResponse = await _client
@@ -327,7 +338,6 @@ class AdminStatsService {
           else if (status == 'late') late++;
         }
 
-        // Pourcentages pour graphique cumulé
         final presentRate = totalStudentRecords > 0 ? (present / totalStudentRecords * 100) : 0;
         final absentRate = totalStudentRecords > 0 ? (absent / totalStudentRecords * 100) : 0;
         final lateRate = totalStudentRecords > 0 ? (late / totalStudentRecords * 100) : 0;
@@ -345,11 +355,8 @@ class AdminStatsService {
           'teacher_name': '${teacher['first_name'] ?? ''} ${teacher['last_name'] ?? ''}'.trim(),
           'email': teacher['email'],
           'phone': teacher['phone'],
-          'calls_this_month': callsThisMonth,
-          'late_calls': lateCalls,
-          'on_time_calls': onTimeCalls,
-          'scheduled_courses': scheduledCourses,
-          'total_student_records': totalStudentRecords,
+          'calls_this_month': callsThisMonth,  // ✅ Nombre de sessions uniques
+          'total_student_records': totalStudentRecords, // Nombre total de lignes (élèves)
           'present_count': present,
           'absent_count': absent,
           'late_count': late,
@@ -357,6 +364,7 @@ class AdminStatsService {
           'absent_rate_pct': absentRate,
           'late_rate_pct': lateRate,
           'student_presence_rate': totalStudentRecords > 0 ? (present / totalStudentRecords * 100).round() : 0,
+          'scheduled_courses': scheduledCourses,
         });
       }
 
@@ -367,7 +375,7 @@ class AdminStatsService {
     }
   }
 
-  /// Récupère l'assiduité par classe (CORRIGÉ - pour graphique cumulé)
+  /// Récupère l'assiduité par classe
   Future<List<Map<String, dynamic>>> getAttendanceByClass(
     String schoolId, {
     DateTime? startDate,
@@ -410,14 +418,13 @@ class AdminStatsService {
           else if (status == 'late') late++;
         }
 
-        // Pourcentages pour graphique cumulé 100%
         final presentRate = total > 0 ? (present / total * 100) : 0;
         final absentRate = total > 0 ? (absent / total * 100) : 0;
         final lateRate = total > 0 ? (late / total * 100) : 0;
 
         result.add({
           'class_id': classId,
-          'class_name': '${classe['level']} ${classe['name']}',
+          'class_name': classe['name'],  // ✅ CORRIGÉ : pas de concaténation
           'presence_rate': total > 0 ? (present / total * 100).round() : 0,
           'present_count': present,
           'absent_count': absent,
@@ -505,6 +512,58 @@ class AdminStatsService {
     } catch (e) {
       print('❌ Erreur getGradesByClass: $e');
       return [];
+    }
+  }
+
+  /// Récupère les stats d'assiduité d'un élève spécifique
+  Future<Map<String, dynamic>> getStudentAttendanceStats(
+    String schoolId,
+    String studentId,
+  ) async {
+    try {
+      final thirtyDaysAgo = DateTime.now()
+          .subtract(const Duration(days: 30))
+          .toIso8601String();
+
+      final attendanceResponse = await _client
+          .from('attendance')
+          .select('status')
+          .eq('school_id', schoolId)
+          .eq('student_id', studentId)
+          .gte('date', thirtyDaysAgo);
+
+      int present = 0;
+      int absent = 0;
+      int late = 0;
+      int total = attendanceResponse.length;
+
+      for (var a in attendanceResponse) {
+        final status = a['status']?.toString() ?? '';
+        if (status == 'present') present++;
+        else if (status == 'absent') absent++;
+        else if (status == 'late') late++;
+      }
+
+      return {
+        'present_count': present,
+        'absent_count': absent,
+        'late_count': late,
+        'total_records': total,
+        'present_rate_pct': total > 0 ? (present / total * 100) : 0.0,
+        'absent_rate_pct': total > 0 ? (absent / total * 100) : 0.0,
+        'late_rate_pct': total > 0 ? (late / total * 100) : 0.0,
+      };
+    } catch (e) {
+      print('❌ Erreur getStudentAttendanceStats: $e');
+      return {
+        'present_count': 0,
+        'absent_count': 0,
+        'late_count': 0,
+        'total_records': 0,
+        'present_rate_pct': 0.0,
+        'absent_rate_pct': 0.0,
+        'late_rate_pct': 0.0,
+      };
     }
   }
 }

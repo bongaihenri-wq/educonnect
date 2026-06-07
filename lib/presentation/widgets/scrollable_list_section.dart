@@ -1,7 +1,7 @@
 // lib/presentation/widgets/scrollable_list_section.dart
 import 'package:flutter/material.dart';
 
-class ScrollableListSection extends StatelessWidget {
+class ScrollableListSection extends StatefulWidget {  // ✅ CHANGÉ : Stateless → Stateful
   final List<Widget> children;
   final double maxHeight;
   final bool isSmall;
@@ -9,9 +9,22 @@ class ScrollableListSection extends StatelessWidget {
   const ScrollableListSection({
     super.key,
     required this.children,
-    this.maxHeight = 280, // Hauteur pour ~5 éléments
+    this.maxHeight = 280,
     this.isSmall = false,
   });
+
+  @override
+  State<ScrollableListSection> createState() => _ScrollableListSectionState();  // ✅ AJOUTÉ
+}
+
+class _ScrollableListSectionState extends State<ScrollableListSection> {  // ✅ AJOUTÉ
+  final ScrollController _scrollController = ScrollController();  // ✅ DÉFINI ICI
+
+  @override
+  void dispose() {
+    _scrollController.dispose();  // ✅ DISPOSE
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,23 +51,25 @@ class ScrollableListSection extends StatelessWidget {
         // Zone scrollable
         ConstrainedBox(
           constraints: BoxConstraints(
-            maxHeight: isSmall ? maxHeight * 0.8 : maxHeight,
+            maxHeight: widget.isSmall ? widget.maxHeight * 0.8 : widget.maxHeight,  // ✅ widget.
           ),
           child: Scrollbar(
+            controller: _scrollController,  // ✅ FONCTIONNE MAINTENANT
             thumbVisibility: true,
             radius: const Radius.circular(4),
             thickness: 4,
             child: ListView.builder(
+              controller: _scrollController,  // ✅ FONCTIONNE MAINTENANT
               shrinkWrap: true,
               physics: const BouncingScrollPhysics(),
-              itemCount: children.length,
-              itemBuilder: (context, index) => children[index],
+              itemCount: widget.children.length,  // ✅ widget.
+              itemBuilder: (context, index) => widget.children[index],  // ✅ widget.
             ),
           ),
         ),
         
         // Indicateur bas "plus de contenu"
-        if (children.length > 5)
+        if (widget.children.length > 5)  // ✅ widget.
           Container(
             padding: const EdgeInsets.only(top: 4, bottom: 2),
             child: Icon(

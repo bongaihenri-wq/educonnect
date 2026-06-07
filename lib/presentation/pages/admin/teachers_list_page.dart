@@ -41,10 +41,8 @@ class _TeachersListPageState extends State<TeachersListPage> {
         return;
       }
 
-      // ✅ CORRIGÉ : utiliser getTeachersWithAttendanceStats au lieu de getTeachersStats
       final teachers = await _statsService.getTeachersWithAttendanceStats(_schoolId!);
       
-      // ✅ CORRIGÉ : Cast en List<Map<String, dynamic>>
       final enrichedTeachers = teachers.map((teacher) {
         return teacher as Map<String, dynamic>;
       }).toList();
@@ -90,34 +88,9 @@ class _TeachersListPageState extends State<TeachersListPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                      const SizedBox(height: 16),
-                      Text('Erreur: $_error'),
-                      ElevatedButton(
-                        onPressed: _loadTeachers,
-                        child: const Text('Réessayer'),
-                      ),
-                    ],
-                  ),
-                )
+              ? _buildErrorWidget()
               : _teachers.isEmpty
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.person_off, size: 64, color: Colors.grey),
-                          SizedBox(height: 16),
-                          Text(
-                            'Aucun enseignant trouvé',
-                            style: TextStyle(fontSize: 16, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    )
+                  ? _buildEmptyWidget()
                   : ListView.builder(
                       padding: const EdgeInsets.all(16),
                       itemCount: _teachers.length,
@@ -127,16 +100,14 @@ class _TeachersListPageState extends State<TeachersListPage> {
   }
 
   Widget _buildTeacherCard(Map<String, dynamic> teacher) {
-    // ✅ CORRIGÉ : Structure différente avec getTeachersWithAttendanceStats
     final teacherName = teacher['teacher_name'] ?? 'Inconnu';
     final email = teacher['email'] ?? 'Email non défini';
     final phone = teacher['phone'] ?? 'Téléphone non défini';
     
     final scheduledCourses = teacher['scheduled_courses'] ?? 0;
-    final callsThisMonth = teacher['calls_this_month'] ?? 0;
-    final lateCalls = teacher['late_calls'] ?? 0;
-    final presenceRate = teacher['student_presence_rate'] ?? 0;
+    final callsThisMonth = teacher['calls_this_month'] ?? 0;  // ✅ Nombre de sessions uniques
     final totalStudentRecords = teacher['total_student_records'] ?? 0;
+    final presenceRate = teacher['student_presence_rate'] ?? 0;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -145,7 +116,7 @@ class _TeachersListPageState extends State<TeachersListPage> {
         leading: CircleAvatar(
           backgroundColor: AppTheme.violet,
           child: Text(
-            teacherName.isNotEmpty ? '${teacherName[0]}' : '?',
+            teacherName.isNotEmpty ? teacherName[0] : '?',
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ),
@@ -154,7 +125,7 @@ class _TeachersListPageState extends State<TeachersListPage> {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
-          '$scheduledCourses cours • $callsThisMonth appels ce mois',
+          '$scheduledCourses cours • $callsThisMonth appels ce mois',  // ✅ Texte corrigé
           style: TextStyle(color: Colors.grey[600], fontSize: 13),
         ),
         trailing: Container(
@@ -197,8 +168,8 @@ class _TeachersListPageState extends State<TeachersListPage> {
                   children: [
                     _buildDetailStat(
                       Icons.check_circle,
-                      '$callsThisMonth',
-                      'Appels ce mois',
+                      '$callsThisMonth',  // ✅ Nombre de sessions
+                      'Appels ce mois',    // ✅ Texte corrigé
                       Colors.green,
                     ),
                     const SizedBox(width: 8),
@@ -216,6 +187,32 @@ class _TeachersListPageState extends State<TeachersListPage> {
                       AppTheme.violet,
                     ),
                   ],
+                ),
+                
+                const SizedBox(height: 12),
+                
+                // Info supplémentaire
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 14, color: Colors.grey[600]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '$totalStudentRecords élèves marqués au total',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 
                 const SizedBox(height: 12),
@@ -321,6 +318,39 @@ class _TeachersListPageState extends State<TeachersListPage> {
     
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Message à $teacherName - à implémenter')),
+    );
+  }
+
+  Widget _buildErrorWidget() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red, size: 48),
+          const SizedBox(height: 16),
+          Text('Erreur: $_error'),
+          ElevatedButton(
+            onPressed: _loadTeachers,
+            child: const Text('Réessayer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyWidget() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.person_off, size: 64, color: Colors.grey),
+          SizedBox(height: 16),
+          Text(
+            'Aucun enseignant trouvé',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+        ],
+      ),
     );
   }
 }

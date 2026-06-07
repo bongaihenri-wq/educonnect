@@ -27,11 +27,8 @@ class AdminQuickActions extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _quickAccessButton(context, Icons.people_alt, 'Classes &\nÉlèves', Colors.blue, '/classes-students'),
-                const SizedBox(width: 12),
-                _quickAccessButton(context, Icons.school, 'Liste\nClasses', Colors.indigo, '/admin/classes'),
-                const SizedBox(width: 12),
-                _quickAccessButton(context, Icons.person, 'Liste\nÉlèves', Colors.green, '/admin/students'),
+                // ✅ FUSIONNÉ : Classes & Élèves (supprime Liste Classes + Liste Élèves)
+                _quickAccessButton(context, Icons.people_alt, 'Classes &\nÉlèves', Colors.indigo, '/admin/classes-students'),
                 const SizedBox(width: 12),
                 _quickAccessButton(context, Icons.person_outline, 'Enseignants', Colors.orange, '/admin/teachers'),
                 const SizedBox(width: 12),

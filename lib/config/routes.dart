@@ -11,14 +11,19 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../presentation/pages/school_login_page.dart';
 import '../presentation/pages/admin/admin_dashboard.dart';
 import '../presentation/pages/admin/schedule_page.dart';
+import '../presentation/pages/admin/homework_page.dart';
+import '../presentation/pages/admin/grades_page.dart';
+import '../presentation/pages/admin/messages_page.dart';
+import '../presentation/pages/admin/teacher_tracking_page.dart';
+import '../presentation/pages/admin/settings_page.dart';
 import '../presentation/pages/admin/teachers_list_page.dart';
 import '../presentation/pages/admin/parents_list_page.dart';
 import '../presentation/pages/admin/class_list_page.dart';
 import '../presentation/pages/admin/student_list_page.dart';
+import '../presentation/pages/admin/classes_students_page.dart';
 import '../presentation/pages/parent/parent_dashboard.dart';
 import '../presentation/pages/teacher/teacher_dashboard.dart';
 import '../presentation/pages/teacher/attendance/attendance_classes_page.dart';
-import '../presentation/pages/admin/classes_students_page.dart';
 import '../presentation/pages/teacher/comments_entry_page.dart';
 import '../presentation/pages/teacher/comments_classes_page.dart';
 import '../presentation/pages/teacher/grades_entry_page.dart';
@@ -59,14 +64,17 @@ class AppRoutes {
   // Admin routes
   static const String adminTeachers = '/admin/teachers';
   static const String adminParents = '/admin/parents';
-  static const String adminClasses = '/admin/classes';
-  static const String adminStudents = '/admin/students';
-  static const String adminClassStudents = '/admin/class-students';
+  static const String adminClassesStudents = '/admin/classes-students';
   static const String adminGradesPending = '/admin/grades-pending';
   static const String adminReports = '/admin/reports';
   static const String adminMessages = '/admin/messages';
   static const String adminTeacherTracking = '/admin/teacher-tracking';
   static const String adminSettings = '/admin/settings';
+  
+  // Routes pilotage
+  static const String schedule = '/schedule';
+  static const String homework = '/homework';
+  static const String grades = '/grades';
   
   // Super Admin routes
   static const String superAdminDashboard = '/super-admin/dashboard';
@@ -79,7 +87,6 @@ class AppRoutes {
   
   static const String teacherAttendanceClasses = '/teacher/attendance/classes';
   static const String teacherAttendance = '/teacher/attendance';
-  static const String schedulePage = '/schedule_page';
   static const String classesStudents = '/classes_students';
   static const String teacherGradesClasses = '/teacher/grades-classes';
   static const String teacherGradesEntry = '/teacher/grades-entry';
@@ -97,8 +104,15 @@ class AppRoutes {
     // Admin routes
     adminTeachers: (context) => const TeachersListPage(),
     adminParents: (context) => const ParentsListPage(),
-    adminClasses: (context) => const ClassListPage(),
-    adminStudents: (context) => const StudentListPage(),
+    adminClassesStudents: (context) => const ClassesStudentsPage(),
+    adminMessages: (context) => const MessagesPage(),
+    adminTeacherTracking: (context) => const TeacherTrackingPage(),
+    adminSettings: (context) => const SettingsPage(),
+    
+    // Routes pilotage
+    schedule: (context) => const SchedulePage(),
+    homework: (context) => const HomeworkPage(),
+    grades: (context) => const GradesPage(),
     
     // Super Admin routes
     superAdminDashboard: (context) => const SuperAdminDashboardPage(),
@@ -150,7 +164,6 @@ class AppRoutes {
       );
     },
     
-    schedulePage: (context) => const SchedulePage(),
     classesStudents: (context) => const ClassesStudentsPage(),
     
     teacherGradesClasses: (context) {
