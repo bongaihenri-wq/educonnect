@@ -32,6 +32,7 @@ import '../presentation/pages/teacher/teacher_schedule_full_page.dart';
 import '../presentation/pages/teacher/teacher_reports_page.dart';
 import '../presentation/pages/admin/admin_send_message_page.dart';
 
+
 // ✅ AJOUTÉ : Pages de souscription + AuthStateRouter
 import '../presentation/pages/auth_state_router.dart';
 import '../presentation/pages/parent/payment_pending_page.dart';
@@ -45,6 +46,8 @@ import '../presentation/pages/super_admin/role_management/role_management_page.d
 import '../presentation/pages/super_admin/import_report_page.dart';
 import '../presentation/pages/super_admin/import_preview_page.dart';
 import '../presentation/pages/super_admin/subscriptions/subscription_dashboard_page.dart';
+import '../presentation/pages/super_admin/support_dashboard_page.dart';
+import '../presentation/pages/super_admin/parent_support_detail_page.dart';
   
 // BLoCs
 import '../presentation/blocs/attendance/attendance_page.dart';
@@ -95,6 +98,8 @@ class AppRoutes {
   static const String superAdminImport = '/super-admin/import';
   static const String subscriptionDashboard = '/super-admin/subscription-dashboard';
   static const String roleManagement = '/super-admin/roles';
+  static const String supportDashboard = '/super-admin/support-dashboard';
+  static const String parentSupportDetail = '/super-admin/parent-support-detail';
   
   static const String teacherAttendanceClasses = '/teacher/attendance/classes';
   static const String teacherAttendance = '/teacher/attendance';
@@ -170,6 +175,11 @@ class AppRoutes {
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       return SchoolDetailPage(school: args?['school'] ?? {});
     },
+    supportDashboard: (context) => const SupportDashboardPage(),
+    parentSupportDetail: (context) {
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    return ParentSupportDetailPage(parentId: args?['parentId'] ?? '');
+},
     superAdminImport: (context) {
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       return BulkImportPage(
