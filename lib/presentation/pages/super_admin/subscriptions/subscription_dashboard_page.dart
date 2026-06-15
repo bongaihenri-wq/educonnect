@@ -97,6 +97,7 @@ class _SubscriptionDashboardPageState extends State<SubscriptionDashboardPage> {
     _loadData();
   }
 
+  // ✅ CORRIGÉ : Ajout AssistantAuthenticated
   Future<void> _validatePayment(String transactionId) async {
     try {
       final authState = context.read<auth.AuthBloc>().state;
@@ -105,6 +106,8 @@ class _SubscriptionDashboardPageState extends State<SubscriptionDashboardPage> {
       if (authState is auth.SuperAdminAuthenticated) {
         adminId = authState.userId;
       } else if (authState is auth.AdminAuthenticated) {
+        adminId = authState.userId;
+      } else if (authState is auth.AssistantAuthenticated) {
         adminId = authState.userId;
       } else if (authState is auth.Authenticated) {
         adminId = authState.userId;

@@ -1,8 +1,8 @@
 // lib/presentation/pages/parent/widgets/parent_header.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '/presentation/blocs/auth_bloc/auth_bloc.dart';
 import '../../../../config/theme.dart';
-import '../../../blocs/auth_bloc/auth_bloc.dart';
 import '../subscription_renewal_page.dart';
 
 class ParentHeader extends StatelessWidget {
@@ -10,376 +10,256 @@ class ParentHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SliverToBoxAdapter(
-      child: Container(
-        margin: const EdgeInsets.all(20),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          gradient: AppTheme.heroGradient,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.violet.withOpacity(0.3),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+    return BlocBuilder<AuthBloc, AuthState>(
+      builder: (context, state) {
+        if (state is! ParentAuthenticated) {
+          return const SliverToBoxAdapter(child: SizedBox.shrink());
+        }
+
+        final String firstName = state.firstName;
+        final String lastName = state.lastName;
+        final String schoolName = state.schoolName;
+        final String? subscriptionStatus = state.subscriptionStatus;
+        final int? daysRemaining = state.daysRemaining;
+        final int? amount = state.subscriptionAmount;
+        final String? currency = state.subscriptionCurrency;
+        final String? paymentPhone = state.paymentPhoneNumber;
+
+        final bool isExpired = subscriptionStatus == 'expired' ||
+            (daysRemaining != null && daysRemaining <= 0);
+
+        final bool isExpiringSoon = !isExpired &&
+            (subscriptionStatus == 'expiring_soon' ||
+            (daysRemaining != null && daysRemaining > 0 && daysRemaining <= 3));
+
+        final bool isActive = !isExpired && !isExpiringSoon &&
+            (subscriptionStatus == 'active' || subscriptionStatus == 'trial');
+
+        final bool isNoSub = subscriptionStatus == null ||
+            subscriptionStatus == 'no_subscription';
+
+        late final String statusLabel;
+        late final Color statusColor;
+        late final Color statusBg;
+        late final IconData statusIcon;
+        late final String? counterText;
+        late final String buttonLabel;
+        late final bool showButton;
+
+        if (isExpired) {
+          statusLabel = 'Abonnement expiré';
+          statusColor = Colors.red;
+          statusBg = Colors.red.withOpacity(0.15);
+          statusIcon = Icons.error_outline;
+          counterText = daysRemaining != null && daysRemaining < 0
+              ? 'Depuis ${daysRemaining.abs()} jour${daysRemaining.abs() > 1 ? 's' : ''}'
+              : null;
+          buttonLabel = 'Réactiver';
+          showButton = true;
+        } else if (isExpiringSoon) {
+          statusLabel = 'Expire bientôt';
+          statusColor = Colors.orange;
+          statusBg = Colors.orange.withOpacity(0.15);
+          statusIcon = Icons.access_time;
+          counterText = '$daysRemaining jour${daysRemaining! > 1 ? 's' : ''} restant${daysRemaining > 1 ? 's' : ''}';
+          buttonLabel = 'Renouveler';
+          showButton = true;
+        } else if (isActive) {
+          statusLabel = 'Abonnement actif';
+          statusColor = Colors.green;
+          statusBg = Colors.green.withOpacity(0.15);
+          statusIcon = Icons.check_circle;
+          counterText = daysRemaining != null
+              ? '$daysRemaining jour${daysRemaining > 1 ? 's' : ''} restant${daysRemaining > 1 ? 's' : ''}'
+              : null;
+          buttonLabel = 'Renouveler';
+          showButton = true;
+        } else {
+          statusLabel = 'Essai gratuit';
+          statusColor = Colors.blue;
+          statusBg = Colors.blue.withOpacity(0.15);
+          statusIcon = Icons.card_giftcard;
+          counterText = null;
+          buttonLabel = 'S\'abonner';
+          showButton = true;
+        }
+
+        return SliverToBoxAdapter(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 6), // ✅ Réduit
+            padding: const EdgeInsets.all(16), // ✅ Réduit de 20 à 16
+            decoration: BoxDecoration(
+              gradient: AppTheme.heroGradient,
+              borderRadius: BorderRadius.circular(20), // ✅ Réduit
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.violet.withOpacity(0.25),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Espace Parents 💜',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppTheme.white.withOpacity(0.9),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      BlocBuilder<AuthBloc, AuthState>(
-                        builder: (context, state) {
-                          if (state is ParentAuthenticated) {
-                            return Text(
-                              '${state.firstName} ${state.lastName}',
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.white,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            );
-                          }
-                          return const Text(
-                            'Espace Parent',
+                // Ligne titre + refresh
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Espace Parents 💜',
                             style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.white,
+                              fontSize: 12, // ✅ Réduit
+                              color: Colors.white.withOpacity(0.85),
+                              fontWeight: FontWeight.w500,
                             ),
-                          );
-                        },
+                          ),
+                          const SizedBox(height: 2), // ✅ Réduit
+                          Text(
+                            '$firstName $lastName',
+                            style: const TextStyle(
+                              fontSize: 20, // ✅ Réduit de 24 à 20
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        context.read<AuthBloc>().add(const CheckSubscriptionStatusRequested());
+                      },
+                      icon: const Icon(Icons.refresh, color: Colors.white, size: 20), // ✅ Réduit
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      tooltip: 'Actualiser',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8), // ✅ Réduit
+                // Badge école
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), // ✅ Réduit
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    schoolName,
+                    style: TextStyle(
+                      fontSize: 12, // ✅ Réduit
+                      color: Colors.white.withOpacity(0.9),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+                const SizedBox(height: 12), // ✅ Réduit
+                // ✅ Badge statut — compact
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), // ✅ Réduit
+                  decoration: BoxDecoration(
+                    color: statusBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: statusColor.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(statusIcon, color: statusColor, size: 18), // ✅ Réduit
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              statusLabel,
+                              style: TextStyle(
+                                color: statusColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13, // ✅ Réduit
+                              ),
+                            ),
+                            if (counterText != null) ...[
+                              const SizedBox(height: 1),
+                              // ✅ COMPTEUR VISIBLE : blanc avec ombre légère
+                              Text(
+                                counterText,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.95), // ✅ BLANC visible
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black.withOpacity(0.3),
+                                      blurRadius: 2,
+                                      offset: const Offset(0, 1),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
-                Row(
-                  children: [
-                    // ⭐ NOUVEAU : Bouton Actualiser
-                    BlocBuilder<AuthBloc, AuthState>(
-                      builder: (context, state) {
-                        if (state is ParentAuthenticated) {
-                          return IconButton(
-                            icon: const Icon(Icons.refresh, color: AppTheme.white),
-                            onPressed: () {
-                              // Recharger les données en émettant AppStarted
-                              context.read<AuthBloc>().add(const AppStarted());
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('🔄 Actualisation...'),
-                                  duration: Duration(seconds: 1),
-                                ),
-                              );
-                            },
-                            tooltip: 'Actualiser',
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      },
+                // ✅ Bouton compact
+                if (showButton) ...[
+                  const SizedBox(height: 10), // ✅ Réduit
+                  SizedBox(
+                    width: double.infinity,
+                    height: 40, // ✅ Hauteur fixe réduite
+                    child: ElevatedButton(
+                      onPressed: () => _navigateToRenewal(context, state),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: AppTheme.violet,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 0), // ✅ Géré par height fixe
+                      ),
+                      child: Text(
+                        buttonLabel,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13, // ✅ Réduit
+                        ),
+                      ),
                     ),
-                    // Menu abonnement
-                    BlocBuilder<AuthBloc, AuthState>(
-                      builder: (context, state) {
-                        if (state is ParentAuthenticated) {
-                          return _buildSubscriptionMenu(context, state);
-                        }
-                        return Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppTheme.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Icon(
-                            Icons.favorite,
-                            color: AppTheme.white,
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ],
             ),
-            const SizedBox(height: 20),
-            BlocBuilder<AuthBloc, AuthState>(
-              builder: (context, state) {
-                String schoolName = 'Mon École';
-                String childInfo = 'Enfant suivi';
-                
-                if (state is ParentAuthenticated) {
-                  schoolName = state.schoolName;
-                  childInfo = '${state.studentName} - ${state.className}';
-                }
-                
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildInfoChip(
-                      icon: Icons.school,
-                      text: schoolName,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildInfoChip(
-                      icon: Icons.child_care,
-                      text: childInfo,
-                      opacity: 0.15,
-                    ),
-                  ],
-                );
-              },
-            ),
-            // ⭐ NOUVEAU : Affichage subscription status
-            BlocBuilder<AuthBloc, AuthState>(
-              builder: (context, state) {
-                if (state is ParentAuthenticated) {
-                  return _buildSubscriptionStatus(state);
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSubscriptionStatus(ParentAuthenticated state) {
-    final status = state.subscriptionStatus ?? 'no_subscription';
-    final daysRemaining = state.daysRemaining ?? 0;
-    
-    Color statusColor;
-    IconData statusIcon;
-    String statusText;
-    
-    switch (status) {
-      case 'active':
-        if (daysRemaining <= 7) {
-          statusColor = Colors.orange;
-          statusIcon = Icons.access_time;
-          statusText = 'Expire dans $daysRemaining jours';
-        } else {
-          statusColor = Colors.green;
-          statusIcon = Icons.check_circle;
-          statusText = '$daysRemaining jours restants';
-        }
-        break;
-      case 'trial':
-        statusColor = Colors.blue;
-        statusIcon = Icons.new_releases;
-        statusText = 'Essai: $daysRemaining jours';
-        break;
-      case 'expired':
-      case 'no_subscription':
-      default:
-        statusColor = Colors.red;
-        statusIcon = Icons.warning;
-        statusText = 'Abonnement expiré';
-        break;
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppTheme.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(statusIcon, color: statusColor, size: 16),
-          const SizedBox(width: 8),
-          Text(
-            statusText,
-            style: TextStyle(
-              color: AppTheme.white.withOpacity(0.95),
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSubscriptionMenu(BuildContext context, ParentAuthenticated state) {
-    final status = state.subscriptionStatus ?? 'no_subscription';
-    final daysRemaining = state.daysRemaining ?? 0;
-    
-    Color badgeColor;
-    IconData badgeIcon;
-    
-    switch (status) {
-      case 'active':
-        if (daysRemaining <= 7) {
-          badgeColor = Colors.orange;
-          badgeIcon = Icons.access_time;
-        } else {
-          badgeColor = Colors.green;
-          badgeIcon = Icons.check_circle;
-        }
-        break;
-      case 'trial':
-        badgeColor = Colors.blue;
-        badgeIcon = Icons.new_releases;
-        break;
-      default:
-        badgeColor = Colors.red;
-        badgeIcon = Icons.warning;
-    }
-
-    return PopupMenuButton<String>(
-      offset: const Offset(0, 40),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppTheme.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Icon(
-              Icons.menu,
-              color: AppTheme.white,
-            ),
-          ),
-          Positioned(
-            top: -4,
-            right: -4,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: badgeColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppTheme.violet, width: 2),
-              ),
-              child: Icon(
-                badgeIcon,
-                color: Colors.white,
-                size: 10,
-              ),
-            ),
-          ),
-        ],
-      ),
-      onSelected: (value) {
-        if (value == 'subscription') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => SubscriptionRenewalPage(
-                parentId: state.userId,
-                schoolId: state.schoolId,
-                currentStatus: state.subscriptionStatus,
-                currentEndDate: state.subscriptionEndDate,
-                daysRemaining: state.daysRemaining,
-                amount: state.subscriptionAmount ?? 1000,
-                currency: state.subscriptionCurrency ?? 'XOF',
-                paymentPhoneNumber: state.paymentPhoneNumber,
-              ),
-            ),
-          );
-        }
+        );
       },
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: 'subscription',
-          child: Row(
-            children: [
-              Icon(badgeIcon, color: badgeColor, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Mon Abonnement',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                    Text(
-                      status == 'active' 
-                          ? '$daysRemaining jours restants'
-                          : status == 'trial'
-                              ? 'Essai: $daysRemaining jours'
-                              : 'Renouveler maintenant',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: badgeColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'profile',
-          enabled: false,
-          child: Row(
-            children: [
-              Icon(Icons.person, color: Colors.grey[400], size: 20),
-              const SizedBox(width: 12),
-              Text(
-                'Profil',
-                style: TextStyle(color: Colors.grey[400]),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
-  Widget _buildInfoChip({
-    required IconData icon,
-    required String text,
-    double opacity = 0.2,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppTheme.white.withOpacity(opacity),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: AppTheme.white, size: 16),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: AppTheme.white.withOpacity(0.95),
-                fontSize: 14,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
+  void _navigateToRenewal(BuildContext context, ParentAuthenticated state) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SubscriptionRenewalPage(
+          parentId: state.userId,
+          schoolId: state.schoolId,
+          amount: state.subscriptionAmount ?? 1000,
+          currency: state.subscriptionCurrency ?? 'XOF',
+          paymentPhoneNumber: state.paymentPhoneNumber,
+          currentStatus: state.subscriptionStatus,
+          currentEndDate: state.subscriptionEndDate,
+          daysRemaining: state.daysRemaining,
+        ),
       ),
     );
   }

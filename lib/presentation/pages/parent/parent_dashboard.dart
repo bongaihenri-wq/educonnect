@@ -1,13 +1,14 @@
 // lib/presentation/pages/parent/parent_dashboard.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../config/theme.dart';
-import '../../blocs/auth_bloc/auth_bloc.dart';
+import '/presentation/blocs/auth_bloc/auth_bloc.dart';
 import 'widgets/parent_header.dart';
 import 'widgets/child_card.dart';
 import 'widgets/alerts_section.dart';
 import 'widgets/quick_actions_grid.dart';
 import 'widgets/logout_button.dart';
+import 'widgets/subscription_warning_banner.dart';
+import 'subscription_renewal_page.dart';
 
 class ParentDashboard extends StatelessWidget {
   const ParentDashboard({super.key});
@@ -15,24 +16,50 @@ class ParentDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bisLight,
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers: const [
-            // ✅ Les widgets sont DÉJÀ des slivers, pas de SliverToBoxAdapter ici !
-            ParentHeader(),
-            ChildCard(),
-            AlertsSection(),
-            QuickActionsGrid(),
-            // ✅ LogoutButton doit être un sliver aussi
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
-                child: LogoutButton(),
-              ),
-            ),
-            SliverPadding(padding: EdgeInsets.only(bottom: 32)),
-          ],
+      backgroundColor: const Color(0xFFF8F9FE),
+      body: BlocBuilder<AuthBloc, AuthState>(
+        builder: (context, state) {
+          if (state is ParentAuthenticated) {
+            return CustomScrollView(
+              slivers: [
+                // ✅ Bannière si abonnement expire bientôt (Cas 2)
+                if (state.daysRemaining != null &&
+                    state.daysRemaining! > 0 &&
+                    state.daysRemaining! <= 3)
+                  SubscriptionWarningBanner(
+                    daysRemaining: state.daysRemaining!,
+                    onRenew: () => _navigateToRenewal(context, state),
+                  ),
+
+                const ParentHeader(),
+                const ChildCard(),
+                const AlertsSection(),
+                const QuickActionsGrid(),
+                const LogoutButton(),
+                const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
+              ],
+            );
+          }
+
+          return const Center(child: CircularProgressIndicator());
+        },
+      ),
+    );
+  }
+
+  void _navigateToRenewal(BuildContext context, ParentAuthenticated state) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SubscriptionRenewalPage(
+          parentId: state.userId,
+          schoolId: state.schoolId,
+          amount: state.subscriptionAmount ?? 1000,
+          currency: state.subscriptionCurrency ?? 'XOF',
+          paymentPhoneNumber: state.paymentPhoneNumber,
+          currentStatus: state.subscriptionStatus,
+          currentEndDate: state.subscriptionEndDate,
+          daysRemaining: state.daysRemaining,
         ),
       ),
     );

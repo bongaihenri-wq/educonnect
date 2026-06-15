@@ -147,6 +147,7 @@ class QuickActionsGrid extends StatelessWidget {
           className: state.className,
           parentName: '${state.firstName} ${state.lastName}',
           schoolName: state.schoolName,
+          schoolId: state.schoolId,
           initialTab: tabIndex,
         ),
       ),

@@ -54,11 +54,14 @@ class _HomeworkPageState extends State<HomeworkPage> {
   void _initSchoolId() {
     final state = context.read<auth.AuthBloc>().state;
     String? extractedSchoolId;
-
+    print('🔍 DIAGNOSTIC STATE TYPE = ${state.runtimeType}');
     if (state is auth.AdminAuthenticated) {
       extractedSchoolId = state.schoolId;
+     print('🔍 AdminAuthenticated - schoolId = $extractedSchoolId');
+
     } else if (state is auth.SuperAdminAuthenticated) {
       extractedSchoolId = state.schoolId;
+      print('🔍 SuperAdminAuthenticated - schoolId = $extractedSchoolId');
     } else if (state is auth.ParentAuthenticated) {
       extractedSchoolId = state.schoolId;
     } else if (state is auth.TeacherAuthenticated) {
@@ -335,6 +338,13 @@ class _HomeworkPageState extends State<HomeworkPage> {
 
   Future<void> _createHomework(Map<String, dynamic> data) async {
     try {
+      // ✅ LOGS DIAGNOSTIC — AJOUTÉS ICI
+      final jwtUserId = _client.auth.currentUser?.id;
+      print('🔍 DIAGNOSTIC ADMIN');
+      print('🔍 JWT auth.uid() = $jwtUserId');
+      print('🔍 Attendu app_users.id = 0625fd1b-5068-46f0-8723-c50efb3950d8');
+      print('🔍 Match = ${jwtUserId == '0625fd1b-5068-46f0-8723-c50efb3950d8'}');
+
       await _client.from('homeworks').insert({
         ...data,
         'school_id': _schoolId,

@@ -10,7 +10,7 @@ class AttendanceRepository {
   AttendanceRepository(this._supabase);
 
   // ============================================================
-  // SAUVEGARDE DES PRÉSENCES
+  // SAUVEGARDE DES PRÉSENCES (ancienne méthode - gardée pour compatibilité)
   // ============================================================
   Future<void> saveAttendance({
     required String classId,
@@ -54,6 +54,51 @@ class AttendanceRepository {
     } catch (e) {
       throw Exception('Erreur sauvegarde présences: $e');
     }
+  }
+
+  // ============================================================
+  // ✅ NOUVEAU : SAUVEGARDE BATCH VIA EDGE FUNCTION
+  // ============================================================
+ Future<void> saveAttendanceBulk({
+    required String scheduleId,
+    required DateTime date,
+    required Map<String, AttendanceStatus> records,
+    required String schoolId,
+    required String teacherId,
+  }) async {
+    if (schoolId.isEmpty) throw Exception('schoolId requis');
+    if (teacherId.isEmpty) throw Exception('teacherId requis');
+    if (scheduleId.isEmpty) throw Exception('scheduleId requis');
+
+    final dateStr = date.toIso8601String().split('T')[0];
+    final now = DateTime.now().toIso8601String();
+
+    // Récupérer class_id depuis le schedule
+    final scheduleResponse = await _supabase
+        .from('schedules')
+        .select('class_id')
+        .eq('id', scheduleId)
+        .single();
+
+    final classId = scheduleResponse['class_id'] as String?;
+
+    final attendanceRecords = records.entries.map((e) => {
+      'student_id': e.key,
+      'schedule_id': scheduleId,
+      'class_id': classId,
+      'date': dateStr,
+      'status': e.value.name, // 'present', 'absent', 'late'
+      'school_id': schoolId,
+      'teacher_id': teacherId,
+      'created_at': now,
+      'updated_at': now,
+    }).toList();
+
+    // ✅ UPSERT BATCH : 1 requête = 30 élèves
+    await _supabase.from('attendance').upsert(
+      attendanceRecords,
+      onConflict: 'student_id,schedule_id,date',
+    );
   }
 
   // ============================================================
@@ -314,7 +359,6 @@ class AttendanceRepository {
         .eq('date', today)
         .neq('status', 'present')
         .order('students(last_name)', ascending: true);
-      
 
     return (response as List).cast<Map<String, dynamic>>();
   }

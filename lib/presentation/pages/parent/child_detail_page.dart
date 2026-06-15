@@ -4,8 +4,9 @@ import '../../../config/theme.dart';
 import '/services/child_detail_service.dart';
 import 'widgets/grades_tab.dart';
 import 'widgets/timetable_tab.dart';
-import '../parent/widgets/comments/comments_tab.dart';
-import 'parent_attendance_page.dart'; // ✅ Utilise le widget unifié
+import 'widgets/messages/unified_messages_tab.dart';
+import 'widgets/homework_tab.dart';
+import 'parent_attendance_page.dart';
 
 class ChildDetailPage extends StatefulWidget {
   final String studentName;
@@ -13,6 +14,7 @@ class ChildDetailPage extends StatefulWidget {
   final String className;
   final String? parentName;
   final String schoolName;
+  final String schoolId;
   final String studentId;
   final int initialTab;
 
@@ -23,6 +25,7 @@ class ChildDetailPage extends StatefulWidget {
     required this.className,
     this.parentName,
     required this.schoolName,
+    required this.schoolId,
     required this.studentId,
     this.initialTab = 0,
   });
@@ -40,13 +43,14 @@ class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProv
   List<Map<String, dynamic>> _grades = [];
   List<Map<String, dynamic>> _timetable = [];
   List<Map<String, dynamic>> _comments = [];
+  List<Map<String, dynamic>> _homeworks = [];
   Map<String, dynamic> _stats = {};
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 4, // ✅ 4 onglets au lieu de 5
+      length: 5, // ✅ PASSÉ DE 4 À 5
       vsync: this,
       initialIndex: widget.initialTab,
     );
@@ -61,6 +65,7 @@ class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProv
       _service.getGrades(widget.studentId),
       _service.getTimetable(widget.studentId),
       _service.getComments(widget.studentId),
+      _service.getHomeworks(widget.studentId), // ✅ AJOUTÉ
       _service.getStats(widget.studentId),
     ]);
     
@@ -69,7 +74,8 @@ class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProv
       _grades = results[1] as List<Map<String, dynamic>>;
       _timetable = results[2] as List<Map<String, dynamic>>;
       _comments = results[3] as List<Map<String, dynamic>>;
-      _stats = results[4] as Map<String, dynamic>;
+      _homeworks = results[4] as List<Map<String, dynamic>>; // ✅ AJOUTÉ
+      _stats = results[5] as Map<String, dynamic>; // ✅ Index décalé de 4 à 5
       _isLoading = false;
     });
   }
@@ -90,11 +96,11 @@ class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProv
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
           tabs: const [
-            // ✅ SUPPRIMÉ : Tab(icon: Icon(Icons.dashboard), text: 'Résumé'),
             Tab(icon: Icon(Icons.calendar_today), text: 'Présences'),
             Tab(icon: Icon(Icons.school), text: 'Notes'),
             Tab(icon: Icon(Icons.schedule), text: 'Emploi du temps'),
-            Tab(icon: Icon(Icons.chat), text: 'Commentaires'),
+            Tab(icon: Icon(Icons.assignment), text: 'Devoirs'), // ✅ AJOUTÉ
+            Tab(icon: Icon(Icons.chat), text: 'Messages'),
           ],
         ),
       ),
@@ -103,18 +109,18 @@ class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProv
           : TabBarView(
               controller: _tabController,
               children: [
-                // ✅ SUPPRIMÉ : SummaryTab(...)
                 ParentAttendancePage(
                   studentId: widget.studentId,
                   studentName: widget.studentName,
-                  isEmbedded: true, // ✅ Mode intégré (pas d'AppBar)
-                ), // ✅ Utilise le widget unifié avec filtres
+                  isEmbedded: true,
+                ),
                 GradesTab(grades: _grades, stats: _stats),
                 TimetableTab(timetable: _timetable),
-                CommentsTab(
-                  comments: _comments,
+                HomeworkTab(homeworks: _homeworks), // ✅ AJOUTÉ
+                UnifiedMessagesTab(
                   studentId: widget.studentId,
                   parentName: widget.parentName ?? 'Parent',
+                  schoolId: widget.schoolId,
                 ),
               ],
             ),

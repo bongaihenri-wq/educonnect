@@ -75,40 +75,40 @@ class ChildDetailService {
   }
 
   // ─── COMMENTAIRES ────────────────────────
-Future<List<Map<String, dynamic>>> getComments(String studentId) async {
-  final response = await _supabase
-      .from('comments')
-      .select('''
-        id,
-        content,
-        created_at,
-        expires_at,
-        teacher_id,
-        recipients,
-        parent_reply,
-        replied_at
-      ''')
-      .eq('student_id', studentId)
-      .order('created_at', ascending: false);
+  Future<List<Map<String, dynamic>>> getComments(String studentId) async {
+    final response = await _supabase
+        .from('comments')
+        .select('''
+          id,
+          content,
+          created_at,
+          expires_at,
+          teacher_id,
+          recipients,
+          parent_reply,
+          replied_at
+        ''')
+        .eq('student_id', studentId)
+        .order('created_at', ascending: false);
 
-  // ✅ Normaliser recipients en List<String>
-  return (response as List).map((c) {
-    final map = c as Map<String, dynamic>;
-    final recipients = map['recipients'];
-    
-    if (recipients is String) {
-      // Convertir string JSON en List
-      try {
-        // Si c'est '["parent","admin"]', on pourrait parser
-        // Mais pour l'instant, on garde comme String
-      } catch (e) {
-        // Ignorer
+    // ✅ Normaliser recipients en List<String>
+    return (response as List).map((c) {
+      final map = c as Map<String, dynamic>;
+      final recipients = map['recipients'];
+      
+      if (recipients is String) {
+        // Convertir string JSON en List
+        try {
+          // Si c'est '["parent","admin"]', on pourrait parser
+          // Mais pour l'instant, on garde comme String
+        } catch (e) {
+          // Ignorer
+        }
       }
-    }
-    
-    return map;
-  }).cast<Map<String, dynamic>>().toList();
-}
+      
+      return map;
+    }).cast<Map<String, dynamic>>().toList();
+  }
 
   // ─── STATS ───────────────────────────────
   Future<Map<String, dynamic>> getStats(String studentId) async {
@@ -143,37 +143,37 @@ Future<List<Map<String, dynamic>>> getComments(String studentId) async {
   }
 
   // ─── ALERTES 24H ─────────────────────────
-Future<List<Map<String, dynamic>>> getRecentAlerts(String studentId) async {
-  final now = DateTime.now();
-  final yesterday = now.subtract(const Duration(hours: 24));
+  Future<List<Map<String, dynamic>>> getRecentAlerts(String studentId) async {
+    final now = DateTime.now();
+    final yesterday = now.subtract(const Duration(hours: 24));
 
-  // Nouvelles présences (absences/retards)
-  final attendance = await _supabase
-      .from('attendance')
-      .select('date, status, schedules(start_time, subjects(name))')
-      .eq('student_id', studentId)
-      .gte('date', '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}')
-      .order('date', ascending: false);
+    // Nouvelles présences (absences/retards)
+    final attendance = await _supabase
+        .from('attendance')
+        .select('date, status, schedules(start_time, subjects(name))')
+        .eq('student_id', studentId)
+        .gte('date', '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}')
+        .order('date', ascending: false);
 
-  final alerts = <Map<String, dynamic>>[];
+    final alerts = <Map<String, dynamic>>[];
 
-  for (final a in attendance as List) {
-    final status = a['status'] as String;
-    if (status == 'present') continue; // On ne garde que absences et retards
-    
-    alerts.add({
-      'type': status == 'absent' ? 'absence' : 'late',
-      'message': status == 'absent' 
-          ? 'Absence en ${a['schedules']?['subjects']?['name'] ?? 'cours'}'
-          : 'Retard en ${a['schedules']?['subjects']?['name'] ?? 'cours'}',
-      'date': a['date'],
-      'icon': status == 'absent' ? Icons.cancel : Icons.access_time,
-      'color': status == 'absent' ? Colors.red : Colors.orange,
-    });
+    for (final a in attendance as List) {
+      final status = a['status'] as String;
+      if (status == 'present') continue; // On ne garde que absences et retards
+      
+      alerts.add({
+        'type': status == 'absent' ? 'absence' : 'late',
+        'message': status == 'absent' 
+            ? 'Absence en ${a['schedules']?['subjects']?['name'] ?? 'cours'}'
+            : 'Retard en ${a['schedules']?['subjects']?['name'] ?? 'cours'}',
+        'date': a['date'],
+        'icon': status == 'absent' ? Icons.cancel : Icons.access_time,
+        'color': status == 'absent' ? Colors.red : Colors.orange,
+      });
+    }
+
+    return alerts;
   }
-
-  return alerts;
-}
 
   // ─── PROCHAIN COURS ──────────────────────
   Future<Map<String, dynamic>?> getNextClass(String studentId) async {
@@ -230,6 +230,45 @@ Future<List<Map<String, dynamic>>> getRecentAlerts(String studentId) async {
       'end_time': _formatTime(course['end_time']),
       'room': course['room'] ?? 'Salle non définie',
     };
+  }
+
+  // ─── DEVOIRS ─────────────────────────────
+  Future<List<Map<String, dynamic>>> getHomeworks(String studentId) async {
+    try {
+      // 1. Récupérer le class_id de l'élève
+      final studentResponse = await _supabase
+          .from('students')
+          .select('class_id')
+          .eq('id', studentId)
+          .single();
+
+      final classId = studentResponse['class_id'];
+      if (classId == null) return [];
+
+      // 2. Récupérer les devoirs de cette classe
+      // ✅ due_date est de type SQL 'date', on envoie YYYY-MM-DD
+      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+      final dateFilter = '${sevenDaysAgo.year.toString().padLeft(4, '0')}-'
+          '${sevenDaysAgo.month.toString().padLeft(2, '0')}-'
+          '${sevenDaysAgo.day.toString().padLeft(2, '0')}';
+
+      final response = await _supabase
+          .from('homeworks')
+          .select('''
+            *,
+            subjects(*),
+            classes(*),
+            teacher:teacher_id(id, first_name, last_name, role)
+          ''')
+          .eq('class_id', classId)
+          .gte('due_date', dateFilter)
+          .order('due_date', ascending: true);
+
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      debugPrint('Erreur getHomeworks: $e');
+      return [];
+    }
   }
 
   // ─── HELPER : Format heure HH:MM ────────────

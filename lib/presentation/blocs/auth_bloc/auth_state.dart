@@ -37,6 +37,7 @@ class SubscriptionExpired extends AuthState {
   final String parentId;
   final String? schoolId;
   final DateTime? expiresAt;
+  final int? daysRemaining;      // ✅ AJOUTÉ : pour afficher "Expiré depuis X jours"
   final int amount;
   final String currency;
   final String? paymentPhoneNumber;
@@ -45,6 +46,7 @@ class SubscriptionExpired extends AuthState {
     required this.parentId,
     this.schoolId,
     this.expiresAt,
+    this.daysRemaining,         // ✅ AJOUTÉ
     this.amount = 1000,
     this.currency = 'XOF',
     this.paymentPhoneNumber,
@@ -83,6 +85,16 @@ class AdminAuthenticated extends Authenticated {
   }) : super(role: 'admin');
 }
 
+class AssistantAuthenticated extends Authenticated {
+  const AssistantAuthenticated({
+    required super.userId,
+    required super.firstName,
+    required super.lastName,
+    required super.schoolId,
+    required super.schoolName,
+  }) : super(role: 'assistant');
+}
+
 class TeacherAuthenticated extends Authenticated {
   const TeacherAuthenticated({
     required super.userId,
@@ -93,15 +105,13 @@ class TeacherAuthenticated extends Authenticated {
   }) : super(role: 'teacher');
 }
 
-// ✅ MODIFIÉ : Ajout des infos subscription
 class ParentAuthenticated extends Authenticated {
   final String studentId;
   final String studentName;
   final String studentMatricule;
   final String className;
   
-  // ⭐ NOUVEAU : Infos subscription
-  final String? subscriptionStatus;   // 'active', 'trial', 'expired', 'no_subscription'
+  final String? subscriptionStatus;
   final DateTime? subscriptionEndDate;
   final int? daysRemaining;
   final int? subscriptionAmount;
@@ -118,7 +128,6 @@ class ParentAuthenticated extends Authenticated {
     required this.studentName,
     required this.studentMatricule,
     required this.className,
-    // ⭐ NOUVEAU
     this.subscriptionStatus,
     this.subscriptionEndDate,
     this.daysRemaining,
@@ -146,10 +155,12 @@ class PaymentSubmittedSuccessfully extends AuthState {
   final String reference;
   final double amount;
   final DateTime submittedAt;
+  final String? screenshotUrl;
   const PaymentSubmittedSuccessfully({
     required this.parentId,
     required this.reference,
     required this.amount,
     required this.submittedAt,
+    this.screenshotUrl,
   });
 }

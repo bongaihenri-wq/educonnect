@@ -295,7 +295,7 @@ class _GradesTabState extends State<GradesTab> {
             child: Text(
               dateStr,
               style: const TextStyle(
-                fontSize: 12,
+                fontSize: 10,
                 fontWeight: FontWeight.w500,
                 color: AppTheme.nightBlue,
               ),
@@ -307,7 +307,7 @@ class _GradesTabState extends State<GradesTab> {
             child: Text(
               type,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 10,
                 color: Colors.grey.shade700,
               ),
             ),
@@ -318,7 +318,7 @@ class _GradesTabState extends State<GradesTab> {
             child: Text(
               subject,
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: 10,
                 color: AppTheme.nightBlue,
               ),
             ),
@@ -330,7 +330,7 @@ class _GradesTabState extends State<GradesTab> {
               '$coef',
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: 10,
                 fontWeight: FontWeight.w600,
                 color: AppTheme.nightBlue,
               ),
@@ -349,7 +349,7 @@ class _GradesTabState extends State<GradesTab> {
                 '${noteSur20.toStringAsFixed(1)}/20',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 10,
                   fontWeight: FontWeight.w700,
                   color: color,
                 ),
@@ -363,7 +363,7 @@ class _GradesTabState extends State<GradesTab> {
 
   TextStyle _headerStyle() {
     return TextStyle(
-      fontSize: 12,
+      fontSize: 10,
       fontWeight: FontWeight.w700,
       color: AppTheme.violet,
     );

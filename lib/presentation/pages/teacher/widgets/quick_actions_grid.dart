@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../config/routes.dart';
 import '../../../../config/theme.dart';
 import '../teacher_reports_page.dart';
+import 'teacher_add_homework_dialog.dart'; // ✅ AJOUTÉ
 
 class QuickActionsGrid extends StatelessWidget {
   final String teacherId;
@@ -16,8 +17,7 @@ class QuickActionsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ UTILISER LES PARAMÈTRES REÇUS, pas context.read<AuthBloc>
-     print('🔍 [2] QuickActions - teacherId: "$teacherId"');
+    print('🔍 [2] QuickActions - teacherId: "$teacherId"');
 
     return SliverToBoxAdapter(
       child: Padding(
@@ -41,6 +41,42 @@ class QuickActionsGrid extends StatelessWidget {
                     title: 'Saisir Note',
                     color: AppTheme.teal,
                     onTap: () => Navigator.pushNamed(context, AppRoutes.teacherGradesClasses),
+                  ),
+                  const SizedBox(width: 12),
+                  // ✅ BOUTON DEVOIRS — CORRIGÉ
+                  _ActionCard(
+                    icon: Icons.assignment,
+                    title: 'Devoirs',
+                    color: AppTheme.sunshine,
+                    onTap: () async {
+                      print('🔍 [DEVOIRS] teacherId="$teacherId", schoolId="$schoolId"');
+                      
+                      if (teacherId.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Erreur: ID utilisateur non chargé. Reconnectez-vous.'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+                      
+                      final result = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => TeacherAddHomeworkDialog(
+                          teacherAppUserId: teacherId,
+                          schoolId: schoolId,
+                        ),
+                      );
+                      if (result == true && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('✅ Devoir créé avec succès'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    },
                   ),
                   const SizedBox(width: 12),
                   _ActionCard(

@@ -1,17 +1,13 @@
-// lib/app.dart - VERSION FINALE AVEC PaymentPendingPage
+// lib/app.dart - VERSION CORRIGÉE AVEC NAVIGATION DÉCLARATIVE
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'config/routes.dart';
+import 'config/theme.dart';
 import 'presentation/blocs/auth_bloc/auth_bloc.dart';
 import 'presentation/blocs/attendance/attendance_bloc.dart';
-import 'presentation/pages/parent/subscription_expired_page.dart';
-import 'presentation/pages/parent/payment_pending_page.dart'; // ✅ AJOUTÉ
-import 'presentation/pages/parent/parent_dashboard.dart';
-import 'presentation/pages/teacher/teacher_dashboard.dart';
-import 'presentation/pages/admin/admin_dashboard.dart';
-import 'presentation/pages/super_admin/super_admin_dashboard.dart';
-import 'presentation/pages/school_login_page.dart';
+import 'presentation/pages/auth_state_router.dart';
 import 'data/repositories/attendance_repository.dart';
 import 'data/repositories/class_repository.dart';
 import 'data/repositories/student_repository.dart';
@@ -37,7 +33,10 @@ class EduConnectApp extends StatelessWidget {
       ],
       child: MultiBlocProvider(
         providers: [
-          BlocProvider(create: (_) => AuthBloc(supabase)),
+          // ✅ CORRIGÉ : Ajout de AppStarted au démarrage
+          BlocProvider(
+            create: (_) => AuthBloc(supabase)..add(const AppStarted()),
+          ),
           BlocProvider(
             create: (context) => AttendanceBloc(
               attendanceRepository: context.read<AttendanceRepository>(),
@@ -53,92 +52,74 @@ class EduConnectApp extends StatelessWidget {
           title: 'EduConnect',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
-            primarySwatch: Colors.deepPurple,
+            primaryColor: AppTheme.violet,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: AppTheme.violet,
+              primary: AppTheme.violet,
+              secondary: AppTheme.teal,
+              surface: AppTheme.bisLight,
+              error: Colors.redAccent,
+            ),
             useMaterial3: true,
+            fontFamily: 'Roboto',
+            appBarTheme: AppBarTheme(
+              backgroundColor: AppTheme.violet,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              centerTitle: true,
+              titleTextStyle: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.violet,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+              ),
+            ),
+            cardTheme: CardThemeData(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              color: AppTheme.white,
+            ),
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: AppTheme.bisDark),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: AppTheme.bisDark),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: AppTheme.violet, width: 2),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            ),
           ),
-          initialRoute: AppRoutes.schoolLogin,
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('fr', 'FR'),
+          ],
+          // ✅ SUPPRIMÉ : initialRoute (remplacé par home)
+          // ✅ SUPPRIMÉ : BlocListener de navigation dans builder
+          home: const AuthStateRouter(), // ✅ AJOUTÉ : Navigation déclarative
           routes: AppRoutes.routes,
-          builder: (context, child) {
-            return BlocListener<AuthBloc, AuthState>(
-              listener: (context, state) {
-                print('🎯 BLOC LISTENER - State: ${state.runtimeType}');
-                
-                if (state is SubscriptionExpired) {
-                  print('🎯 SubscriptionExpired → Navigation');
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    navigatorKey.currentState?.pushAndRemoveUntil(
-                      MaterialPageRoute(
-                        builder: (_) => SubscriptionExpiredPage(
-                          parentId: state.parentId,
-                          schoolId: state.schoolId,
-                          expiresAt: state.expiresAt,
-                          amount: state.amount,
-                          currency: state.currency,
-                          paymentPhoneNumber: state.paymentPhoneNumber,
-                        ),
-                      ),
-                      (route) => false,
-                    );
-                  });
-                } else if (state is PaymentSubmittedSuccessfully) {
-                  // ✅ Seulement au login (pas depuis renouvellement)
-                    print('🎯 PaymentSubmittedSuccessfully → PaymentPendingPage (login only)');
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                      navigatorKey.currentState?.pushAndRemoveUntil(
-                      MaterialPageRoute(
-                         builder: (_) => PaymentPendingPage(
-                         reference: state.reference,
-                         amount: state.amount,
-                               ),
-                         ),
-                         (route) => false,
-                          );
-                    });
-                } else if (state is ParentAuthenticated) {
-                  print('🎯 ParentAuthenticated → Navigation');
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    navigatorKey.currentState?.pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const ParentDashboard()),
-                      (route) => false,
-                    );
-                  });
-                } else if (state is TeacherAuthenticated) {
-                  print('🎯 TeacherAuthenticated → Navigation');
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    navigatorKey.currentState?.pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const TeacherDashboard()),
-                      (route) => false,
-                    );
-                  });
-                } else if (state is AdminAuthenticated) {
-                  print('🎯 AdminAuthenticated → Navigation');
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    navigatorKey.currentState?.pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const AdminDashboard()),
-                      (route) => false,
-                    );
-                  });
-                } else if (state is SuperAdminAuthenticated) {
-                  print('🎯 SuperAdminAuthenticated → Navigation');
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    navigatorKey.currentState?.pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const SuperAdminDashboardPage()),
-                      (route) => false,
-                    );
-                  });
-                } else if (state is Unauthenticated) {
-                  print('🎯 Unauthenticated → Navigation vers Login');
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    navigatorKey.currentState?.pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const SchoolLoginPage()),
-                      (route) => false,
-                    );
-                  });
-                }
-              },
-              child: child!,
-            );
-          },
         ),
       ),
     );

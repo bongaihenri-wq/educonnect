@@ -10,7 +10,7 @@ import 'widgets/dashboard_header.dart';
 import 'widgets/stat_cards_row.dart';
 import 'widgets/quick_actions_grid.dart';
 import 'widgets/course_list_section.dart';
-import 'widgets/teacher_comment_list_section.dart'; // ✅ NOUVEAU WIDGET
+import 'widgets/teacher_comment_list_section.dart';
 
 class TeacherDashboard extends StatefulWidget {
   const TeacherDashboard({super.key});
@@ -29,12 +29,26 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     _loadDashboardData();
   }
 
+  // ✅ AJOUTÉ : Extraction robuste de l'ID selon le type d'état
+  String _extractUserId(AuthState state) {
+    if (state is TeacherAuthenticated) return state.userId;
+    if (state is Authenticated) return state.userId;
+    return '';
+  }
+
+  // ✅ AJOUTÉ : Extraction robuste du schoolId selon le type d'état
+  String _extractSchoolId(AuthState state) {
+    if (state is TeacherAuthenticated) return state.schoolId;
+    if (state is Authenticated) return state.schoolId;
+    return '';
+  }
+
   Future<void> _loadDashboardData() async {
     final authState = context.read<AuthBloc>().state;
+    final teacherId = _extractUserId(authState);
     
-    if (authState is Authenticated) {
+    if (teacherId.isNotEmpty) {
       try {
-        final teacherId = authState.userId;
         final data = await context.read<TeacherService>().getTeacherAssignments(teacherId);
         
         setState(() {
@@ -45,15 +59,20 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         setState(() => _isLoading = false);
         debugPrint("Erreur Dashboard: $e");
       }
+    } else {
+      setState(() => _isLoading = false);
+      debugPrint("⚠️ TeacherDashboard: teacherId vide, impossible de charger les données");
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final authState = context.read<AuthBloc>().state;
-    final teacherId = authState is Authenticated ? authState.userId : '';
-    final schoolId = authState is Authenticated ? authState.schoolId : '';
+    final teacherId = _extractUserId(authState);   // ✅ Corrigé
+    final schoolId = _extractSchoolId(authState);   // ✅ Corrigé
     
+    print('🔍 TeacherDashboard - teacherId: "$teacherId", schoolId: "$schoolId"');
+
     return Scaffold(
       backgroundColor: AppTheme.bisLight,
       body: SafeArea(
@@ -66,7 +85,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               StatCardsRow(
                 teacherId: teacherId,
                 schoolId: schoolId,
-                ),
+              ),
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(20, 24, 20, 16),
@@ -87,7 +106,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               _isLoading 
                 ? const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()))
                 : CourseListSection(courses: _assignedCourses),
-              // ✅ SECTION MESSAGES POUR L'ENSEIGNANT
               TeacherCommentListSection(teacherId: teacherId),
               const LogoutButton(),
               const SliverPadding(padding: EdgeInsets.only(bottom: 40)),
@@ -98,7 +116,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     );
   }
 }
-
 class LogoutButton extends StatelessWidget {
   const LogoutButton({super.key});
 
@@ -109,8 +126,8 @@ class LogoutButton extends StatelessWidget {
       sliver: SliverToBoxAdapter(
         child: ElevatedButton.icon(
           onPressed: () {
+            // ✅ SUPPRIMÉ : AppRoutes.logout(context) — cause le conflit
             context.read<AuthBloc>().add(const LogoutRequested());
-            AppRoutes.logout(context);
           },
           icon: const Icon(Icons.logout, color: Colors.white),
           label: const Text('Se déconnecter'),

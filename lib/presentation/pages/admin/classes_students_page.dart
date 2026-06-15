@@ -245,6 +245,7 @@ class _ClassesStudentsPageState extends State<ClassesStudentsPage> {
 
       final schoolCode = await _statsService.getSchoolCode(schoolId);
       
+      // 1. Créer le parent
       final parentResponse = await Supabase.instance.client.rpc(
         'create_user_with_role',
         params: {
@@ -269,7 +270,8 @@ class _ClassesStudentsPageState extends State<ClassesStudentsPage> {
       final parentId = parentResult['user_id'] as String;
       final parentPhone = parentResult['phone'] as String;
 
-      await Supabase.instance.client
+      // 2. Créer l'élève et récupérer son ID
+      final studentResponse = await Supabase.instance.client
           .from('students')
           .insert({
             'first_name': studentData['first_name'],
@@ -278,6 +280,20 @@ class _ClassesStudentsPageState extends State<ClassesStudentsPage> {
             'class_id': studentData['class_id'],
             'school_id': schoolId,
             'parent_id': parentId,
+            'created_at': DateTime.now().toIso8601String(),
+          })
+          .select()  // ✅ RÉCUPÉRER L'ID
+          .single();
+
+      final studentId = studentResponse['id'] as String;
+
+      // 3. ✅ CRÉER LA LIAISON parent_students (C'ÉTAIT MANQUANT)
+      await Supabase.instance.client
+          .from('parent_students')
+          .insert({
+            'parent_id': parentId,
+            'student_id': studentId,
+            'relationship': 'parent',
             'created_at': DateTime.now().toIso8601String(),
           });
 
@@ -296,7 +312,7 @@ class _ClassesStudentsPageState extends State<ClassesStudentsPage> {
               Text('🔑 MDP: $matricule', style: const TextStyle(fontSize: 12)),
               Text('🎓 Matricule: $matricule', style: const TextStyle(fontSize: 12)),
               Text('🏫 Code école: ${schoolCode ?? 'N/A'}', style: const TextStyle(fontSize: 12)),
-              const Text('⏳ Essai 14 jours activé', style: TextStyle(fontSize: 11)),
+              const Text('⏳ Essai 7 jours activé', style: TextStyle(fontSize: 11)),
             ],
           ),
         ),
@@ -314,7 +330,6 @@ class _ClassesStudentsPageState extends State<ClassesStudentsPage> {
       );
     }
   }
-
   Widget _buildErrorWidget() {
     return Center(
       child: Column(

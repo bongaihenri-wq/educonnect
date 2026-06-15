@@ -9,7 +9,6 @@ class AppStarted extends AuthEvent {
   const AppStarted();
 }
 
-/// Connexion par téléphone (pour tous les rôles)
 class LoginWithPhoneRequested extends AuthEvent {
   final String phone;
   final String password;
@@ -20,13 +19,13 @@ class LoginWithPhoneRequested extends AuthEvent {
   });
 }
 
-/// ⭐ NOUVEAU : Parent soumet une référence de paiement
 class PaymentReferenceSubmitted extends AuthEvent {
   final String parentId;
   final String schoolId;
   final String reference;
   final double amount;
-  final String? phoneNumber; // Numéro utilisé pour le dépôt
+  final String? phoneNumber;
+  final String? screenshotUrl;
 
   const PaymentReferenceSubmitted({
     required this.parentId,
@@ -34,7 +33,12 @@ class PaymentReferenceSubmitted extends AuthEvent {
     required this.reference,
     required this.amount,
     this.phoneNumber,
+    this.screenshotUrl,
   });
+}
+
+class CheckSubscriptionStatusRequested extends AuthEvent {
+  const CheckSubscriptionStatusRequested();
 }
 
 class LogoutRequested extends AuthEvent {

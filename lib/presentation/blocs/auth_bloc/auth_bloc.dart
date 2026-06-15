@@ -1,500 +1,64 @@
 // lib/presentation/blocs/auth_bloc/auth_bloc.dart
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'auth_repository.dart';
 
 part 'auth_event.dart';
 part 'auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  final SupabaseClient _supabase;
+  final AuthRepository _repository;
 
-  AuthBloc(this._supabase) : super(AuthInitial()) {
+  AuthBloc(SupabaseClient supabase) 
+      : _repository = AuthRepository(supabase),
+        super(AuthInitial()) {
     on<AppStarted>(_onAppStarted);
     on<LoginWithPhoneRequested>(_onLoginWithPhone);
+    on<PaymentReferenceSubmitted>(_onPaymentReferenceSubmitted);
+    on<CheckSubscriptionStatusRequested>(_onCheckSubscriptionStatus);
     on<LogoutRequested>(_onLogout);
   }
 
-  // ============================================================
-  // ⭐ NOUVEAU : Détection rôle spécifique par pays/école
-  // ============================================================
-
-  /// Extraire l'indicatif du téléphone
-  String? _extractCountryCode(String phone) {
-    if (phone.startsWith('+225')) return '+225';
-    if (phone.startsWith('+237')) return '+237';
-    if (phone.startsWith('+221')) return '+221';
-    if (phone.startsWith('+233')) return '+233';
-    if (phone.startsWith('+226')) return '+226';
-    if (phone.startsWith('+241')) return '+241';
-    return null;
-  }
-
-  /// Récupérer le rôle spécifique selon priorité École > Pays > Global
-  Future<Map<String, dynamic>?> _getSpecificRole(
-    String userId,
-    String phone,
-    String? schoolId,
-  ) async {
-    try {
-      final countryCode = _extractCountryCode(phone);
-      if (countryCode == null) return null;
-
-      final response = await _supabase.rpc('get_role_for_user', params: {
-        'p_user_id': userId,
-        'p_country_code': countryCode,
-        'p_school_id': schoolId,
-      });
-
-      if (response == null) return null;
-      
-      final data = response is List ? (response.isNotEmpty ? response[0] : null) : response;
-      if (data == null) return null;
-
-      return {
-        'code': data['code']?.toString(),
-        'name': data['name']?.toString(),
-        'level': data['level'],
-      };
-    } catch (e) {
-      print('⚠️ Erreur rôle spécifique: $e');
-      return null;
-    }
-  }
-
-  // ============================================================
-  // VÉRIFICATION ABONNEMENT PARENT (EXISTANT - inchangé)
-  // ============================================================
-  
-  Future<Map<String, dynamic>?> _checkSubscription(
-    String parentId,
-    String? schoolId,
-  ) async {
-    try {
-      final response = await _supabase
-          .from('parent_subscriptions')
-          .select('id, status, plan_type, trial_ends_at, current_period_end, amount, currency')
-          .eq('parent_id', parentId)
-          .maybeSingle();
-
-      if (response == null) return null;
-
-      String? paymentPhoneNumber;
-      if (schoolId != null) {
-        try {
-          final school = await _supabase
-              .from('schools')
-              .select('payment_phone_number')
-              .eq('id', schoolId)
-              .maybeSingle();
-          paymentPhoneNumber = school?['payment_phone_number'];
-        } catch (e) {
-          print('⚠️ Erreur récupération école: $e');
-        }
-      }
-
-      return {
-        'id': response['id'],
-        'status': response['status'],
-        'plan_type': response['plan_type'],
-        'trial_ends_at': response['trial_ends_at'] != null
-            ? DateTime.parse(response['trial_ends_at'])
-            : null,
-        'current_period_end': response['current_period_end'] != null
-            ? DateTime.parse(response['current_period_end'])
-            : null,
-        'amount': response['amount'],
-        'currency': response['currency'],
-        'payment_phone_number': paymentPhoneNumber,
-      };
-    } catch (e) {
-      print('❌ Erreur vérification abonnement: $e');
-      return null;
-    }
-  }
-
-  // ============================================================
-  // VÉRIFICATION PAIEMENT PENDING (EXISTANT - inchangé)
-  // ============================================================
-  
-  Future<Map<String, dynamic>?> _checkPendingPayment(String parentId) async {
-    try {
-      final response = await _supabase
-          .from('payment_transactions')
-          .select('id, external_ref, amount, status, created_at')
-          .eq('parent_id', parentId)
-          .eq('status', 'pending')
-          .order('created_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
-
-      if (response == null) return null;
-
-      return {
-        'id': response['id'],
-        'external_ref': response['external_ref'],
-        'amount': (response['amount'] as num).toDouble(),
-        'status': response['status'],
-        'created_at': response['created_at'],
-      };
-    } catch (e) {
-      print('❌ Erreur vérification paiement pending: $e');
-      return null;
-    }
-  }
+  // ─── Logique métier pure ───────────────────────────────────
 
   bool _isSubscriptionExpired(Map<String, dynamic>? sub) {
     if (sub == null) {
-      print('🔴 SUBSCRIPTION NULL → EXPIRÉ');
-      return true;
+      print('SUBSCRIPTION NULL -> NOUVEAU PARENT (pas expiré)');
+      return false;
     }
     
     final status = sub['status'] as String?;
+    final daysRemaining = sub['days_remaining'] as int?;
+    
     if (status == null) {
-      print('🔴 STATUT NULL → EXPIRÉ');
+      print('STATUT NULL -> EXPIRE');
       return true;
     }
 
-    print('🟡 Statut trouvé: $status');
+    print('Statut trouve: $status, jours restants: $daysRemaining');
 
     if (status == 'expired') {
-      print('🔴 STATUT = expired');
+      print('STATUT = expired');
       return true;
     }
 
-    if (status == 'trial') {
-      final trialEndsAt = sub['trial_ends_at'] as DateTime?;
-      if (trialEndsAt != null && DateTime.now().isAfter(trialEndsAt)) {
-        print('🔴 TRIAL EXPIRÉ: $trialEndsAt');
-        return true;
-      }
-      print('🟢 TRIAL EN COURS jusquà $trialEndsAt');
-    }
-
-    if (status == 'active') {
-      final currentPeriodEnd = sub['current_period_end'] as DateTime?;
-      if (currentPeriodEnd != null && DateTime.now().isAfter(currentPeriodEnd)) {
-        print('🔴 ACTIF EXPIRÉ: $currentPeriodEnd');
-        return true;
-      }
-      print('🟢 ACTIF jusquà $currentPeriodEnd');
-    }
-
-    if (status != 'trial' && status != 'active') {
-      print('🔴 STATUT INCONNU: $status → EXPIRÉ');
+    if (daysRemaining != null && daysRemaining <= 0) {
+      print('TOTALLY EXPIRED: $daysRemaining jours');
       return true;
     }
 
-    return false;
-  }
-
-  // ============================================================
-  // HANDLERS (AVEC MODIFICATIONS MINIMALES)
-  // ============================================================
-
-  Future<void> _onAppStarted(AppStarted event, Emitter<AuthState> emit) async {
-    emit(AuthLoading());
-    
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userId = prefs.getString('user_id');
-      final role = prefs.getString('role');
-      
-      if (userId != null && role != null) {
-        final user = await _supabase
-            .from('app_users')
-            .select('id, first_name, last_name, role, school_id, email, phone')
-            .eq('id', userId)
-            .single();
-        
-        if (role == 'parent') {
-          print('🔍 [AppStarted] Vérification abonnement pour parent: $userId');
-          final sub = await _checkSubscription(userId, user['school_id']);
-          print('🔍 [AppStarted] Subscription: $sub');
-          
-          final pendingPayment = await _checkPendingPayment(userId);
-          print('🔍 [AppStarted] Paiement pending: $pendingPayment');
-          
-          if (pendingPayment != null) {
-            print('🟡 [AppStarted] PAIEMENT PENDING → PaymentPendingPage');
-            emit(PaymentSubmittedSuccessfully(
-              parentId: userId,
-              reference: pendingPayment['external_ref'],
-              amount: pendingPayment['amount'],
-              submittedAt: DateTime.parse(pendingPayment['created_at']),
-            ));
-            return;
-          }
-          
-          if (_isSubscriptionExpired(sub)) {
-            print('🔴 [AppStarted] ABONNEMENT EXPIRÉ → SubscriptionExpired');
-            emit(SubscriptionExpired(
-              parentId: userId,
-              schoolId: user['school_id'],
-              expiresAt: sub?['trial_ends_at'] ?? sub?['current_period_end'],
-              amount: sub?['amount'] ?? 1000,
-              currency: sub?['currency'] ?? 'XOF',
-              paymentPhoneNumber: sub?['payment_phone_number'],
-            ));
-            return;
-          }
-          print('🟢 [AppStarted] Abonnement OK');
-        }
-        
-        final schoolName = await _getSchoolName(user['school_id']);
-        
-        Map<String, dynamic> parentData = {};
-        if (role == 'parent') {
-          parentData = await _getParentData(userId);
-        }
-        
-        _emitAuthenticated(user, schoolName, emit, parentData: parentData);
-      } else {
-        emit(Unauthenticated());
-      }
-    } catch (e) {
-      print('❌ [AppStarted] Erreur: $e');
-      emit(Unauthenticated());
+    if (daysRemaining != null && daysRemaining > 0 && daysRemaining <= 3) {
+      print('EXPIRING SOON: $daysRemaining jours -> ACCES AUTORISE');
+      return false;
     }
-  }
 
-  Future<void> _onLoginWithPhone(
-    LoginWithPhoneRequested event,
-    Emitter<AuthState> emit,
-  ) async {
-    emit(AuthLoading());
-
-    print('🔍 AUTHBLOC PHONE RECU: "${event.phone}"');
-    
-    try {
-      final response = await _supabase.rpc('login_by_phone', params: {
-        'p_phone': event.phone,
-        'p_password': event.password,
-      });
-
-      if (response == null || response.isEmpty) {
-        emit(AuthError('Erreur serveur'));
-        return;
-      }
-
-      final result = response[0];
-      
-      if (result['success'] == true) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('user_id', result['user_id']);
-        await prefs.setString('role', result['role']);
-        await prefs.setString('first_name', result['first_name']);
-        await prefs.setString('last_name', result['last_name']);
-        
-        final schoolId = result['school_id'] as String?;
-        if (schoolId != null) {
-          await prefs.setString('school_id', schoolId);
-        } else {
-          await prefs.remove('school_id');
-        }
-        
-        // ⭐ NOUVEAU : Détection rôle spécifique pour teacher/admin
-        String finalRole = result['role'];
-        if (result['role'] == 'teacher' || result['role'] == 'admin') {
-          final specificRole = await _getSpecificRole(
-            result['user_id'],
-            result['phone'] ?? event.phone,
-            schoolId,
-          );
-          
-          if (specificRole != null) {
-            print('🎯 [Login] Rôle spécifique trouvé: ${specificRole['code']}');
-            finalRole = specificRole['code']!;
-          }
-        }
-        
-        if (result['role'] == 'parent') {
-          print('🔍 [Login] Vérification abonnement pour parent: ${result['user_id']}');
-          final sub = await _checkSubscription(result['user_id'], schoolId);
-          print('🔍 [Login] Subscription: $sub');
-          
-          final pendingPayment = await _checkPendingPayment(result['user_id']);
-          print('🔍 [Login] Paiement pending: $pendingPayment');
-          
-          if (pendingPayment != null) {
-            print('🟡 [Login] PAIEMENT PENDING → PaymentPendingPage');
-            emit(PaymentSubmittedSuccessfully(
-              parentId: result['user_id'],
-              reference: pendingPayment['external_ref'],
-              amount: pendingPayment['amount'],
-              submittedAt: DateTime.parse(pendingPayment['created_at']),
-            ));
-            return;
-          }
-          
-          if (_isSubscriptionExpired(sub)) {
-            print('🔴 [Login] ABONNEMENT EXPIRÉ → SubscriptionExpired');
-            emit(SubscriptionExpired(
-              parentId: result['user_id'],
-              schoolId: schoolId,
-              expiresAt: sub?['trial_ends_at'] ?? sub?['current_period_end'],
-              amount: sub?['amount'] ?? 1000,
-              currency: sub?['currency'] ?? 'XOF',
-              paymentPhoneNumber: sub?['payment_phone_number'],
-            ));
-            return;
-          }
-          print('🟢 [Login] Abonnement OK');
-        }
-        
-        final schoolName = await _getSchoolName(schoolId);
-        
-        Map<String, dynamic> parentData = {};
-        if (result['role'] == 'parent') {
-          parentData = await _getParentData(result['user_id']);
-        }
-        
-        _emitAuthenticated({
-          'id': result['user_id'],
-          'first_name': result['first_name'],
-          'last_name': result['last_name'],
-          'role': finalRole,
-          'school_id': schoolId,
-          'email': result['email'],
-          'phone': result['phone'],
-        }, schoolName, emit, parentData: parentData);
-      } else {
-        emit(AuthError(result['message']));
-      }
-    } catch (e) {
-      print('❌ [Login] Erreur: $e');
-      emit(AuthError('Erreur de connexion: $e'));
+    if (status == 'trial' || status == 'active') {
+      print('ABONNEMENT OK');
+      return false;
     }
-  }
 
-  Future<void> _onPaymentReferenceSubmitted(
-    PaymentReferenceSubmitted event,
-    Emitter<AuthState> emit,
-  ) async {
-    emit(AuthLoading());
-
-    try {
-      await _supabase.from('payment_transactions').insert({
-        'parent_id': event.parentId,
-        'school_id': event.schoolId,
-        'external_ref': event.reference,
-        'amount': event.amount.toInt(),
-        'currency': 'XOF',
-        'provider': 'wave',
-        'status': 'pending',
-        'notes': event.phoneNumber,
-        'created_at': DateTime.now().toIso8601String(),
-      });
-
-      print('✅ Paiement inséré: ${event.reference}');
-
-      final user = await _supabase
-          .from('app_users')
-          .select('id, first_name, last_name, role, school_id, email, phone')
-          .eq('id', event.parentId)
-          .single();
-
-      final schoolName = await _getSchoolName(user['school_id']);
-      final parentData = await _getParentData(event.parentId);
-
-      _emitAuthenticated(user, schoolName, emit, parentData: parentData);
-      
-    } catch (e) {
-      print('❌ Erreur paiement: $e');
-      emit(AuthError('Erreur lors de la soumission: $e'));
-    }
-  }
-
-  Future<void> _onLogout(LogoutRequested event, Emitter<AuthState> emit) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    emit(Unauthenticated());
-  }
-
-  // ============================================================
-  // HELPERS (EXISTANTS - inchangés)
-  // ============================================================
-
-  Future<String> _getSchoolName(String? schoolId) async {
-    if (schoolId == null) return 'Toutes les écoles';
-    try {
-      final school = await _supabase
-          .from('schools')
-          .select('name')
-          .eq('id', schoolId)
-          .single();
-      return school?['name'] ?? 'Mon École';
-    } catch (e) {
-      return 'Mon École';
-    }
-  }
-
-  Future<Map<String, dynamic>> _getParentData(String parentId) async {
-    try {
-      final parentStudent = await _supabase
-          .from('parent_students')
-          .select('student_id')
-          .eq('parent_id', parentId)
-          .single();
-      
-      Map<String, dynamic> studentData = {};
-      if (parentStudent != null) {
-        final student = await _supabase
-            .from('students')
-            .select('*, classes(name)')
-            .eq('id', parentStudent['student_id'])
-            .single();
-        
-        if (student != null) {
-          studentData = {
-            'studentId': student['id'],
-            'studentName': '${student['first_name']} ${student['last_name']}',
-            'studentMatricule': student['matricule'] ?? '',
-            'className': student['classes']?['name'] ?? 'Classe inconnue',
-          };
-        }
-      }
-
-      final sub = await _checkSubscription(parentId, studentData.isNotEmpty ? null : null);
-      
-      String? status;
-      DateTime? endDate;
-      int? daysRemaining;
-      int? amount;
-      String? currency;
-      String? paymentPhone;
-      
-      if (sub != null) {
-        status = sub['status'] as String?;
-        endDate = sub['trial_ends_at'] ?? sub['current_period_end'];
-        amount = sub['amount'] as int?;
-        currency = sub['currency'] as String?;
-        paymentPhone = sub['payment_phone_number'] as String?;
-        
-        if (endDate != null) {
-          daysRemaining = endDate.difference(DateTime.now()).inDays;
-        }
-      } else {
-        status = 'no_subscription';
-      }
-
-      return {
-        ...studentData,
-        'subscriptionStatus': status,
-        'subscriptionEndDate': endDate,
-        'daysRemaining': daysRemaining,
-        'subscriptionAmount': amount ?? 1000,
-        'subscriptionCurrency': currency ?? 'XOF',
-        'paymentPhoneNumber': paymentPhone,
-      };
-    } catch (e) {
-      print('❌ Erreur récupération parent data: $e');
-      return {
-        'subscriptionStatus': 'no_subscription',
-        'subscriptionAmount': 1000,
-        'subscriptionCurrency': 'XOF',
-      };
-    }
+    print('STATUT INCONNU: $status -> EXPIRE');
+    return true;
   }
 
   void _emitAuthenticated(
@@ -515,6 +79,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       ));
     } else if (role == 'admin') {
       emit(AdminAuthenticated(
+        userId: user['id'],
+        firstName: user['first_name'],
+        lastName: user['last_name'],
+        schoolId: user['school_id'] ?? '',
+        schoolName: schoolName,
+      ));
+    } else if (role == 'assistant') {
+      emit(AssistantAuthenticated(
         userId: user['id'],
         firstName: user['first_name'],
         lastName: user['last_name'],
@@ -548,7 +120,293 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         paymentPhoneNumber: parentData['paymentPhoneNumber'],
       ));
     } else {
-      emit(AuthError('Rôle inconnu: $role'));
+      emit(AuthError('Role inconnu: $role'));
     }
+  }
+
+  // ─── Handlers ──────────────────────────────────────────────
+
+  Future<void> _onAppStarted(AppStarted event, Emitter<AuthState> emit) async {
+    emit(AuthLoading());
+    
+    try {
+      final session = await _repository.getSession();
+      final userId = session['user_id'];
+      final role = session['role'];
+      
+      if (userId != null && role != null) {
+        final user = await _repository.getUserById(userId);
+        if (user == null) {
+          emit(Unauthenticated());
+          return;
+        }
+        
+        if (role == 'parent') {
+          print('Verification abonnement pour parent: $userId');
+          final sub = await _repository.checkSubscription(userId, user['school_id']);
+          print('Subscription: $sub');
+          
+          final pendingPayment = await _repository.checkPendingPayment(userId);
+          print('Paiement pending: $pendingPayment');
+          
+          if (pendingPayment != null) {
+            print('PAIEMENT PENDING -> PaymentPendingPage');
+            emit(PaymentSubmittedSuccessfully(
+              parentId: userId,
+              reference: pendingPayment['external_ref'],
+              amount: pendingPayment['amount'],
+              submittedAt: DateTime.parse(pendingPayment['created_at']),
+              screenshotUrl: pendingPayment['screenshot_url'],
+            ));
+            return;
+          }
+          
+          if (_isSubscriptionExpired(sub)) {
+            print('ABONNEMENT EXPIRE -> SubscriptionExpired');
+            emit(SubscriptionExpired(
+              parentId: userId,
+              schoolId: user['school_id'],
+              expiresAt: sub?['trial_ends_at'] ?? sub?['current_period_end'],
+              daysRemaining: sub?['days_remaining'],
+              amount: sub?['amount'] ?? 1000,
+              currency: sub?['currency'] ?? 'XOF',
+              paymentPhoneNumber: sub?['payment_phone_number'],
+            ));
+            return;
+          }
+          print('Abonnement OK');
+        }
+        
+        final schoolName = await _repository.getSchoolName(user['school_id']);
+        
+        Map<String, dynamic> parentData = {};
+        if (role == 'parent') {
+          parentData = await _repository.getParentDataLite(
+            userId,
+            await _repository.checkSubscription(userId, user['school_id']),
+          );
+        }
+        
+        _emitAuthenticated(user, schoolName, emit, parentData: parentData);
+      } else {
+        emit(Unauthenticated());
+      }
+    } catch (e) {
+      print('Erreur AppStarted: $e');
+      emit(Unauthenticated());
+    }
+  }
+
+  Future<void> _onLoginWithPhone(
+    LoginWithPhoneRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+
+    print('AUTHBLOC PHONE RECU: "${event.phone}"');
+    
+    try {
+      final response = await _repository.loginByPhone(event.phone, event.password);
+
+      if (response == null || response.isEmpty) {
+        emit(AuthError('Erreur serveur'));
+        return;
+      }
+
+      final result = response[0];
+      
+      if (result['success'] == true) {
+        await _repository.saveSession(
+          userId: result['user_id'],
+          role: result['role'],
+          firstName: result['first_name'],
+          lastName: result['last_name'],
+          schoolId: result['school_id'],
+        );
+        
+        final schoolId = result['school_id'] as String?;
+        String finalRole = result['role'];
+        final phone = result['phone'] ?? event.phone;
+
+        final roleFuture = (result['role'] == 'teacher' || result['role'] == 'admin' || result['role'] == 'assistant')
+            ? _repository.getSpecificRole(result['user_id'], phone, schoolId)
+            : Future.value(null);
+
+        final schoolNameFuture = _repository.getSchoolName(schoolId);
+
+        Map<String, dynamic>? sub;
+        Map<String, dynamic>? pendingPayment;
+        
+        if (result['role'] == 'parent') {
+          print('Verification abonnement pour parent: ${result['user_id']}');
+          
+          final results = await Future.wait([
+            _repository.checkSubscription(result['user_id'], schoolId),
+            _repository.checkPendingPayment(result['user_id']),
+            schoolNameFuture,
+          ]);
+          
+          sub = results[0] as Map<String, dynamic>?;
+          pendingPayment = results[1] as Map<String, dynamic>?;
+          
+          print('Subscription: $sub');
+          print('Paiement pending: $pendingPayment');
+          
+          if (pendingPayment != null) {
+            print('PAIEMENT PENDING -> PaymentPendingPage');
+            emit(PaymentSubmittedSuccessfully(
+              parentId: result['user_id'],
+              reference: pendingPayment['external_ref'],
+              amount: pendingPayment['amount'],
+              submittedAt: DateTime.parse(pendingPayment['created_at']),
+              screenshotUrl: pendingPayment['screenshot_url'],
+            ));
+            return;
+          }
+          
+          if (_isSubscriptionExpired(sub)) {
+            print('ABONNEMENT EXPIRE -> SubscriptionExpired');
+            emit(SubscriptionExpired(
+              parentId: result['user_id'],
+              schoolId: schoolId,
+              expiresAt: sub?['trial_ends_at'] ?? sub?['current_period_end'],
+              daysRemaining: sub?['days_remaining'],
+              amount: sub?['amount'] ?? 1000,
+              currency: sub?['currency'] ?? 'XOF',
+              paymentPhoneNumber: sub?['payment_phone_number'],
+            ));
+            return;
+          }
+          print('Abonnement OK');
+        }
+
+        final specificRole = await roleFuture;
+        final schoolName = result['role'] == 'parent' 
+            ? (await schoolNameFuture)
+            : await schoolNameFuture;
+        
+        if (specificRole != null) {
+          print('Role specifique trouve: ${specificRole['code']}');
+          finalRole = specificRole['code']!;
+        }
+        
+        Map<String, dynamic> parentData = {};
+        if (result['role'] == 'parent') {
+          parentData = await _repository.getParentDataLite(result['user_id'], sub);
+        }
+        
+        _emitAuthenticated({
+          'id': result['user_id'],
+          'first_name': result['first_name'],
+          'last_name': result['last_name'],
+          'role': finalRole,
+          'school_id': schoolId,
+          'email': result['email'],
+          'phone': result['phone'],
+        }, schoolName, emit, parentData: parentData);
+      } else {
+        emit(AuthError(result['message']));
+      }
+    } catch (e) {
+      print('Erreur Login: $e');
+      emit(AuthError('Erreur de connexion: $e'));
+    }
+  }
+
+  Future<void> _onPaymentReferenceSubmitted(
+    PaymentReferenceSubmitted event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+
+    try {
+      await _repository.savePaymentTransaction(
+        parentId: event.parentId,
+        schoolId: event.schoolId,
+        reference: event.reference,
+        amount: event.amount,
+        phoneNumber: event.phoneNumber,
+        screenshotUrl: event.screenshotUrl,
+      );
+
+      print('Paiement enregistre: ${event.reference}');
+
+      emit(PaymentSubmittedSuccessfully(
+        parentId: event.parentId,
+        reference: event.reference,
+        amount: event.amount,
+        submittedAt: DateTime.now(),
+        screenshotUrl: event.screenshotUrl,
+      ));
+      
+    } catch (e) {
+      print('Erreur paiement: $e');
+      emit(AuthError('Erreur lors de la soumission: $e'));
+    }
+  }
+
+  Future<void> _onCheckSubscriptionStatus(
+    CheckSubscriptionStatusRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+
+    try {
+      final session = await _repository.getSession();
+      final userId = session['user_id'];
+      final schoolId = session['school_id'];
+
+      if (userId == null) {
+        emit(Unauthenticated());
+        return;
+      }
+
+      final sub = await _repository.checkSubscription(userId, schoolId);
+      final pendingPayment = await _repository.checkPendingPayment(userId);
+
+      if (pendingPayment != null) {
+        emit(PaymentSubmittedSuccessfully(
+          parentId: userId,
+          reference: pendingPayment['external_ref'],
+          amount: pendingPayment['amount'],
+          submittedAt: DateTime.parse(pendingPayment['created_at']),
+          screenshotUrl: pendingPayment['screenshot_url'],
+        ));
+        return;
+      }
+
+      if (_isSubscriptionExpired(sub)) {
+        emit(SubscriptionExpired(
+          parentId: userId,
+          schoolId: schoolId,
+          expiresAt: sub?['trial_ends_at'] ?? sub?['current_period_end'],
+          daysRemaining: sub?['days_remaining'],
+          amount: sub?['amount'] ?? 1000,
+          currency: sub?['currency'] ?? 'XOF',
+          paymentPhoneNumber: sub?['payment_phone_number'],
+        ));
+        return;
+      }
+
+      final user = await _repository.getUserById(userId);
+      if (user == null) {
+        emit(Unauthenticated());
+        return;
+      }
+
+      final schoolName = await _repository.getSchoolName(schoolId);
+      final parentData = await _repository.getParentDataLite(userId, sub);
+
+      _emitAuthenticated(user, schoolName, emit, parentData: parentData);
+
+    } catch (e) {
+      print('Erreur check subscription: $e');
+      emit(AuthError('Erreur: $e'));
+    }
+  }
+
+  Future<void> _onLogout(LogoutRequested event, Emitter<AuthState> emit) async {
+    await _repository.clearSession();
+    emit(Unauthenticated());
   }
 }

@@ -30,6 +30,12 @@ import '../presentation/pages/teacher/grades_entry_page.dart';
 import '../presentation/pages/teacher/grades_classes_page.dart';
 import '../presentation/pages/teacher/teacher_schedule_full_page.dart';
 import '../presentation/pages/teacher/teacher_reports_page.dart';
+import '../presentation/pages/admin/admin_send_message_page.dart';
+
+// ✅ AJOUTÉ : Pages de souscription + AuthStateRouter
+import '../presentation/pages/auth_state_router.dart';
+import '../presentation/pages/parent/payment_pending_page.dart';
+import '../presentation/pages/parent/subscription_expired_page.dart';
 
 // Super Admin pages
 import '../presentation/pages/super_admin/super_admin_dashboard.dart';
@@ -60,6 +66,11 @@ class AppRoutes {
   static const String parentDashboard = '/parent/dashboard';
   static const String adminDashboard = '/admin/dashboard';
   static const String subscriptionRenewal = '/parent/subscription-renewal';
+  
+  // ✅ AJOUTÉ : Routes de souscription
+  static const String authRouter = '/auth';
+  static const String paymentPending = '/parent/payment-pending';
+  static const String subscriptionExpired = '/parent/subscription-expired';
   
   // Admin routes
   static const String adminTeachers = '/admin/teachers';
@@ -96,10 +107,47 @@ class AppRoutes {
   static const String teacherReports = '/teacher/reports';
 
   static Map<String, WidgetBuilder> get routes => {
+    // ✅ AJOUTÉ : AuthStateRouter comme route d'entrée alternative
+    authRouter: (context) => const AuthStateRouter(),
+    
     schoolLogin: (context) => const SchoolLoginPage(),
     teacherDashboard: (context) => const TeacherDashboard(),
     parentDashboard: (context) => const ParentDashboard(),
     adminDashboard: (context) => const AdminDashboard(),
+    
+    // ✅ AJOUTÉ : SubscriptionRenewal (déclaré en constante mais manquait dans le Map)
+    subscriptionRenewal: (context) {
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      return SubscriptionRenewalPage(
+        parentId: args?['parentId'] ?? '',
+        schoolId: args?['schoolId'],
+        amount: args?['amount'] ?? 1000,
+        currency: args?['currency'] ?? 'XOF',
+        paymentPhoneNumber: args?['paymentPhoneNumber'],
+        currentStatus: args?['currentStatus'],
+        currentEndDate: args?['currentEndDate'] is String 
+            ? DateTime.parse(args!['currentEndDate']) 
+            : args?['currentEndDate'] as DateTime?,
+        daysRemaining: args?['daysRemaining'],
+      );
+    },
+    
+    // ✅ AJOUTÉ : Routes de souscription
+    paymentPending: (context) => const PaymentPendingPage(),
+    subscriptionExpired: (context) {
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      return SubscriptionExpiredPage(
+        parentId: args?['parentId'] ?? '',
+        schoolId: args?['schoolId'],
+        expiresAt: args?['expiresAt'] is String 
+            ? DateTime.parse(args!['expiresAt']) 
+            : args?['expiresAt'] as DateTime?,
+        daysRemaining: args?['daysRemaining'],
+        amount: args?['amount'] ?? 1000,
+        currency: args?['currency'] ?? 'XOF',
+        paymentPhoneNumber: args?['paymentPhoneNumber'],
+      );
+    },
     
     // Admin routes
     adminTeachers: (context) => const TeachersListPage(),
@@ -108,6 +156,7 @@ class AppRoutes {
     adminMessages: (context) => const MessagesPage(),
     adminTeacherTracking: (context) => const TeacherTrackingPage(),
     adminSettings: (context) => const SettingsPage(),
+    '/admin/send-message': (context) => const AdminSendMessagePage(),
     
     // Routes pilotage
     schedule: (context) => const SchedulePage(),
@@ -122,13 +171,13 @@ class AppRoutes {
       return SchoolDetailPage(school: args?['school'] ?? {});
     },
     superAdminImport: (context) {
-    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    return BulkImportPage(
-      schoolId: args?['schoolId'] ?? '',
-      schoolCode: args?['schoolCode'] ?? '',
-      schoolYear: args?['schoolYear'] ?? '2024-2025',
-    );
-  },
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      return BulkImportPage(
+        schoolId: args?['schoolId'] ?? '',
+        schoolCode: args?['schoolCode'] ?? '',
+        schoolYear: args?['schoolYear'] ?? '2024-2025',
+      );
+    },
 
     roleManagement: (context) => const RoleManagementPage(),
     subscriptionDashboard: (context) => const SubscriptionDashboardPage(),

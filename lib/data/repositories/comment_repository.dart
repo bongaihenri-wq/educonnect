@@ -9,7 +9,32 @@ class CommentRepository {
   CommentRepository(this._supabase);
 
   // ============================================================
-  // SAUVEGARDE COMMENTAIRE AVEC DATE D'EFFET/EXPIRATION
+  // HELPER : Récupérer les IDs admin d'une école
+  // ============================================================
+  Future<List<String>> _getAdminUserIds(String schoolId) async {
+    try {
+      final roleRes = await _supabase.from('roles').select('id').eq('code', 'admin').maybeSingle();
+      final adminRoleId = roleRes?['id'] as String?;
+      if (adminRoleId == null) return [];
+
+      final userRolesRes = await _supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('role_id', adminRoleId);
+
+      return (userRolesRes as List)
+          .map((r) => r['user_id'] as String?)
+          .where((id) => id != null)
+          .cast<String>()
+          .toList();
+    } catch (e) {
+      debugPrint('❌ Erreur récupération admins: $e');
+      return [];
+    }
+  }
+
+  // ============================================================
+  // SAUVEGARDE COMMENTAIRE INDIVIDUEL
   // ============================================================
   Future<void> saveComment({
     required String studentId,
@@ -32,10 +57,8 @@ class CommentRepository {
     final expiresAt = effectiveDate ?? now.add(const Duration(days: 7));
 
     try {
-      // ✅ FIX : recipients est String (pas List) - join avec virgule
       final recipientsString = recipients.join(',');
 
-      // ✅ FIX : recipient_type gère le cas parent+admin
       String recipientType;
       if (recipients.contains('parent') && recipients.contains('admin')) {
         recipientType = 'parent,admin';
@@ -53,13 +76,13 @@ class CommentRepository {
         'teacher_id': teacherId,
         'school_id': schoolId,
         'content': content.trim(),
-        'recipients': recipientsString, // ✅ String pas List
+        'recipients': recipientsString,
         'created_at': now.toIso8601String(),
         'expires_at': expiresAt.toIso8601String(),
         'is_archived': false,
         'sender_name': senderName,
         'sender_type': 'teacher',
-        'recipient_type': recipientType, // ✅ String correct
+        'recipient_type': recipientType,
         'target_subject': targetSubject,
         'is_broadcast': false,
         'is_read': false,
@@ -90,7 +113,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // ENVOI NOTIFICATIONS
+  // ENVOI NOTIFICATIONS INDIVIDUELLES
   // ============================================================
   Future<void> _sendNotifications({
     required String studentId,
@@ -108,7 +131,6 @@ class CommentRepository {
     final now = DateTime.now().toIso8601String();
 
     if (recipients.contains('parent')) {
-      // ✅ FIX : table parent_students ou students avec parent_id
       final parentsResponse = await _supabase
           .from('students')
           .select('parent_id')
@@ -135,15 +157,10 @@ class CommentRepository {
     }
 
     if (recipients.contains('admin')) {
-      final adminsResponse = await _supabase
-          .from('app_users')
-          .select('id')
-          .eq('school_id', schoolId)
-          .eq('role', 'admin');
-
-      for (final admin in adminsResponse as List) {
+      final adminIds = await _getAdminUserIds(schoolId);
+      for (final adminId in adminIds) {
         notifications.add({
-          'user_id': admin['id'],
+          'user_id': adminId,
           'title': 'Commentaire prof: $studentName',
           'content': '${className != null ? '$className - ' : ''}$content',
           'type': 'comment',
@@ -160,6 +177,146 @@ class CommentRepository {
     if (notifications.isNotEmpty) {
       await _supabase.from('notifications').insert(notifications);
       debugPrint('✅ ${notifications.length} notifications envoyées');
+    }
+  }
+
+  // ============================================================
+  // BROADCAST : Message à toute la classe
+  // ============================================================
+  Future<void> saveBroadcastComment({
+    required String classId,
+    required String teacherId,
+    required String schoolId,
+    required String content,
+    required List<String> recipients,
+    required String className,
+    required String senderName,
+    required String targetSubject,
+    DateTime? effectiveDate,
+  }) async {
+    if (schoolId.isEmpty) throw Exception('schoolId requis');
+    if (teacherId.isEmpty) throw Exception('teacherId requis');
+    if (content.trim().isEmpty) throw Exception('Message vide');
+
+    final now = DateTime.now();
+    final expiresAt = effectiveDate ?? now.add(const Duration(days: 7));
+
+    try {
+      final recipientsString = recipients.join(',');
+      String recipientType;
+      if (recipients.contains('parent') && recipients.contains('admin')) {
+        recipientType = 'parent,admin';
+      } else if (recipients.contains('parent')) {
+        recipientType = 'parent';
+      } else if (recipients.contains('admin')) {
+        recipientType = 'admin';
+      } else {
+        recipientType = recipients.first;
+      }
+
+      final commentResponse = await _supabase.from('comments').insert({
+        'student_id': null,
+        'class_id': classId,
+        'teacher_id': teacherId,
+        'school_id': schoolId,
+        'content': content.trim(),
+        'recipients': recipientsString,
+        'created_at': now.toIso8601String(),
+        'expires_at': expiresAt.toIso8601String(),
+        'is_archived': false,
+        'is_read': false,
+        'sender_name': senderName,
+        'sender_type': 'teacher',
+        'recipient_type': recipientType,
+        'target_subject': targetSubject,
+        'is_broadcast': true,
+        'author_type': 'teacher',
+        'author_name': senderName,
+      }).select('id');
+
+      final commentId = (commentResponse as List).first['id'];
+
+      await _sendBroadcastNotifications(
+        classId: classId,
+        teacherId: teacherId,
+        schoolId: schoolId,
+        recipients: recipients,
+        content: content.trim(),
+        className: className,
+        commentId: commentId,
+        expiresAt: expiresAt,
+      );
+
+      debugPrint('✅ Broadcast envoyé à la classe $className');
+    } catch (e) {
+      debugPrint('❌ Erreur broadcast: $e');
+      throw Exception('Erreur envoi broadcast: $e');
+    }
+  }
+
+  // ============================================================
+  // NOTIFICATIONS BROADCAST — CORRIGÉ type: 'general'
+  // ============================================================
+  Future<void> _sendBroadcastNotifications({
+    required String classId,
+    required String teacherId,
+    required String schoolId,
+    required List<String> recipients,
+    required String content,
+    String? className,
+    required String commentId,
+    required DateTime expiresAt,
+  }) async {
+    final notifications = <Map<String, dynamic>>[];
+    final now = DateTime.now().toIso8601String();
+
+    if (recipients.contains('parent')) {
+      final studentsResponse = await _supabase
+          .from('students')
+          .select('id, first_name, last_name, parent_id')
+          .eq('class_id', classId)
+          .eq('school_id', schoolId)
+          .not('parent_id', 'is', null);
+
+      for (final student in studentsResponse as List) {
+        if (student['parent_id'] != null) {
+          notifications.add({
+            'user_id': student['parent_id'],
+            'title': 'Message classe: ${className ?? 'Votre classe'}',
+            'content': '${student['first_name']} ${student['last_name']} - $content',
+            'type': 'general', // ✅ CORRIGÉ : 'general' au lieu de 'broadcast'
+            'is_read': false,
+            'created_at': now,
+            'expires_at': expiresAt.toIso8601String(),
+            'school_id': schoolId,
+            'sender_id': teacherId,
+            'reference_id': commentId,
+          });
+        }
+      }
+    }
+
+    if (recipients.contains('admin')) {
+      final adminIds = await _getAdminUserIds(schoolId);
+      for (final adminId in adminIds) {
+        notifications.add({
+          'user_id': adminId,
+          'title': 'Broadcast prof: ${className ?? 'Classe'}',
+          'content': content,
+          'type': 'general', // ✅ CORRIGÉ : 'general' au lieu de 'broadcast'
+          'is_read': false,
+          'created_at': now,
+          'expires_at': expiresAt.toIso8601String(),
+          'school_id': schoolId,
+          'sender_id': teacherId,
+          'reference_id': commentId,
+        });
+      }
+    }
+
+    if (notifications.isNotEmpty) {
+      await _supabase.from('notifications').insert(notifications);
+      debugPrint('✅ ${notifications.length} notifications broadcast envoyées');
     }
   }
 

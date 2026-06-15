@@ -1,4 +1,3 @@
-// lib/presentation/pages/teacher/attendance/attendance_page.dart
 import 'package:educonnect/data/models/course_model.dart';
 import 'package:educonnect/presentation/blocs/auth_bloc/auth_bloc.dart';
 import 'package:flutter/material.dart';
@@ -8,7 +7,6 @@ import '../../blocs/attendance/attendance_event.dart';
 import '../../blocs/attendance/attendance_state.dart';
 import '../../../data/models/attendance_model.dart';
 import '/presentation/pages/teacher/widgets/attendance_header.dart';
-import '/presentation/pages/teacher/widgets/student_attendance_tile.dart';
 import '/presentation/pages/teacher/widgets/attendance_bottom_bar.dart';
 
 class AttendancePage extends StatelessWidget {
@@ -67,7 +65,6 @@ class AttendanceView extends StatelessWidget {
                 ),
               ),
 
-              // ✅ CORRIGÉ : Liste fine et épurée
               if (state.currentCourse != null)
                 SliverToBoxAdapter(
                   child: Padding(
@@ -79,7 +76,7 @@ class AttendanceView extends StatelessWidget {
               if (state.selectedClass != null && state.students.isNotEmpty)
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  sliver: _buildStudentsList(context, state), // ✅ PASSER context ICI
+                  sliver: _buildStudentsList(context, state),
                 )
               else if (state.selectedClass != null && state.students.isEmpty)
                 const SliverToBoxAdapter(
@@ -89,7 +86,6 @@ class AttendanceView extends StatelessWidget {
                   ),
                 ),
 
-              // Espace pour bottom bar
               const SliverToBoxAdapter(
                 child: SizedBox(height: 100),
               ),
@@ -97,42 +93,78 @@ class AttendanceView extends StatelessWidget {
           );
         },
       ),
+      // ✅ MODIFIÉ : BottomBar avec compteur de changements
       bottomNavigationBar: BlocBuilder<AttendanceBloc, AttendanceState>(
         builder: (context, state) {
           if (state.selectedClass == null || state.students.isEmpty) {
             return const SizedBox.shrink();
           }
           
-          return AttendanceBottomBar(
-            present: state.presentCount,
-            absent: state.absentCount,
-            late: state.lateCount,
-            remaining: state.remainingCount,
-            total: state.students.length,
-            percentage: state.completionPercentage,
-            isSubmitting: state.isSubmitting,
-            buttonText: state.showReplaceDialog
-                ? 'Remplacer l\'appel'
-                : 'Valider l\'appel (${state.students.length}/${state.students.length})',
-            onValidate: state.isComplete && !state.isSubmitting
-                ? () {
-                    final authState = context.read<AuthBloc>().state;
-                    String teacherId = '';
-                    String schoolId = '';
-                    if (authState is Authenticated) {
-                      teacherId = authState.userId;
-                      schoolId = authState.schoolId;
-                    }
-                    
-                    context.read<AttendanceBloc>().add(
-                      AttendanceSubmitRequested(
-                        date: state.selectedDate,
-                        teacherId: teacherId,
-                        schoolId: schoolId,
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ✅ Bandeau compteur de modifications
+              if (state.pendingChanges.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6C63FF).withOpacity(0.08),
+                    border: Border(
+                      top: BorderSide(color: const Color(0xFF6C63FF).withOpacity(0.2)),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.edit_note, size: 14, color: const Color(0xFF6C63FF)),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${state.pendingChanges.length} modification${state.pendingChanges.length > 1 ? 's' : ''} en attente',
+                        style: const TextStyle(
+                          color: Color(0xFF6C63FF),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
                       ),
-                    );
-                  }
-                : null,
+                    ],
+                  ),
+                ),
+              
+              AttendanceBottomBar(
+                present: state.presentCount,
+                absent: state.absentCount,
+                late: state.lateCount,
+                remaining: state.remainingCount,
+                total: state.students.length,
+                percentage: state.completionPercentage,
+                isSubmitting: state.isSubmitting,
+                buttonText: state.showReplaceDialog
+                    ? 'Remplacer l\'appel'
+                    : state.pendingChanges.isNotEmpty
+                        ? 'Valider (${state.pendingChanges.length})'
+                        : 'Valider l\'appel',
+                onValidate: (state.isComplete || state.pendingChanges.isNotEmpty) && !state.isSubmitting
+                    ? () {
+                        final authState = context.read<AuthBloc>().state;
+                        String teacherId = '';
+                        String schoolId = '';
+                        if (authState is Authenticated) {
+                          teacherId = authState.userId;
+                          schoolId = authState.schoolId;
+                        }
+                        
+                        context.read<AttendanceBloc>().add(
+                          AttendanceSubmitRequested(
+                            date: state.selectedDate,
+                            teacherId: teacherId,
+                            schoolId: schoolId,
+                          ),
+                        );
+                      }
+                    : null,
+              ),
+            ],
           );
         },
       ),
@@ -175,11 +207,9 @@ class AttendanceView extends StatelessWidget {
     );
   }
 
-  // ✅ CORRIGÉ : Reçoit BuildContext en paramètre
   Widget _buildStudentsList(BuildContext context, AttendanceState state) {
     return SliverMainAxisGroup(
       slivers: [
-        // Header compact
         SliverToBoxAdapter(
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -199,12 +229,11 @@ class AttendanceView extends StatelessWidget {
                     color: Color(0xFF1E293B),
                   ),
                 ),
-                // ✅ Bouton "Tous présents" compact
                 Material(
                   color: const Color(0xFF14B8A6).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
                   child: InkWell(
-                    onTap: () => context.read<AttendanceBloc>().add(const AttendanceMarkAllPresent()), // ✅ context accessible maintenant
+                    onTap: () => context.read<AttendanceBloc>().add(const AttendanceMarkAllPresent()),
                     borderRadius: BorderRadius.circular(20),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -231,20 +260,17 @@ class AttendanceView extends StatelessWidget {
           ),
         ),
 
-        // ✅ LISTE ÉPURÉE : Items compacts
         SliverList(
           delegate: SliverChildBuilderDelegate(
             (context, index) {
               final student = state.students[index];
               final status = state.attendanceRecords[student.id] ?? AttendanceStatus.present;
-              
-              return _buildStudentTile(context, student, status, index); // ✅ PASSE context ICI AUSSI
+              return _buildStudentTile(context, student, status, index);
             },
             childCount: state.students.length,
           ),
         ),
 
-        // Footer arrondi
         SliverToBoxAdapter(
           child: Container(
             height: 12,
@@ -263,7 +289,6 @@ class AttendanceView extends StatelessWidget {
     );
   }
 
-  // ✅ CORRIGÉ : Reçoit BuildContext en paramètre
   Widget _buildStudentTile(BuildContext context, student, AttendanceStatus status, int index) {
     return Container(
       decoration: BoxDecoration(
@@ -278,7 +303,6 @@ class AttendanceView extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
-            // ✅ TOGGLE RAPIDE : Présent → Absent → Retard → Présent
             AttendanceStatus nextStatus;
             switch (status) {
               case AttendanceStatus.present:
@@ -291,7 +315,7 @@ class AttendanceView extends StatelessWidget {
                 nextStatus = AttendanceStatus.present;
                 break;
             }
-            context.read<AttendanceBloc>().add( // ✅ context accessible maintenant
+            context.read<AttendanceBloc>().add(
               AttendanceStudentStatusUpdated(
                 studentId: student.id,
                 status: nextStatus,
@@ -302,7 +326,6 @@ class AttendanceView extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
               children: [
-                // ✅ Numéro compact
                 Container(
                   width: 24,
                   height: 24,
@@ -321,8 +344,6 @@ class AttendanceView extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-
-                // ✅ Nom compact
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -348,8 +369,6 @@ class AttendanceView extends StatelessWidget {
                     ],
                   ),
                 ),
-
-                // ✅ Badge statut compact (sans texte, juste couleur)
                 Container(
                   width: 32,
                   height: 32,
@@ -376,11 +395,11 @@ class AttendanceView extends StatelessWidget {
   Color _getStatusColor(AttendanceStatus status) {
     switch (status) {
       case AttendanceStatus.present:
-        return const Color(0xFF14B8A6); // Vert menthe
+        return const Color(0xFF14B8A6);
       case AttendanceStatus.absent:
-        return const Color(0xFFFB7185); // Rouge corail
+        return const Color(0xFFFB7185);
       case AttendanceStatus.late:
-        return const Color(0xFFF59E0B); // Orange
+        return const Color(0xFFF59E0B);
     }
   }
 

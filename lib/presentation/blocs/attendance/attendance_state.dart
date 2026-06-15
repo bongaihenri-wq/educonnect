@@ -1,8 +1,8 @@
-import 'package:educonnect/data/models/attendance_model.dart';
 import 'package:equatable/equatable.dart';
 import '/data/models/student_model.dart';
 import '/data/models/class_model.dart';
 import '/data/models/course_model.dart';
+import '/data/models/attendance_model.dart';
 import '/data/models/teacher_class_schedule_model.dart';
 
 class AttendanceState extends Equatable {
@@ -13,6 +13,7 @@ class AttendanceState extends Equatable {
   final ClassModel? selectedClass;
   final List<StudentModel> students;
   final Map<String, AttendanceStatus> attendanceRecords;
+  final Map<String, AttendanceStatus> pendingChanges; // ✅ AJOUTÉ
   final CourseModel? currentCourse;
   final List<CourseModel> availableCourses;
   final DateTime selectedDate;
@@ -22,7 +23,7 @@ class AttendanceState extends Equatable {
   final List<TeacherClassScheduleModel> teacherSchedule;
   final String schoolId;
   final String teacherId;
-  final bool showReplaceDialog;    // ✅ AJOUTÉ
+  final bool showReplaceDialog;
   final String? warning;
 
   const AttendanceState({
@@ -33,6 +34,7 @@ class AttendanceState extends Equatable {
     this.selectedClass,
     this.students = const [],
     this.attendanceRecords = const {},
+    this.pendingChanges = const {}, // ✅ AJOUTÉ
     this.currentCourse,
     this.availableCourses = const [],
     required this.selectedDate,
@@ -42,7 +44,7 @@ class AttendanceState extends Equatable {
     this.teacherSchedule = const [],
     this.schoolId = '',
     this.teacherId = '',
-    this.showReplaceDialog = false, // ✅ AJOUTÉ
+    this.showReplaceDialog = false,
     this.warning,
   });
 
@@ -54,6 +56,7 @@ class AttendanceState extends Equatable {
     ClassModel? selectedClass,
     List<StudentModel>? students,
     Map<String, AttendanceStatus>? attendanceRecords,
+    Map<String, AttendanceStatus>? pendingChanges, // ✅ AJOUTÉ
     CourseModel? currentCourse,
     List<CourseModel>? availableCourses,
     DateTime? selectedDate,
@@ -66,9 +69,9 @@ class AttendanceState extends Equatable {
     bool clearSelectedClass = false,
     bool clearCurrentCourse = false,
     bool? showReplaceDialog,
-    String? warning, 
+    String? warning,
     bool clearWarning = false,
-
+    bool clearPendingChanges = false, // ✅ AJOUTÉ
   }) {
     return AttendanceState(
       isLoading: isLoading ?? this.isLoading,
@@ -78,6 +81,7 @@ class AttendanceState extends Equatable {
       selectedClass: clearSelectedClass ? null : selectedClass ?? this.selectedClass,
       students: students ?? this.students,
       attendanceRecords: attendanceRecords ?? this.attendanceRecords,
+      pendingChanges: clearPendingChanges ? {} : (pendingChanges ?? this.pendingChanges), // ✅ AJOUTÉ
       currentCourse: clearCurrentCourse ? null : currentCourse ?? this.currentCourse,
       availableCourses: availableCourses ?? this.availableCourses,
       selectedDate: selectedDate ?? this.selectedDate,
@@ -88,8 +92,6 @@ class AttendanceState extends Equatable {
       schoolId: schoolId ?? this.schoolId,
       showReplaceDialog: showReplaceDialog ?? this.showReplaceDialog,
       warning: clearWarning ? null : (warning ?? this.warning),
-
-
     );
   }
 
@@ -138,6 +140,7 @@ class AttendanceState extends Equatable {
         selectedClass,
         students,
         attendanceRecords,
+        pendingChanges, // ✅ AJOUTÉ
         currentCourse,
         availableCourses,
         selectedDate,
@@ -146,5 +149,7 @@ class AttendanceState extends Equatable {
         completionTime,
         teacherSchedule,
         schoolId,
+        showReplaceDialog,
+        warning,
       ];
 }

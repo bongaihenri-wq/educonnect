@@ -110,7 +110,8 @@ void _navigateToDetail(BuildContext context, ParentAuthenticated state) {
     return;
   }
 
-  // ✅ NAVIGATION VERS SUIVI DE L'ÉLÈVE (pas ParentAttendancePage)
+  // ✅ NAVIGATION VERS SUIVI DE L'ÉLÈVE
+  // ✅ AJOUTÉ : schoolId (UUID) pour UnifiedMessagesTab
   Navigator.push(
     context,
     MaterialPageRoute(
@@ -121,6 +122,7 @@ void _navigateToDetail(BuildContext context, ParentAuthenticated state) {
         className: state.className,
         parentName: '${state.firstName} ${state.lastName}',
         schoolName: state.schoolName,
+        schoolId: state.schoolId, // ✅ AJOUTÉ : UUID pour les requêtes Supabase
         initialTab: 0, // Onglet Présences (premier)
       ),
     ),

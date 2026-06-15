@@ -16,18 +16,22 @@ class PaymentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final parent = payment['parent'] as Map<String, dynamic>?;
-    final school = payment['school'] as Map<String, dynamic>?;
+    var parentRaw = payment['parent'];
+    var schoolRaw = payment['school'];
+    
+    final parent = parentRaw is List ? (parentRaw as List).firstOrNull : parentRaw;
+    final school = schoolRaw is List ? (schoolRaw as List).firstOrNull : schoolRaw;
     
     final parentName = parent != null 
         ? '${parent['first_name'] ?? ''} ${parent['last_name'] ?? ''}'.trim()
         : 'Parent inconnu';
     final parentPhone = parent?['phone'] ?? 'N/A';
-    final schoolName = school?['name'] ?? 'École inconnue';
+    final schoolName = school?['name'] ?? 'Ecole inconnue';
     final amount = payment['amount'] ?? 0;
     final currency = payment['currency'] ?? 'XOF';
     final provider = payment['provider'] ?? 'N/A';
     final externalRef = payment['external_ref'] ?? 'N/A';
+    final depositorPhone = payment['depositor_phone'] ?? 'N/A';
     final createdAt = payment['created_at'] != null 
         ? DateTime.parse(payment['created_at'])
         : null;
@@ -50,7 +54,7 @@ class PaymentCard extends StatelessWidget {
               const SizedBox(height: 12),
               _buildParentInfo(parentName, parentPhone),
               const SizedBox(height: 12),
-              _buildPaymentDetails(amount, currency, schoolName, provider, externalRef),
+              _buildPaymentDetails(amount, currency, schoolName, provider, externalRef, depositorPhone),
               const SizedBox(height: 16),
               _buildActionButtons(),
             ],
@@ -120,7 +124,7 @@ class PaymentCard extends StatelessWidget {
                 ),
               ),
               Text(
-                '📱 $parentPhone',
+                'Telephone parent: $parentPhone',
                 style: TextStyle(
                   color: Colors.grey.shade600,
                   fontSize: 13,
@@ -133,7 +137,7 @@ class PaymentCard extends StatelessWidget {
     );
   }
 
-  Widget _buildPaymentDetails(int amount, String currency, String schoolName, String provider, String externalRef) {
+  Widget _buildPaymentDetails(int amount, String currency, String schoolName, String provider, String externalRef, String depositorPhone) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -142,13 +146,15 @@ class PaymentCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          DetailRow(label: '💰 Montant', value: '$amount $currency'),
+          DetailRow(label: 'Montant', value: '$amount $currency'),
           const SizedBox(height: 6),
-          DetailRow(label: '🏫 École', value: schoolName),
+          DetailRow(label: 'Ecole', value: schoolName),
           const SizedBox(height: 6),
-          DetailRow(label: '💳 Provider', value: provider.toUpperCase()),
+          DetailRow(label: 'Provider', value: provider.toUpperCase()),
           const SizedBox(height: 6),
-          DetailRow(label: '🔖 Référence', value: externalRef, isReference: true),
+          DetailRow(label: 'Reference', value: externalRef, isReference: true),
+          const SizedBox(height: 6),
+          DetailRow(label: 'Numero de depot', value: depositorPhone),
         ],
       ),
     );

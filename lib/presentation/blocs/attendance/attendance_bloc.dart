@@ -1,9 +1,7 @@
-// lib/presentation/blocs/attendance/attendance_bloc.dart
 import 'package:educonnect/data/models/attendance_model.dart';
 import 'package:educonnect/services/teacher_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:educonnect/data/models/class_model.dart';
 import 'package:educonnect/data/models/course_model.dart';
 import 'package:educonnect/data/models/teacher_class_schedule_model.dart';
 import 'package:educonnect/data/repositories/attendance_repository.dart';
@@ -47,55 +45,37 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     on<AttendanceReplaceConfirmed>(_onReplaceConfirmed);
   }
 
-  // ✅ _onLoadClasses - INCHANGÉ
- Future<void> _onLoadClasses(
-  AttendanceLoadClassesRequested event,
-  Emitter<AttendanceState> emit,
-) async {
-  print('🔥🔥🔥 _onLoadClasses START');
-  print('🔥🔥🔥 teacherId: "${event.teacherId}"');
-  print('🔥🔥🔥 schoolId: "${event.schoolId}"');
-  
-  emit(state.copyWith(isLoading: true, clearError: true, schoolId: event.schoolId));
-  
-  try {
-    if (event.teacherId.isEmpty || event.schoolId.isEmpty) {
-      print('🔥🔥🔥 EMPTY - RETURNING');
-      emit(state.copyWith(isLoading: false, teacherSchedule: []));
-      return;
+  Future<void> _onLoadClasses(
+    AttendanceLoadClassesRequested event,
+    Emitter<AttendanceState> emit,
+  ) async {
+    print('🔥 _onLoadClasses START');
+    emit(state.copyWith(isLoading: true, clearError: true, schoolId: event.schoolId));
+    
+    try {
+      if (event.teacherId.isEmpty || event.schoolId.isEmpty) {
+        emit(state.copyWith(isLoading: false, teacherSchedule: []));
+        return;
+      }
+      
+      final response = await _teacherService.getTeacherSchedule(
+        teacherId: event.teacherId,
+        schoolId: event.schoolId,
+      );
+      
+      final schedules = response.map((json) => TeacherClassScheduleModel.fromJson(json)).toList();
+      
+      emit(state.copyWith(
+        teacherSchedule: schedules,
+        isLoading: false,
+      ));
+    } catch (e, stackTrace) {
+      print('🔥 ERROR: $e');
+      print('🔥 STACK: $stackTrace');
+      emit(state.copyWith(isLoading: false, error: 'Erreur: $e'));
     }
-    
-    print('🔥🔥🔥 Calling getTeacherSchedule...');
-    
-    final response = await _teacherService.getTeacherSchedule(
-      teacherId: event.teacherId,
-      schoolId: event.schoolId,
-    );
-    
-    print('🔥🔥🔥 response length: ${response.length}');
-    print('🔥🔥🔥 first item: ${response.isNotEmpty ? response.first : "empty"}');
-    
-    final schedules = response.map((json) {
-      print('🔥🔥🔥 Mapping JSON: $json');
-      return TeacherClassScheduleModel.fromJson(json);
-    }).toList();
-    
-    print('🔥🔥🔥 mapped schedules: ${schedules.length}');
-    
-    emit(state.copyWith(
-      teacherSchedule: schedules,
-      isLoading: false,
-    ));
-    
-    print('🔥🔥🔥 SUCCESS');
-  } catch (e, stackTrace) {
-    print('🔥🔥🔥 ERROR: $e');
-    print('🔥🔥🔥 STACK: $stackTrace');
-    emit(state.copyWith(isLoading: false, error: 'Erreur: $e'));
   }
-}
 
-  // ✅ _onClassSelected - INCHANGÉ
   Future<void> _onClassSelected(
     AttendanceClassSelected event,
     Emitter<AttendanceState> emit,
@@ -106,6 +86,7 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
       currentCourse: event.currentCourse,
       clearCurrentCourse: false,
       attendanceRecords: {},
+      clearPendingChanges: true,
       startTime: DateTime.now(),
       completionTime: null,
       isSuccess: false,
@@ -125,7 +106,6 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     }
   }
 
-  // ✅ _onLoadStudents - INCHANGÉ
   Future<void> _onLoadStudents(
     AttendanceLoadStudentsRequested event,
     Emitter<AttendanceState> emit,
@@ -143,6 +123,7 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
         isLoading: false,
         students: students,
         attendanceRecords: defaultRecords,
+        clearPendingChanges: true,
       ));
     } catch (e) {
       emit(state.copyWith(
@@ -152,7 +133,6 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     }
   }
 
-  // ✅ _onDetectCurrentCourse - INCHANGÉ
   Future<void> _onDetectCurrentCourse(
     AttendanceDetectCurrentCourse event,
     Emitter<AttendanceState> emit,
@@ -200,26 +180,55 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     else if (currentStatus == AttendanceStatus.absent) newStatus = AttendanceStatus.late;
     else newStatus = AttendanceStatus.present;
 
-    final newRecords = Map<String, AttendanceStatus>.from(state.attendanceRecords)..[event.studentId] = newStatus;
-    emit(state.copyWith(attendanceRecords: newRecords));
+    final newRecords = Map<String, AttendanceStatus>.from(state.attendanceRecords)
+      ..[event.studentId] = newStatus;
+    
+    final newPending = Map<String, AttendanceStatus>.from(state.pendingChanges)
+      ..[event.studentId] = newStatus;
+
+    emit(state.copyWith(
+      attendanceRecords: newRecords,
+      pendingChanges: newPending,
+    ));
   }
 
   void _onStudentStatusUpdated(AttendanceStudentStatusUpdated event, Emitter<AttendanceState> emit) {
-    final newRecords = Map<String, AttendanceStatus>.from(state.attendanceRecords)..[event.studentId] = event.status;
-    emit(state.copyWith(attendanceRecords: newRecords));
+    final newRecords = Map<String, AttendanceStatus>.from(state.attendanceRecords)
+      ..[event.studentId] = event.status;
+    
+    final newPending = Map<String, AttendanceStatus>.from(state.pendingChanges)
+      ..[event.studentId] = event.status;
+
+    emit(state.copyWith(
+      attendanceRecords: newRecords,
+      pendingChanges: newPending,
+    ));
   }
 
   void _onMarkAllPresent(AttendanceMarkAllPresent event, Emitter<AttendanceState> emit) {
     final newRecords = { for (var s in state.students) s.id : AttendanceStatus.present };
-    emit(state.copyWith(attendanceRecords: newRecords));
+    final newPending = Map<String, AttendanceStatus>.from(state.pendingChanges);
+    for (var s in state.students) {
+      newPending[s.id] = AttendanceStatus.present;
+    }
+    emit(state.copyWith(
+      attendanceRecords: newRecords,
+      pendingChanges: newPending,
+    ));
   }
 
   void _onMarkAllAbsent(AttendanceMarkAllAbsent event, Emitter<AttendanceState> emit) {
     final newRecords = { for (var s in state.students) s.id : AttendanceStatus.absent };
-    emit(state.copyWith(attendanceRecords: newRecords));
+    final newPending = Map<String, AttendanceStatus>.from(state.pendingChanges);
+    for (var s in state.students) {
+      newPending[s.id] = AttendanceStatus.absent;
+    }
+    emit(state.copyWith(
+      attendanceRecords: newRecords,
+      pendingChanges: newPending,
+    ));
   }
 
-  // ✅ _onSubmit - CORRIGÉ : fermeture des accolades manquantes
   Future<void> _onSubmit(AttendanceSubmitRequested event, Emitter<AttendanceState> emit) async {
     if (state.currentCourse == null) {
       emit(state.copyWith(error: 'Veuillez sélectionner un cours'));
@@ -229,7 +238,6 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     emit(state.copyWith(isSubmitting: true, clearError: true, clearWarning: true));
 
     try {
-      // ✅ Vérifier si appel déjà existant
       final existing = await _attendanceRepository.checkExistingAttendance(
         classId: state.selectedClass!.id,
         courseId: state.currentCourse!.id,
@@ -239,7 +247,6 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
       );
 
       if (existing) {
-        // ✅ Avertir mais ne pas sauvegarder encore
         emit(state.copyWith(
           isSubmitting: false,
           showReplaceDialog: true,
@@ -248,14 +255,12 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
         return;
       }
 
-      // ✅ Pas d'existant, sauvegarder directement
       await _performSave(event.date, event.teacherId, event.schoolId, emit);
     } catch (e) {
       emit(state.copyWith(isSubmitting: false, error: 'Erreur lors de la vérification'));
     }
   }
 
-  // ✅ _onReplaceConfirmed - CORRIGÉ : accolades fermées correctement
   Future<void> _onReplaceConfirmed(
     AttendanceReplaceConfirmed event,
     Emitter<AttendanceState> emit,
@@ -269,7 +274,7 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     await _performSave(event.date, event.teacherId, event.schoolId, emit);
   }
 
-  // ✅ _performSave - CORRIGÉ : accolades fermées correctement
+  // ✅ MODIFIÉ : Appel Edge Function + reset pending
   Future<void> _performSave(
     DateTime date,
     String teacherId,
@@ -277,9 +282,8 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     Emitter<AttendanceState> emit,
   ) async {
     try {
-      await _attendanceRepository.saveAttendance(
-        classId: state.selectedClass!.id,
-        courseId: state.currentCourse!.id,
+      await _attendanceRepository.saveAttendanceBulk(
+        scheduleId: state.currentCourse!.id,
         date: date,
         records: state.attendanceRecords,
         schoolId: schoolId,
@@ -292,6 +296,7 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
         isSubmitting: false,
         isSuccess: true,
         completionTime: DateTime.now(),
+        clearPendingChanges: true,
       ));
     } catch (e) {
       emit(state.copyWith(
@@ -301,7 +306,6 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     }
   }
 
-  // ✅ _notifyParents - AJOUTÉ (manquait dans ton code)
   Future<void> _notifyParents(Map<String, AttendanceStatus> records) async {
     final absentsAndLates = records.entries
         .where((e) => e.value == AttendanceStatus.absent || e.value == AttendanceStatus.late)
@@ -323,7 +327,6 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     }
   }
 
-  // ✅ _onDateChanged - INCHANGÉ
   void _onDateChanged(AttendanceDateChanged event, Emitter<AttendanceState> emit) {
     emit(state.copyWith(
       selectedDate: event.newDate,
@@ -332,6 +335,7 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
       startTime: null,
       completionTime: null,
       isSuccess: false,
+      clearPendingChanges: true,
     ));
 
     if (state.selectedClass != null) {

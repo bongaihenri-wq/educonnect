@@ -7,6 +7,7 @@ class SubscriptionExpiredPage extends StatefulWidget {
   final String parentId;
   final String? schoolId;
   final DateTime? expiresAt;
+  final int? daysRemaining;      // ✅ AJOUTÉ
   final int amount;
   final String currency;
   final String? paymentPhoneNumber;
@@ -16,6 +17,7 @@ class SubscriptionExpiredPage extends StatefulWidget {
     required this.parentId,
     this.schoolId,
     this.expiresAt,
+    this.daysRemaining,        // ✅ AJOUTÉ
     this.amount = 1000,
     this.currency = 'XOF',
     this.paymentPhoneNumber,
@@ -61,7 +63,7 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
               children: [
                 const SizedBox(height: 20),
 
-                // 🏆 Icône / Illustration
+                // Icône
                 Container(
                   width: 120,
                   height: 120,
@@ -69,15 +71,11 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
                     color: Colors.white.withOpacity(0.2),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.school,
-                    size: 60,
-                    color: Colors.white,
-                  ),
+                  child: const Icon(Icons.school, size: 60, color: Colors.white),
                 ),
                 const SizedBox(height: 24),
 
-                // ✨ Message principal
+                // Message principal
                 const Text(
                   'Piloter l\'avenir,\nc\'est avoir la bonne\ninformation à temps',
                   textAlign: TextAlign.center,
@@ -90,7 +88,7 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // 😊 Sous-message encourageant
+                // Sous-message
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   decoration: BoxDecoration(
@@ -109,7 +107,26 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
                 ),
                 const SizedBox(height: 40),
 
-                // 💰 Carte de paiement
+                // ✅ Badge "Expiré depuis X jours" si applicable
+                if (widget.daysRemaining != null && widget.daysRemaining! < 0)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '⏰ Expiré depuis ${widget.daysRemaining!.abs()} jour${widget.daysRemaining!.abs() > 1 ? 's' : ''}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+
+                // Carte de paiement
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
@@ -126,7 +143,6 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header
                       Row(
                         children: [
                           Container(
@@ -180,10 +196,7 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text(
-                              '💰 ',
-                              style: TextStyle(fontSize: 24),
-                            ),
+                            const Text('💰 ', style: TextStyle(fontSize: 24)),
                             Text(
                               '${widget.amount} ${widget.currency}',
                               style: const TextStyle(
@@ -194,17 +207,13 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
                             ),
                             const Text(
                               ' / mois',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.white70,
-                              ),
+                              style: TextStyle(fontSize: 16, color: Colors.white70),
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 20),
 
-                      // Instructions de paiement
                       _buildPaymentStep(
                         number: '1',
                         icon: Icons.phone_android,
@@ -219,7 +228,9 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
                         decoration: BoxDecoration(
                           color: const Color(0xFFF3F0FF),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF6B4EFF).withOpacity(0.3)),
+                          border: Border.all(
+                            color: const Color(0xFF6B4EFF).withOpacity(0.3),
+                          ),
                         ),
                         child: Row(
                           children: [
@@ -250,7 +261,6 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
                             IconButton(
                               icon: const Icon(Icons.copy, color: Color(0xFF6B4EFF)),
                               onPressed: () {
-                                // TODO: Copier dans le presse-papier
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text('📋 Numéro copié')),
                                 );
@@ -280,13 +290,16 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF6B4EFF), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF6B4EFF),
+                              width: 2,
+                            ),
                           ),
                         ),
                       ),
                       const SizedBox(height: 16),
 
-                      // Champ téléphone (optionnel)
+                      // Champ téléphone
                       TextField(
                         controller: _phoneController,
                         decoration: InputDecoration(
@@ -297,7 +310,10 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF6B4EFF), width: 2),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF6B4EFF),
+                              width: 2,
+                            ),
                           ),
                         ),
                         keyboardType: TextInputType.phone,
@@ -339,11 +355,10 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
                       ),
                       const SizedBox(height: 12),
 
-                      // Message d'aide
                       Center(
                         child: TextButton.icon(
                           onPressed: () {
-                            // TODO: Ouvrir WhatsApp ou support
+                            // TODO: Support
                           },
                           icon: const Icon(Icons.help_outline, size: 18),
                           label: const Text('Un problème ? Contactez-nous'),
@@ -357,13 +372,15 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
                 ),
                 const SizedBox(height: 24),
 
-                // 🎯 Message de motivation final
+                // Message motivation
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFF8E1),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFFFB300).withOpacity(0.3)),
+                    border: Border.all(
+                      color: const Color(0xFFFFB300).withOpacity(0.3),
+                    ),
                   ),
                   child: const Row(
                     children: [
@@ -402,8 +419,8 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
         Container(
           width: 32,
           height: 32,
-          decoration: BoxDecoration(
-            color: const Color(0xFF6B4EFF),
+          decoration: const BoxDecoration(
+            color: Color(0xFF6B4EFF),
             shape: BoxShape.circle,
           ),
           child: Center(
@@ -438,10 +455,7 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
               ),
               Text(
                 description,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
             ],
           ),
@@ -471,7 +485,9 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
           schoolId: widget.schoolId ?? '',
           reference: reference,
           amount: widget.amount.toDouble(),
-          phoneNumber: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
+          phoneNumber: _phoneController.text.trim().isEmpty
+              ? null
+              : _phoneController.text.trim(),
         ),
       );
 
@@ -482,8 +498,6 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
           duration: Duration(seconds: 5),
         ),
       );
-
-      // TODO: Optionnellement, attendre la validation et rediriger
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
