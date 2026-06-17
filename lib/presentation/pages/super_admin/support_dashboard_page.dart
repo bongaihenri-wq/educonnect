@@ -26,19 +26,210 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final blocked = await _supabase.from('parents_blocked_view').select().limit(50);
-      final pending = await _supabase.from('payments_pending_view').select().limit(50);
+      // ========== ÉTAPE 1 : Parents (100 derniers) ==========
+      final parentsResult = await _supabase
+          .from('app_users')
+          .select('id, first_name, last_name, phone, school_id, created_at')
+          .eq('role', 'parent')
+          .order('created_at', ascending: false)
+          .limit(100);
+
+      final parentsList = List<Map<String, dynamic>>.from(parentsResult);
+      final parentIds = parentsList.map((p) => p['id'] as String).toList();
+      final schoolIds = parentsList
+          .where((p) => p['school_id'] != null)
+          .map((p) => p['school_id'] as String)
+          .toSet()
+          .toList();
+
+      // Map rapide id -> parent pour les paiements
+      final parentsById = {for (var p in parentsList) p['id'] as String: p};
+
+      // ========== ÉTAPE 2 : Subscriptions (toutes, filtrées côté Dart) ==========
+      final Map<String, Map<String, dynamic>> subsByParent = {};
+      if (parentIds.isNotEmpty) {
+        final subsResult = await _supabase
+            .from('parent_subscriptions')
+            .select('parent_id, status, plan_type, trial_ends_at, current_period_end, amount, currency')
+            .limit(1000);
+
+        for (final s in List<Map<String, dynamic>>.from(subsResult)) {
+          final pid = s['parent_id'] as String?;
+          if (pid != null && parentIds.contains(pid)) {
+            subsByParent[pid] = s;
+          }
+        }
+      }
+
+      // ========== ÉTAPE 3 : Schools (toutes, filtrées côté Dart) ==========
+      final Map<String, Map<String, dynamic>> schoolsById = {};
+      if (schoolIds.isNotEmpty) {
+        final schoolsResult = await _supabase
+            .from('schools')
+            .select('id, name')
+            .limit(1000);
+
+        for (final s in List<Map<String, dynamic>>.from(schoolsResult)) {
+          final sid = s['id'] as String?;
+          if (sid != null && schoolIds.contains(sid)) {
+            schoolsById[sid] = s;
+          }
+        }
+      }
+
+      // ========== Assembler parents + subs + schools ==========
+      final rawList = parentsList.map((p) {
+        final sub = subsByParent[p['id']];
+        final school = schoolsById[p['school_id']];
+        return {
+          ...p,
+          'parent_subscriptions': sub != null ? [sub] : <Map<String, dynamic>>[],
+          'schools': school,
+        };
+      }).toList();
+
+      // ========== ÉTAPE 4 : Paiements en attente ==========
+      final pendingPaymentsResult = await _supabase
+          .from('payment_transactions')
+          .select('id, parent_id, amount, currency, status, external_ref, created_at, screenshot_url, depositor_phone')
+          .eq('status', 'pending')
+          .order('created_at', ascending: false)
+          .limit(50);
+
+      final pendingRaw = List<Map<String, dynamic>>.from(pendingPaymentsResult);
+
+      // ========== ÉTAPE 5 : Noms des parents pour les paiements ==========
+      // Identifier les parents manquants dans parentsById
+      final Set<String> neededParentIds = pendingRaw
+          .map((p) => p['parent_id'] as String?)
+          .where((id) => id != null)
+          .cast<String>()
+          .toSet();
+      
+      final missingParentIds = neededParentIds.difference(parentsById.keys.toSet()).toList();
+      
+      // Charger les parents manquants (tous les parents, filtrés côté Dart)
+      final Map<String, Map<String, dynamic>> extraParents = {};
+      if (missingParentIds.isNotEmpty) {
+        final allParentsResult = await _supabase
+            .from('app_users')
+            .select('id, first_name, last_name, phone')
+            .eq('role', 'parent')
+            .limit(1000);
+        
+        for (final p in List<Map<String, dynamic>>.from(allParentsResult)) {
+          final id = p['id'] as String?;
+          if (id != null && missingParentIds.contains(id)) {
+            extraParents[id] = p;
+          }
+        }
+      }
+      
+      // Fusionner avec les parents déjà chargés
+      final allParentsForPayments = {...parentsById, ...extraParents};
+
+      final pending = pendingRaw.map((p) {
+        final parentId = p['parent_id'] as String?;
+        final parent = allParentsForPayments[parentId];
+        return {
+          'id': p['id'],
+          'parent_id': parentId,
+          'parent_name': parent != null
+              ? '${parent['first_name'] ?? ''} ${parent['last_name'] ?? ''}'
+              : '—',
+          'phone': parent?['phone'],
+          'amount': p['amount'],
+          'currency': p['currency'],
+          'external_ref': p['external_ref'],
+          'status': p['status'],
+          'created_at': p['created_at'],
+          'screenshot_url': p['screenshot_url'],
+          'depositor_phone': p['depositor_phone'],
+        };
+      }).toList();
+
+      // ========== Filtrer SEULEMENT les vrais bloqués ==========
+      final blocked = rawList.where((p) {
+        final subs = p['parent_subscriptions'] as List?;
+        if (subs == null || subs.isEmpty) return true;
+
+        final sub = subs.first as Map<String, dynamic>;
+        final status = sub['status'] as String?;
+        final planType = sub['plan_type'] as String?;
+        final trialEnd = sub['trial_ends_at'] != null
+            ? DateTime.tryParse(sub['trial_ends_at'].toString())
+            : null;
+        final periodEnd = sub['current_period_end'] != null
+            ? DateTime.tryParse(sub['current_period_end'].toString())
+            : null;
+
+        if (status == 'expired') return true;
+        if (status == 'pending') return true;
+        if (status == null) return true;
+
+        if (planType == 'trial' && trialEnd != null && trialEnd.isBefore(DateTime.now())) return true;
+        if (planType == 'monthly' && periodEnd != null && periodEnd.isBefore(DateTime.now())) return true;
+
+        if (status == 'active') {
+          if (planType == 'trial' && trialEnd != null && trialEnd.isAfter(DateTime.now())) return false;
+          if (planType == 'monthly' && periodEnd != null && periodEnd.isAfter(DateTime.now())) return false;
+        }
+        return true;
+      }).map((p) {
+        final subs = p['parent_subscriptions'] as List?;
+        final sub = subs != null && subs.isNotEmpty ? subs.first as Map<String, dynamic> : null;
+        final school = p['schools'] as Map<String, dynamic>?;
+
+        int? daysRemaining;
+        if (sub != null) {
+          final planType = sub['plan_type'] as String?;
+          final trialEnd = sub['trial_ends_at'] != null
+              ? DateTime.tryParse(sub['trial_ends_at'].toString())
+              : null;
+          final periodEnd = sub['current_period_end'] != null
+              ? DateTime.tryParse(sub['current_period_end'].toString())
+              : null;
+
+          if (planType == 'trial' && trialEnd != null) {
+            daysRemaining = trialEnd.difference(DateTime.now()).inDays;
+            if (daysRemaining < 0) daysRemaining = 0;
+          } else if (planType == 'monthly' && periodEnd != null) {
+            daysRemaining = periodEnd.difference(DateTime.now()).inDays;
+            if (daysRemaining < 0) daysRemaining = 0;
+          }
+        }
+
+        return {
+          'parent_id': p['id'],
+          'first_name': p['first_name'],
+          'last_name': p['last_name'],
+          'phone': p['phone'],
+          'school_name': school?['name'],
+          'status': sub?['status'],
+          'plan_type': sub?['plan_type'],
+          'days_remaining': daysRemaining,
+          'trial_ends_at': sub?['trial_ends_at'],
+          'current_period_end': sub?['current_period_end'],
+          'amount': sub?['amount'],
+          'currency': sub?['currency'],
+        };
+      }).toList();
 
       setState(() {
-        _blockedParents = List<Map<String, dynamic>>.from(blocked);
-        _pendingPayments = List<Map<String, dynamic>>.from(pending);
+        _blockedParents = blocked;
+        _pendingPayments = pending;
         _tmrMinutes = 12;
         _isLoading = false;
       });
     } catch (e) {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Erreur chargement: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+        ),
       );
     }
   }
@@ -150,18 +341,53 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     return Column(
       children: _blockedParents.map((p) {
         final days = p['days_remaining'] as int?;
-        final isExpired = days == null || days <= 0;
+        final status = p['status'] as String?;
+        final planType = p['plan_type'] as String?;
+
+        final bool isExpired = status == 'expired' || (days != null && days <= 0);
+        final bool isNoSub = status == null;
+        final bool isTrialExpired = planType == 'trial' && (days == null || days <= 0);
+        final bool isPending = status == 'pending';
+
         final name = '${p['first_name'] ?? ''} ${p['last_name'] ?? ''}';
         final phone = p['phone'] ?? '—';
         final school = p['school_name'] ?? '—';
+
+        String subtitleText;
+        Color statusColor;
+        IconData statusIcon;
+
+        if (isNoSub) {
+          statusColor = Colors.red;
+          statusIcon = Icons.block;
+          subtitleText = 'Aucun abonnement';
+        } else if (isExpired) {
+          statusColor = Colors.red;
+          statusIcon = Icons.block;
+          subtitleText = days != null && days < 0
+              ? 'Expiré depuis ${days.abs()} jours'
+              : 'Abonnement expiré';
+        } else if (isTrialExpired) {
+          statusColor = Colors.orange;
+          statusIcon = Icons.access_time;
+          subtitleText = 'Essai terminé';
+        } else if (isPending) {
+          statusColor = Colors.orange;
+          statusIcon = Icons.hourglass_top;
+          subtitleText = 'En attente de validation';
+        } else {
+          statusColor = Colors.grey;
+          statusIcon = Icons.help;
+          subtitleText = 'Statut: $status';
+        }
 
         return Card(
           margin: const EdgeInsets.only(bottom: 10),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: isExpired ? Colors.red : Colors.orange,
-              child: Icon(isExpired ? Icons.block : Icons.access_time, color: Colors.white, size: 18),
+              backgroundColor: statusColor,
+              child: Icon(statusIcon, color: Colors.white, size: 18),
             ),
             title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
             subtitle: Column(
@@ -169,8 +395,8 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
               children: [
                 Text('$phone • $school', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                 Text(
-                  isExpired ? 'Expiré${days != null && days < 0 ? ' depuis ${days.abs()}j' : ''}' : '$days jours restants',
-                  style: TextStyle(fontSize: 12, color: isExpired ? Colors.red : Colors.orange, fontWeight: FontWeight.w500),
+                  subtitleText,
+                  style: TextStyle(fontSize: 12, color: statusColor, fontWeight: FontWeight.w600),
                 ),
               ],
             ),

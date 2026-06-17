@@ -1,3 +1,4 @@
+// lib/presentation/pages/super_admin/super_admin_dashboard.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -52,7 +53,6 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
             title: const Text('EduConnect — Super Admin'),
             backgroundColor: const Color(0xFF6B4EFF),
             actions: [
-              // ❌ SUPPRIMÉ : Badge notification dans l'app bar
               IconButton(
                 icon: const Icon(Icons.logout),
                 onPressed: () {
@@ -72,7 +72,6 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                 children: [
                   _buildHeader(superAdmin),
                   const SizedBox(height: 24),
-                  // ❌ SUPPRIMÉ : Banner alerte orange
                   _buildGlobalStats(),
                   const SizedBox(height: 24),
                   _buildActionsGrid(context),
@@ -258,6 +257,13 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
         color: Colors.green,
         onTap: () => Navigator.pushNamed(context, AppRoutes.subscriptionDashboard),
       ),
+      // ✅ AJOUTÉ : Support Client (P0)
+      _AdminAction(
+        icon: Icons.support_agent,
+        label: 'Support Client',
+        color: Colors.orange,
+        onTap: () => Navigator.pushNamed(context, AppRoutes.supportDashboard),
+      ),
       _AdminAction(
         icon: Icons.bar_chart,
         label: 'Rapports',
@@ -275,7 +281,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
         label: 'Gestion des Rôles',
         color: Colors.indigo,
         onTap: () => Navigator.pushNamed(context, AppRoutes.roleManagement),
-),
+      ),
     ];
 
     return Column(

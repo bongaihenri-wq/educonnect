@@ -17,6 +17,7 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
   final _supabase = Supabase.instance.client;
   bool _isLoading = true;
   Map<String, dynamic>? _parentData;
+  String? _schoolName;
   List<Map<String, dynamic>> _payments = [];
   List<Map<String, dynamic>> _adminLogs = [];
   final _noteController = TextEditingController();
@@ -38,43 +39,108 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      // Données parent complètes
+      // 1. Données de base du parent
       final parent = await _supabase
           .from('app_users')
-          .select('''
-            id, first_name, last_name, phone, email, created_at,
-            parents(school_id),
-            parent_subscriptions(*),
-            parent_students(student_id, students(*, classes(name)))
-          ''')
+          .select('id, first_name, last_name, phone, email, created_at, school_id')
           .eq('id', widget.parentId)
-          .single();
+          .maybeSingle();
 
-      // Paiements
-      final payments = await _supabase
-          .from('payment_transactions')
-          .select('id, external_ref, amount, currency, status, created_at, screenshot_url, depositor_phone')
-          .eq('parent_id', widget.parentId)
-          .order('created_at', ascending: false);
+      if (parent == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
 
-      // Logs admin
-      final logs = await _supabase
-          .from('admin_actions_log')
-          .select('action, details, reason, created_at, actor_id, app_users!admin_actions_log_actor_id_fkey(first_name, last_name)')
-          .eq('target_user_id', widget.parentId)
-          .order('created_at', ascending: false)
-          .limit(20);
+      // 2. Subscription séparée
+      Map<String, dynamic>? subscription;
+      try {
+        final subResult = await _supabase
+            .from('parent_subscriptions')
+            .select('*, plan_type, status, trial_ends_at, current_period_end, amount, currency')
+            .eq('parent_id', widget.parentId)
+            .maybeSingle();
+        subscription = subResult;
+      } catch (e) {
+        print('Pas de subscription: $e');
+      }
 
+      // 3. Enfants séparés (via parent_students — table correcte)
+      List<Map<String, dynamic>> students = [];
+      try {
+        final parentStudents = await _supabase
+            .from('parent_students')
+            .select('student_id, students(*, classes(name))')
+            .eq('parent_id', widget.parentId);
+        students = List<Map<String, dynamic>>.from(parentStudents);
+      } catch (e) {
+        print('Pas d\'enfants liés: $e');
+      }
+
+      // 4. École séparée
+      String? schoolName;
+      if (parent['school_id'] != null) {
+        try {
+          final school = await _supabase
+              .from('schools')
+              .select('name')
+              .eq('id', parent['school_id'])
+              .maybeSingle();
+          schoolName = school?['name'];
+        } catch (e) {
+          print('Erreur école: $e');
+        }
+      }
+
+      // 5. Paiements
+      List<Map<String, dynamic>> payments = [];
+      try {
+        final paymentsResult = await _supabase
+            .from('payment_transactions')
+            .select('id, external_ref, amount, currency, status, created_at, screenshot_url, depositor_phone')
+            .eq('parent_id', widget.parentId)
+            .order('created_at', ascending: false);
+        payments = List<Map<String, dynamic>>.from(paymentsResult);
+      } catch (e) {
+        print('Erreur paiements: $e');
+      }
+
+      // 6. Logs admin (OPTIONNEL — table peut ne pas exister encore)
+      List<Map<String, dynamic>> logs = [];
+      try {
+        final logsResult = await _supabase
+            .from('admin_actions_log')
+            .select('action, details, reason, created_at, actor_id')
+            .eq('target_user_id', widget.parentId)
+            .order('created_at', ascending: false)
+            .limit(20);
+        logs = List<Map<String, dynamic>>.from(logsResult);
+      } catch (e) {
+        print('Table admin_actions_log non disponible: $e');
+        logs = [];
+      }
+
+      // Assembler
       setState(() {
-        _parentData = parent;
-        _payments = List<Map<String, dynamic>>.from(payments);
-        _adminLogs = List<Map<String, dynamic>>.from(logs);
+        _parentData = {
+          ...parent,
+          'parent_subscriptions': subscription != null ? [subscription] : [],
+          'parent_students': students,
+        };
+        _schoolName = schoolName;
+        _payments = payments;
+        _adminLogs = logs;
         _isLoading = false;
       });
     } catch (e) {
+      print('Erreur globale: $e');
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Erreur chargement: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+        ),
       );
     }
   }
@@ -88,8 +154,22 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
     }
 
     if (_parentData == null) {
-      return const Scaffold(
-        body: Center(child: Text('Parent introuvable')),
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Fiche Parent'),
+          backgroundColor: const Color(0xFF6C63FF),
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, color: Colors.red, size: 48),
+              SizedBox(height: 16),
+              Text('Parent introuvable', style: TextStyle(fontSize: 18, color: Colors.grey)),
+            ],
+          ),
+        ),
       );
     }
 
@@ -101,14 +181,30 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
     final firstName = user['first_name'] ?? '';
     final lastName = user['last_name'] ?? '';
     final phone = user['phone'] ?? '—';
-    final createdAt = user['created_at'] != null ? DateTime.parse(user['created_at'].toString()) : null;
+    final createdAt = user['created_at'] != null ? DateTime.tryParse(user['created_at'].toString()) : null;
 
-    // Statut abonnement
-    final status = subscription?['status'] as String? ?? 'no_subscription';
-    final daysRemaining = subscription?['days_remaining'] as int?;
-    final isExpired = status == 'expired' || (daysRemaining != null && daysRemaining <= 0);
+    // Statut abonnement — calcul depuis trial_ends_at / current_period_end
+    final rawStatus = subscription?['status'] as String? ?? 'no_subscription';
+    final planType = subscription?['plan_type'] as String?;
+    final trialEnd = subscription?['trial_ends_at'] != null
+        ? DateTime.tryParse(subscription!['trial_ends_at'].toString())
+        : null;
+    final periodEnd = subscription?['current_period_end'] != null
+        ? DateTime.tryParse(subscription!['current_period_end'].toString())
+        : null;
+
+    int? daysRemaining;
+    if (planType == 'trial' && trialEnd != null) {
+      daysRemaining = trialEnd.difference(DateTime.now()).inDays;
+      if (daysRemaining < 0) daysRemaining = 0;
+    } else if (planType == 'monthly' && periodEnd != null) {
+      daysRemaining = periodEnd.difference(DateTime.now()).inDays;
+      if (daysRemaining < 0) daysRemaining = 0;
+    }
+
+    final isExpired = rawStatus == 'expired' || (daysRemaining != null && daysRemaining <= 0);
     final isExpiringSoon = !isExpired && daysRemaining != null && daysRemaining > 0 && daysRemaining <= 3;
-    final isActive = !isExpired && !isExpiringSoon && (status == 'active' || status == 'trial');
+    final isActive = !isExpired && !isExpiringSoon && (rawStatus == 'active' || rawStatus == 'trial');
 
     Color statusColor;
     String statusLabel;
@@ -149,7 +245,7 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
             const SizedBox(height: 20),
 
             // ✅ CARTE ABONNEMENT + ACTIONS
-            _buildSubscriptionCard(subscription, statusColor, statusLabel, status),
+            _buildSubscriptionCard(subscription, statusColor, statusLabel, rawStatus, planType, trialEnd, periodEnd),
             const SizedBox(height: 20),
 
             // ✅ ENFANT(S)
@@ -224,6 +320,13 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
                     style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12),
                   ),
                 ],
+                if (_schoolName != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'École: $_schoolName',
+                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12, fontWeight: FontWeight.w500),
+                  ),
+                ],
               ],
             ),
           ),
@@ -242,12 +345,18 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
     );
   }
 
-  Widget _buildSubscriptionCard(Map<String, dynamic>? sub, Color color, String label, String rawStatus) {
+  Widget _buildSubscriptionCard(
+    Map<String, dynamic>? sub,
+    Color color,
+    String label,
+    String rawStatus,
+    String? planType,
+    DateTime? trialEnd,
+    DateTime? periodEnd,
+  ) {
     final amount = sub?['amount'] ?? 1000;
     final currency = sub?['currency'] ?? 'XOF';
-    final endDate = sub?['trial_ends_at'] != null
-        ? DateTime.tryParse(sub?['trial_ends_at'])
-        : (sub?['current_period_end'] != null ? DateTime.tryParse(sub?['current_period_end']) : null);
+    final endDate = trialEnd ?? periodEnd;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -418,7 +527,7 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
               children: _payments.map((p) {
                 final status = p['status'] as String? ?? 'pending';
                 final isValidated = status == 'validated';
-                final date = p['created_at'] != null ? DateTime.parse(p['created_at'].toString()) : null;
+                final date = p['created_at'] != null ? DateTime.tryParse(p['created_at'].toString()) : null;
                 return ListTile(
                   dense: true,
                   leading: Icon(
@@ -490,9 +599,7 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
           : Column(
               children: _adminLogs.map((log) {
                 final action = log['action'] as String? ?? '—';
-                final date = log['created_at'] != null ? DateTime.parse(log['created_at'].toString()) : null;
-                final actor = log['app_users'] as Map?;
-                final actorName = actor != null ? '${actor['first_name'] ?? ''} ${actor['last_name'] ?? ''}' : 'Système';
+                final date = log['created_at'] != null ? DateTime.tryParse(log['created_at'].toString()) : null;
                 final reason = log['reason'] as String? ?? '';
 
                 Color actionColor;
@@ -510,7 +617,7 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
                   ),
                   title: Text(action, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: actionColor)),
                   subtitle: Text(
-                    '$actorName${reason.isNotEmpty ? ' • $reason' : ''}${date != null ? ' • ${DateFormat('dd/MM HH:mm').format(date)}' : ''}',
+                    '${reason.isNotEmpty ? reason : 'Aucun motif'}${date != null ? ' • ${DateFormat('dd/MM HH:mm').format(date)}' : ''}',
                     style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                   ),
                 );
@@ -656,9 +763,8 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
 
   Future<void> _addNote() async {
     if (_noteController.text.trim().isEmpty) return;
-    // TODO: Sauvegarder la note dans une table support_notes
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('📝 Note ajoutée')),
+      const SnackBar(content: Text('📝 Note ajoutée (placeholder)')),
     );
     _noteController.clear();
   }
