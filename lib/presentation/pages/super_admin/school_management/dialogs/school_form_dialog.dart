@@ -22,10 +22,12 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
   late final TextEditingController _emailController;
   late final TextEditingController _codeController;
   late final TextEditingController _monthlyFeeController;
+  late final TextEditingController _schoolYearController;
 
   String _planType = 'basic';
   String _countryCode = 'CI';
   bool _isActive = true;
+  bool _isTest = false;
   bool _isLoading = false;
 
   final List<Map<String, String>> _countries = [
@@ -47,10 +49,19 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
     _emailController = TextEditingController(text: s?['email'] ?? '');
     _codeController = TextEditingController(text: s?['school_code'] ?? '');
     _monthlyFeeController = TextEditingController(text: (s?['monthly_fee'] ?? 1000).toString());
+    
+    final existingYear = s?['current_school_year'] as String?;
+    if (existingYear != null && existingYear.isNotEmpty) {
+      _schoolYearController = TextEditingController(text: existingYear);
+    } else {
+      _schoolYearController = TextEditingController(text: _calculateCurrentSchoolYear());
+    }
+    
     if (s != null) {
       _planType = s['plan_type'] ?? 'basic';
       _countryCode = s['country_code'] ?? 'CI';
       _isActive = s['is_active'] ?? true;
+      _isTest = s['is_test'] ?? false;
     }
   }
 
@@ -62,10 +73,21 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
     _emailController.dispose();
     _codeController.dispose();
     _monthlyFeeController.dispose();
+    _schoolYearController.dispose();
     super.dispose();
   }
 
-  // 🔥 GÉNÉRATEUR D'API KEY
+  String _calculateCurrentSchoolYear() {
+    final now = DateTime.now();
+    final year = now.year;
+    final month = now.month;
+    if (month >= 9) {
+      return '$year-${year + 1}';
+    } else {
+      return '${year - 1}-$year';
+    }
+  }
+
   String _generateApiKey() {
     final random = Random.secure();
     final bytes = List<int>.generate(32, (_) => random.nextInt(256));
@@ -138,6 +160,22 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 12),
+              TextFormField(
+                controller: _schoolYearController,
+                decoration: const InputDecoration(
+                  labelText: 'Année d\'exercice *',
+                  prefixIcon: Icon(Icons.calendar_today),
+                  hintText: 'Ex: 2025-2026',
+                ),
+                validator: (v) {
+                  if (v?.isEmpty ?? true) return 'Année requise';
+                  if (!RegExp(r'^\d{4}-\d{4}$').hasMatch(v!)) {
+                    return 'Format: AAAA-AAAA (ex: 2025-2026)';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _planType,
                 decoration: const InputDecoration(
@@ -172,6 +210,17 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
               ),
               const SizedBox(height: 12),
               SwitchListTile(
+                title: const Text('École de test / démonstration'),
+                subtitle: const Text(
+                  'Si activé, l\'école pourra être supprimée avec tous ses données.',
+                  style: TextStyle(fontSize: 12),
+                ),
+                value: _isTest,
+                activeColor: Colors.orange,
+                onChanged: (v) => setState(() => _isTest = v),
+              ),
+              const SizedBox(height: 4),
+              SwitchListTile(
                 title: const Text('École active'),
                 value: _isActive,
                 onChanged: (v) => setState(() => _isActive = v),
@@ -203,7 +252,6 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
     try {
       final schoolCode = _codeController.text.trim().toUpperCase();
       
-      // Vérifie unicité du code
       final existing = await Supabase.instance.client
           .from('schools')
           .select('id, school_code')
@@ -224,18 +272,18 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
         'monthly_fee': int.tryParse(_monthlyFeeController.text) ?? 5000,
         'country_code': _countryCode,
         'is_active': _isActive,
+        'is_test': _isTest,
+        'current_school_year': _schoolYearController.text.trim(),
         'currency': 'XOF',
         'settings': {},
       };
 
       if (widget.school != null) {
-        // Update
         await Supabase.instance.client
             .from('schools')
             .update(data)
             .eq('id', widget.school!['id']);
       } else {
-        // Insert avec nouvelle api_key
         data['api_key'] = _generateApiKey();
         
         final user = Supabase.instance.client.auth.currentUser;

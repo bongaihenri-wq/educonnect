@@ -264,6 +264,13 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
         color: Colors.orange,
         onTap: () => Navigator.pushNamed(context, AppRoutes.supportDashboard),
       ),
+      // ✅ AJOUTÉ : Gestion Années Scolaires (P1)
+      _AdminAction(
+        icon: Icons.calendar_month,
+        label: 'Années Scolaires',
+        color: const Color(0xFF6C63FF),
+        onTap: () => Navigator.pushNamed(context, AppRoutes.schoolYearManagement),
+      ),
       _AdminAction(
         icon: Icons.bar_chart,
         label: 'Rapports',
@@ -271,11 +278,11 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
         onTap: () {},
       ),
       _AdminAction(
-        icon: Icons.settings,
-        label: 'Paramètres',
-        color: Colors.grey,
-        onTap: () {},
-      ),
+       icon: Icons.trending_up,
+       label: 'Commercial',
+       color: Colors.teal,
+      onTap: () => Navigator.pushNamed(context, AppRoutes.commercialDashboard),
+),
       _AdminAction(
         icon: Icons.manage_accounts,
         label: 'Gestion des Rôles',
