@@ -88,7 +88,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               ),
               const SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(20, 24, 20, 16),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                   child: Text(
                     'Actions rapides',
                     style: TextStyle(

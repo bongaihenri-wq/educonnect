@@ -109,7 +109,7 @@ class _ClassListPageState extends State<ClassListPage> {
                       ),
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                       itemCount: _classes.length,
                       itemBuilder: (context, index) => _buildClassCard(_classes[index]),
                     ),

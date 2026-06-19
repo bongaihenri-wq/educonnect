@@ -92,7 +92,7 @@ class _TeachersListPageState extends State<TeachersListPage> {
               : _teachers.isEmpty
                   ? _buildEmptyWidget()
                   : ListView.builder(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                       itemCount: _teachers.length,
                       itemBuilder: (context, index) => _buildTeacherCard(_teachers[index]),
                     ),

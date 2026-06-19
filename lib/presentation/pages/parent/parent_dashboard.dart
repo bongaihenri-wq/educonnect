@@ -22,7 +22,7 @@ class ParentDashboard extends StatelessWidget {
           if (state is ParentAuthenticated) {
             return CustomScrollView(
               slivers: [
-                // ✅ Bannière si abonnement expire bientôt (Cas 2)
+                // ✅ Bannière si abonnement expire bientôt
                 if (state.daysRemaining != null &&
                     state.daysRemaining! > 0 &&
                     state.daysRemaining! <= 3)
@@ -31,7 +31,13 @@ class ParentDashboard extends StatelessWidget {
                     onRenew: () => _navigateToRenewal(context, state),
                   ),
 
-                const ParentHeader(),
+                // 🔒 CORRECTION : SafeArea + padding top pour éviter la barre de statut
+                SliverSafeArea(
+                  sliver: SliverPadding(
+                    padding: const EdgeInsets.only(top: 8),
+                    sliver: const ParentHeader(),
+                  ),
+                ),
                 const ChildCard(),
                 const AlertsSection(),
                 const QuickActionsGrid(),

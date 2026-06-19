@@ -30,7 +30,7 @@ class _AssignRoleDialogState extends State<AssignRoleDialog> {
       title: Wrap(
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          const Icon(Icons.person_add, color: Color(0xFF6B4EFF)),
+          const Icon(Icons.person_add, color: Color(0xFF6C63FF)), // ⭐ Harmonisation couleur
           const SizedBox(width: 12),
           Text('Attribuer ${widget.role.name}'),
         ],
@@ -68,7 +68,7 @@ class _AssignRoleDialogState extends State<AssignRoleDialog> {
               : const Icon(Icons.check),
           label: Text(_isAssigning ? 'Attribution...' : 'Attribuer'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF6B4EFF),
+            backgroundColor: const Color(0xFF6C63FF), // ⭐ Harmonisation couleur
           ),
         ),
       ],
@@ -98,7 +98,7 @@ class _AssignRoleDialogState extends State<AssignRoleDialog> {
       final user = users[0];
       final userId = user['id'].toString();
 
-      // ✅ CORRECTION : Passer null pour granted_by
+      // ✅ Passer null pour granted_by
       final result = await Supabase.instance.client.rpc('assign_role_to_user', params: {
         'p_user_id': userId,
         'p_role_id': widget.role.id,

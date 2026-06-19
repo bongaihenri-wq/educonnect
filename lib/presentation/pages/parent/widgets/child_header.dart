@@ -59,12 +59,14 @@ class ChildHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  studentName,
-                  style: const TextStyle(
+                   studentName,
+                    style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+                   color: Colors.white,
+                     ),
+                    maxLines: 2,           // ← AJOUTÉ
+                    overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(

@@ -53,7 +53,7 @@ class PaymentPendingPage extends StatelessWidget {
 
   Widget _buildContent(BuildContext context, PaymentSubmittedSuccessfully state) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -189,7 +189,7 @@ class PaymentPendingPage extends StatelessWidget {
               style: TextStyle(color: Colors.grey[600]),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 40),
         ],
       ),
     );

@@ -140,7 +140,7 @@ Widget build(BuildContext context) {
     return RefreshIndicator(
       onRefresh: () async => _loadClasses(),
       child: ListView.builder(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         itemCount: grouped.length,
         itemBuilder: (context, index) {
           final entry = grouped.entries.elementAt(index);

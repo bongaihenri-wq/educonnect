@@ -68,7 +68,7 @@ class _StudentListPageState extends State<StudentListPage> {
           : _students.isEmpty
               ? const Center(child: Text('Aucun élève trouvé'))
               : ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                   itemCount: _students.length,
                   itemBuilder: (context, index) {
                     final student = _students[index];

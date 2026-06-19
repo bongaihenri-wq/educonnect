@@ -57,7 +57,7 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [

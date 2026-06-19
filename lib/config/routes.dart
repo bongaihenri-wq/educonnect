@@ -50,6 +50,7 @@ import '../presentation/pages/super_admin/support_dashboard_page.dart';
 import '../presentation/pages/super_admin/parent_support_detail_page.dart';
 import 'package:educonnect/presentation/pages/super_admin/school_year_management_page.dart';
 import 'package:educonnect/presentation/pages/super_admin/commercial_dashboard_page.dart';
+import 'package:educonnect/presentation/pages/super_admin/role_management/role_users_list_page.dart';
   
 // BLoCs
 import '../presentation/blocs/attendance/attendance_page.dart';
@@ -104,6 +105,7 @@ class AppRoutes {
   static const String parentSupportDetail = '/super-admin/parent-support-detail';
   static const String schoolYearManagement = '/super-admin/school-year-management';
   static const String commercialDashboard = '/super-admin/commercial-dashboard';
+  static const String roleUsersList = '/super-admin/role-users-list';
   
   static const String teacherAttendanceClasses = '/teacher/attendance/classes';
   static const String teacherAttendance = '/teacher/attendance';
@@ -196,6 +198,10 @@ class AppRoutes {
     roleManagement: (context) => const RoleManagementPage(),
     subscriptionDashboard: (context) => const SubscriptionDashboardPage(),
     schoolYearManagement: (context) => const SchoolYearManagementPage(),
+    roleUsersList: (context) => const RoleUsersListPage(),
+
+
+
     teacherScheduleFull: (context) => const TeacherScheduleFullPage(),
     commercialDashboard: (context) => const CommercialDashboardPage(),
     teacherReports: (context) => const Scaffold(

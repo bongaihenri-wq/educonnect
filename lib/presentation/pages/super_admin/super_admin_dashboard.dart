@@ -66,7 +66,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
             onRefresh: _loadPendingCount,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -75,8 +75,11 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                   _buildGlobalStats(),
                   const SizedBox(height: 24),
                   _buildActionsGrid(context),
+                  const SizedBox(height: 40),
                 ],
+                
               ),
+              
             ),
           ),
         );

@@ -198,7 +198,7 @@ class _SchoolCard extends StatelessWidget {
         onTap: onViewDetails,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -259,6 +259,7 @@ class _SchoolCard extends StatelessWidget {
                   style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                 ),
               ],
+              const SizedBox(height: 40),
             ],
           ),
         ),

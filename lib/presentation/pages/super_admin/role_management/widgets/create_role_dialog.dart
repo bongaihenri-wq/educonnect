@@ -33,12 +33,16 @@ class _CreateRoleDialogState extends State<CreateRoleDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
+      title: Row(
         children: [
-          const Icon(Icons.add_circle, color: Color(0xFF6B4EFF)),
+          const Icon(Icons.add_circle, color: Color(0xFF6C63FF)),
           const SizedBox(width: 12),
-          const Text('Nouveau rôle'),
+          const Expanded(
+            child: Text(
+              'Nouveau rôle',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
       content: SizedBox(

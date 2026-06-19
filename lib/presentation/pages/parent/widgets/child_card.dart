@@ -28,7 +28,6 @@ class ChildCard extends StatelessWidget {
             const SizedBox(height: 16),
             BlocBuilder<AuthBloc, AuthState>(
               builder: (context, state) {
-                // ✅ CORRIGÉ : Vérifier ParentAuthenticated avec données
                 if (state is ParentAuthenticated && state.studentId.isNotEmpty) {
                   final nameParts = state.studentName.split(' ');
                   final firstName = nameParts.isNotEmpty ? nameParts.first : '';
@@ -46,7 +45,6 @@ class ChildCard extends StatelessWidget {
                     ),
                   );
                 } else if (state is ParentAuthenticated && state.studentId.isEmpty) {
-                  // ✅ AJOUTÉ : Message si aucun enfant lié
                   return _buildNoChildCard();
                 }
                 return const Center(child: CircularProgressIndicator());
@@ -58,7 +56,6 @@ class ChildCard extends StatelessWidget {
     );
   }
 
-  // ✅ AJOUTÉ : Carte "Aucun enfant lié"
   Widget _buildNoChildCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -99,35 +96,33 @@ class ChildCard extends StatelessWidget {
     );
   }
 
-void _navigateToDetail(BuildContext context, ParentAuthenticated state) {
-  if (state.studentId.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Erreur: ID élève manquant'),
-        backgroundColor: Colors.red,
+  void _navigateToDetail(BuildContext context, ParentAuthenticated state) {
+    if (state.studentId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Erreur: ID élève manquant'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChildDetailPage(
+          studentId: state.studentId,
+          studentName: state.studentName,
+          studentMatricule: state.studentMatricule,
+          className: state.className,
+          parentName: '${state.firstName} ${state.lastName}',
+          schoolName: state.schoolName,
+          schoolId: state.schoolId,
+          initialTab: 0,
+        ),
       ),
     );
-    return;
   }
-
-  // ✅ NAVIGATION VERS SUIVI DE L'ÉLÈVE
-  // ✅ AJOUTÉ : schoolId (UUID) pour UnifiedMessagesTab
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => ChildDetailPage(
-        studentId: state.studentId,
-        studentName: state.studentName,
-        studentMatricule: state.studentMatricule,
-        className: state.className,
-        parentName: '${state.firstName} ${state.lastName}',
-        schoolName: state.schoolName,
-        schoolId: state.schoolId, // ✅ AJOUTÉ : UUID pour les requêtes Supabase
-        initialTab: 0, // Onglet Présences (premier)
-      ),
-    ),
-  );
-}
 
   Widget _buildCard({
     required String firstName,
@@ -152,6 +147,7 @@ void _navigateToDetail(BuildContext context, ParentAuthenticated state) {
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _buildAvatar(firstName, lastName),
           const SizedBox(width: 16),
@@ -160,6 +156,7 @@ void _navigateToDetail(BuildContext context, ParentAuthenticated state) {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start, // ← MODIFIÉ
                   children: [
                     Expanded(
                       child: Text(
@@ -169,6 +166,7 @@ void _navigateToDetail(BuildContext context, ParentAuthenticated state) {
                           fontWeight: FontWeight.bold,
                           color: AppTheme.nightBlue,
                         ),
+                        maxLines: 2,           // ← AJOUTÉ
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),

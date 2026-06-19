@@ -8,6 +8,7 @@ class CreateUserDialog extends StatefulWidget {
   final String roleName;
   final List<Map<String, dynamic>> schools;
   final String? defaultCountryCode;
+  final bool isAdminSingleSchool; // ⭐ NOUVEAU : Admin = 1 école obligatoire
 
   const CreateUserDialog({
     super.key,
@@ -15,6 +16,7 @@ class CreateUserDialog extends StatefulWidget {
     required this.roleName,
     required this.schools,
     this.defaultCountryCode,
+    this.isAdminSingleSchool = false, // ⭐ NOUVEAU
   });
 
   @override
@@ -112,7 +114,7 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
     return AlertDialog(
       title: Row(
         children: [
-          Icon(Icons.person_add, color: theme.primaryColor),
+          Icon(Icons.person_add, color: const Color(0xFF6C63FF)), // ⭐ Harmonisation couleur
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -282,11 +284,40 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                       )),
                     ],
                     onChanged: (v) => setState(() => _selectedSchoolId = v),
+                    // ⭐ VALIDATOR : École obligatoire si Admin
+                    validator: widget.isAdminSingleSchool && widget.schools.isNotEmpty
+                        ? (v) => v == null ? 'Une école est obligatoire pour un admin' : null
+                        : null,
                   ),
+
+                // ⭐ NOUVEAU : Warning Admin = 1 école obligatoire
+                if (widget.isAdminSingleSchool) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber, color: Colors.red, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Un admin d\'école ne peut être rattaché qu\'à UNE SEULE école.',
+                            style: TextStyle(color: Colors.red[700], fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
 
                 const SizedBox(height: 12),
 
-                // ⭐ CORRECTION : Mot de passe avec parenthèses autour de la condition
+                // Mot de passe
                 TextFormField(
                   controller: _passwordController,
                   decoration: InputDecoration(
@@ -300,7 +331,7 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                     ),
                   ),
                   obscureText: true,
-                  validator: (v) => (v?.length ?? 0) < 6   // ⭐ CORRIGÉ : parenthèses !
+                  validator: (v) => (v?.length ?? 0) < 6
                       ? 'Minimum 6 caractères' 
                       : null,
                 ),

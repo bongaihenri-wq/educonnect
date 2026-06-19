@@ -347,6 +347,7 @@ class _GradesPageState extends State<GradesPage> {
                   color: Colors.grey[500],
                 ),
               ),
+              const SizedBox(height: 40)
             ],
           ),
         ),

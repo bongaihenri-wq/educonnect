@@ -154,14 +154,14 @@ class _SubscriptionRenewalPageState extends State<SubscriptionRenewalPage> {
           }
         },
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ✅ Carte info avec statut dynamique
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFF6C63FF), Color(0xFF4A44D6)],
@@ -356,6 +356,7 @@ class _SubscriptionRenewalPageState extends State<SubscriptionRenewalPage> {
                         ),
                 ),
               ),
+              const SizedBox(height: 40),
             ],
           ),
         ),
