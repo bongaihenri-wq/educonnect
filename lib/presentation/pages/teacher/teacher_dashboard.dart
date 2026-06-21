@@ -21,22 +21,23 @@ class TeacherDashboard extends StatefulWidget {
 
 class _TeacherDashboardState extends State<TeacherDashboard> {
   List<CourseModel> _assignedCourses = [];
+  List<Map<String, dynamic>> _adminMessages = [];
   bool _isLoading = true;
+  bool _isLoadingMessages = true;
 
   @override
   void initState() {
     super.initState();
     _loadDashboardData();
+    _loadAdminMessages();
   }
 
-  // ✅ AJOUTÉ : Extraction robuste de l'ID selon le type d'état
   String _extractUserId(AuthState state) {
     if (state is TeacherAuthenticated) return state.userId;
     if (state is Authenticated) return state.userId;
     return '';
   }
 
-  // ✅ AJOUTÉ : Extraction robuste du schoolId selon le type d'état
   String _extractSchoolId(AuthState state) {
     if (state is TeacherAuthenticated) return state.schoolId;
     if (state is Authenticated) return state.schoolId;
@@ -50,7 +51,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     if (teacherId.isNotEmpty) {
       try {
         final data = await context.read<TeacherService>().getTeacherAssignments(teacherId);
-        
         setState(() {
           _assignedCourses = data.map((json) => CourseModel.fromJson(json)).toList();
           _isLoading = false;
@@ -61,23 +61,48 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       }
     } else {
       setState(() => _isLoading = false);
-      debugPrint("⚠️ TeacherDashboard: teacherId vide, impossible de charger les données");
+    }
+  }
+
+  Future<void> _loadAdminMessages() async {
+    final authState = context.read<AuthBloc>().state;
+    final teacherId = _extractUserId(authState);
+    final schoolId = _extractSchoolId(authState);
+
+    if (teacherId.isEmpty || schoolId.isEmpty) {
+      setState(() => _isLoadingMessages = false);
+      return;
+    }
+
+    try {
+      final messages = await TeacherService().getTeacherMessages(
+        teacherId: teacherId,
+        schoolId: schoolId,
+      );
+      setState(() {
+        _adminMessages = messages;
+        _isLoadingMessages = false;
+      });
+    } catch (e) {
+      debugPrint("Erreur messages admin: $e");
+      setState(() => _isLoadingMessages = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final authState = context.read<AuthBloc>().state;
-    final teacherId = _extractUserId(authState);   // ✅ Corrigé
-    final schoolId = _extractSchoolId(authState);   // ✅ Corrigé
-    
-    print('🔍 TeacherDashboard - teacherId: "$teacherId", schoolId: "$schoolId"');
+    final teacherId = _extractUserId(authState);
+    final schoolId = _extractSchoolId(authState);
 
     return Scaffold(
       backgroundColor: AppTheme.bisLight,
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: _loadDashboardData,
+          onRefresh: () async {
+            await _loadDashboardData();
+            await _loadAdminMessages();
+          },
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -88,7 +113,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               ),
               const SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                  padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
                   child: Text(
                     'Actions rapides',
                     style: TextStyle(
@@ -103,12 +128,121 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                 teacherId: teacherId,
                 schoolId: schoolId,
               ),
+              if (_adminMessages.isNotEmpty) ...[
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
+                    child: Row(
+                      children: [
+                        Icon(Icons.campaign, color: Colors.orange, size: 22),
+                        SizedBox(width: 8),
+                        Text(
+                          'Messages de l\'administration',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.nightBlue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final msg = _adminMessages[index];
+                        final isBroadcast = msg['is_broadcast'] == true;
+                        final isRead = msg['is_read'] == true;
+                        
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: isRead ? Colors.white : Colors.orange.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isRead ? AppTheme.bisDark : Colors.orange.withOpacity(0.3),
+                              width: isRead ? 1 : 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.03),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: isBroadcast 
+                                          ? Colors.red.withOpacity(0.1) 
+                                          : Colors.blue.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      isBroadcast ? '📢 ANNONCE' : '💬 Message',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: isBroadcast ? Colors.red : Colors.blue,
+                                      ),
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  if (!isRead)
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: const BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                msg['content'] ?? 'Sans contenu',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: isRead ? FontWeight.normal : FontWeight.w600,
+                                  color: AppTheme.nightBlue,
+                                ),
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'De: ${msg['sender_name'] ?? 'Admin'} • ${msg['sender_role'] ?? 'Administration'}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      childCount: _adminMessages.length > 5 ? 5 : _adminMessages.length,
+                    ),
+                  ),
+                ),
+              ],
               _isLoading 
                 ? const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()))
                 : CourseListSection(courses: _assignedCourses),
               TeacherCommentListSection(teacherId: teacherId),
               const LogoutButton(),
-              const SliverPadding(padding: EdgeInsets.only(bottom: 40)),
+              const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
             ],
           ),
         ),
@@ -116,6 +250,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     );
   }
 }
+
 class LogoutButton extends StatelessWidget {
   const LogoutButton({super.key});
 
@@ -126,7 +261,6 @@ class LogoutButton extends StatelessWidget {
       sliver: SliverToBoxAdapter(
         child: ElevatedButton.icon(
           onPressed: () {
-            // ✅ SUPPRIMÉ : AppRoutes.logout(context) — cause le conflit
             context.read<AuthBloc>().add(const LogoutRequested());
           },
           icon: const Icon(Icons.logout, color: Colors.white),

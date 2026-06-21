@@ -377,6 +377,7 @@ class _AddHomeworkDialogState extends State<AddHomeworkDialog> {
                       child: Text(isEdit ? 'Modifier' : 'Créer'),
                     ),
                   ),
+                  const SizedBox(width: 12),
                 ],
               ),
             ),

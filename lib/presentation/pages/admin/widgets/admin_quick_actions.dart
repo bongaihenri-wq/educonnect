@@ -68,21 +68,7 @@ class AdminQuickActions extends StatelessWidget {
            onTap: () => Navigator.pushNamed(context, '/admin/send-message'),
               ),
         const SizedBox(height: 12),
-          _buildActionTile(
-            icon: Icons.message_outlined,
-            label: 'Messagerie École',
-            color: Colors.green,
-            onTap: () => Navigator.pushNamed(context, '/admin/messages'),
-          ),
-          const SizedBox(height: 12),
-          _buildActionTile(
-            icon: Icons.track_changes_outlined,
-            label: 'Suivi des Enseignants',
-            color: Colors.deepPurple,
-            onTap: () => Navigator.pushNamed(context, '/admin/teacher-tracking'),
-          ),
-          const SizedBox(height: 12),
-          _buildActionTile(
+           _buildActionTile(
             icon: Icons.settings,
             label: 'Paramètres École',
             color: Colors.grey,

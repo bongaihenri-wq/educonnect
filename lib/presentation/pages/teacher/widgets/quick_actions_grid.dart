@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../config/routes.dart';
 import '../../../../config/theme.dart';
 import '../teacher_reports_page.dart';
-import 'teacher_add_homework_dialog.dart'; // ✅ AJOUTÉ
+import 'teacher_add_homework_dialog.dart';
 
 class QuickActionsGrid extends StatelessWidget {
   final String teacherId;
@@ -17,8 +17,6 @@ class QuickActionsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    print('🔍 [2] QuickActions - teacherId: "$teacherId"');
-
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -43,14 +41,11 @@ class QuickActionsGrid extends StatelessWidget {
                     onTap: () => Navigator.pushNamed(context, AppRoutes.teacherGradesClasses),
                   ),
                   const SizedBox(width: 12),
-                  // ✅ BOUTON DEVOIRS — CORRIGÉ
                   _ActionCard(
                     icon: Icons.assignment,
                     title: 'Devoirs',
                     color: AppTheme.sunshine,
                     onTap: () async {
-                      print('🔍 [DEVOIRS] teacherId="$teacherId", schoolId="$schoolId"');
-                      
                       if (teacherId.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -60,7 +55,6 @@ class QuickActionsGrid extends StatelessWidget {
                         );
                         return;
                       }
-                      
                       final result = await showDialog<bool>(
                         context: context,
                         builder: (context) => TeacherAddHomeworkDialog(
@@ -98,7 +92,6 @@ class QuickActionsGrid extends StatelessWidget {
                     title: 'Rapports',
                     color: AppTheme.violetLight,
                     onTap: () {
-                      print('🔍 Clic Rapports - teacherId: "$teacherId"');
                       if (teacherId.isNotEmpty) {
                         Navigator.push(
                           context,
@@ -145,20 +138,20 @@ class _ActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
-        width: 100,
-        height: 120,
-        padding: const EdgeInsets.all(12),
+        width: 92,
+        height: 135,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
         decoration: BoxDecoration(
           color: AppTheme.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: AppTheme.bisDark),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: color.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -167,21 +160,22 @@ class _ActionCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withOpacity(0.12),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: color, size: 22),
+              child: Icon(icon, color: color, size: 26),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Text(
               title,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 11,
+                fontSize: 12,
                 color: AppTheme.nightBlue,
+                height: 1.2,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,

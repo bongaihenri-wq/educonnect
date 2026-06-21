@@ -34,11 +34,13 @@ class _GradesEntryPageState extends State<GradesEntryPage> {
   String _evaluationType = 'devoir';
   String _evaluationName = '';
   bool _isSubmitting = false;
+  bool _isLoadingExisting = false;
   double _maxScore = 20.0;
+  int _coefficient = 2;
   
-  // ✅ COEFFICIENT : Valeur sélectionnée + valeurs par défaut par type
-  int _coefficient = 2; // Défaut pour devoir
-  
+  // ✅ NOUVEAU : Scores existants pour modification
+  Map<String, double> _existingScores = {};
+
   final Map<String, int> _defaultCoefficients = {
     'devoir': 2,
     'interro': 1,
@@ -49,7 +51,6 @@ class _GradesEntryPageState extends State<GradesEntryPage> {
   @override
   void initState() {
     super.initState();
-    print('🔥 GradesEntryPage.initState()');
     final authState = context.read<AuthBloc>().state;
     String schoolId = '';
     if (authState is Authenticated) {
@@ -60,38 +61,60 @@ class _GradesEntryPageState extends State<GradesEntryPage> {
       classId: widget.classId,
       schoolId: schoolId,
     ));
+    
+    // ✅ Charger les notes existantes pour modification
+    _loadExistingGrades();
   }
 
-  // ✅ MÉTHODE : Récupère le coefficient actuel (sélectionné ou défaut)
   int _getCoefficient(String type) {
     return _coefficient;
   }
 
-  Future<void> _saveGrades() async {
-    if (_isSubmitting) {
-      print('🔥 _saveGrades déjà en cours, ignoré');
-      return;
+  // ✅ NOUVEAU : Charger les notes existantes
+  Future<void> _loadExistingGrades() async {
+    setState(() => _isLoadingExisting = true);
+    try {
+      final gradeRepo = GradeRepository(Supabase.instance.client);
+      final existing = await gradeRepo.getGradesByClassSubject(
+        classId: widget.classId,
+        subjectId: widget.subjectId ?? '',
+        evaluationType: _evaluationType,
+      );
+      
+      setState(() {
+        _existingScores = existing;
+        for (var entry in existing.entries) {
+          final studentId = entry.key;
+          final score = entry.value;
+          if (_controllers.containsKey(studentId)) {
+            _controllers[studentId]!.text = score.toString();
+          }
+        }
+        _isLoadingExisting = false;
+      });
+    } catch (e) {
+      debugPrint('Notes existantes non trouvées: $e');
+      setState(() => _isLoadingExisting = false);
     }
+  }
+
+  Future<void> _saveGrades() async {
+    if (_isSubmitting) return;
     
     setState(() => _isSubmitting = true);
     
     try {
-      print('🔥 Avant saveGrades');
       final state = context.read<AttendanceBloc>().state;
       final authState = context.read<AuthBloc>().state;
       
       if (authState is! Authenticated) throw Exception('Non authentifié');
 
-      // ✅ SÉCURITÉ : Normaliser le type
       final normalizedType = _evaluationType.toLowerCase().trim();
       const validTypes = ['devoir', 'interro', 'examen', 'participation'];
       
       if (!validTypes.contains(normalizedType)) {
         throw Exception('Type invalide: "$_evaluationType" → "$normalizedType". Attendu: devoir, interro, examen, participation');
       }
-
-      print('✅ Type normalisé: "$normalizedType"');
-      print('✅ Coefficient: $_coefficient');
 
       final scores = <String, double>{};
       for (var student in state.students) {
@@ -122,9 +145,8 @@ class _GradesEntryPageState extends State<GradesEntryPage> {
         date: DateTime.now(),
         scores: scores,
         maxScore: _maxScore,
-        coefficient: _getCoefficient(normalizedType), // ✅ COEFFICIENT PASSÉ ICI
+        coefficient: _getCoefficient(normalizedType),
       );
-      print('🔥 Après saveGrades - SUCCESS');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -138,14 +160,12 @@ class _GradesEntryPageState extends State<GradesEntryPage> {
         }
       }
     } catch (e) {
-      print('🔥 ERREUR: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('❌ Erreur: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
-      print('🔥 _saveGrades() END');
       if (mounted) {
         setState(() => _isSubmitting = false);
       }
@@ -165,7 +185,7 @@ class _GradesEntryPageState extends State<GradesEntryPage> {
         ),
         iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
         actions: [
-          if (_isSubmitting)
+          if (_isSubmitting || _isLoadingExisting)
             const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
           else
             TextButton(
@@ -195,7 +215,6 @@ class _GradesEntryPageState extends State<GradesEntryPage> {
     );
   }
 
-  // ✅ CORRIGÉ : Header avec sélecteur de coefficient
   Widget _buildEvaluationHeader() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -216,10 +235,8 @@ class _GradesEntryPageState extends State<GradesEntryPage> {
           ),
           const SizedBox(height: 8),
           
-          // ✅ LIGNE : Type + Coefficient + Max
           Row(
             children: [
-              // Type d'évaluation
               Expanded(
                 flex: 3,
                 child: SegmentedButton<String>(
@@ -232,8 +249,9 @@ class _GradesEntryPageState extends State<GradesEntryPage> {
                   onSelectionChanged: (v) {
                     setState(() {
                       _evaluationType = v.first;
-                      // ✅ Auto-set coefficient quand on change de type
                       _coefficient = _defaultCoefficients[_evaluationType] ?? 1;
+                      // Recharger les notes existantes pour le nouveau type
+                      _loadExistingGrades();
                     });
                   },
                 ),
@@ -241,7 +259,6 @@ class _GradesEntryPageState extends State<GradesEntryPage> {
               
               const SizedBox(width: 8),
               
-              // ✅ SÉLECTEUR DE COEFFICIENT
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -290,7 +307,6 @@ class _GradesEntryPageState extends State<GradesEntryPage> {
               
               const SizedBox(width: 8),
               
-              // Max score
               SizedBox(
                 width: 70,
                 child: TextField(
@@ -330,41 +346,101 @@ class _GradesEntryPageState extends State<GradesEntryPage> {
     );
   }
 
+  // ✅ CORRIGÉ : Champs plus grands + indicateur modification
   Widget _buildCompactGradeTile(StudentModel student) {
+    final hasExisting = _existingScores.containsKey(student.id);
+    
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
           CircleAvatar(
-            radius: 14,
-            backgroundColor: const Color(0xFFF59E0B).withOpacity(0.15),
-            child: Text(student.initials, style: const TextStyle(color: Color(0xFFF59E0B), fontWeight: FontWeight.bold, fontSize: 10)),
+            radius: 18,
+            backgroundColor: hasExisting 
+                ? Colors.green.withOpacity(0.15)
+                : const Color(0xFFF59E0B).withOpacity(0.15),
+            child: Text(
+              student.initials, 
+              style: TextStyle(
+                color: hasExisting ? Colors.green : const Color(0xFFF59E0B), 
+                fontWeight: FontWeight.bold, 
+                fontSize: 12,
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(student.fullName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, height: 1.2), overflow: TextOverflow.ellipsis),
-                Text('Mat: ${student.matricule}', style: TextStyle(color: Colors.grey[600], fontSize: 9, height: 1.2)),
+                Text(
+                  student.fullName, 
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600, 
+                    fontSize: 14,
+                    height: 1.2,
+                  ), 
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  'Mat: ${student.matricule}', 
+                  style: TextStyle(
+                    color: Colors.grey[600], 
+                    fontSize: 11,
+                    height: 1.2,
+                  ),
+                ),
               ],
             ),
           ),
+          if (hasExisting)
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                'Modif.',
+                style: TextStyle(
+                  fontSize: 9,
+                  color: Colors.green[700],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           SizedBox(
-            width: 50,
-            height: 30,
+            width: 70,
+            height: 40,
             child: TextField(
               controller: _controllers[student.id],
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
               decoration: InputDecoration(
                 hintText: '/$_maxScore',
-                hintStyle: TextStyle(fontSize: 9, color: Colors.grey[400]),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: Colors.grey.shade300)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 2, vertical: 0),
+                hintStyle: TextStyle(
+                  fontSize: 11, 
+                  color: Colors.grey[400],
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
                 isDense: true,
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: hasExisting ? Colors.green : const Color(0xFF7C3AED),
+                    width: 2,
+                  ),
+                ),
               ),
             ),
           ),

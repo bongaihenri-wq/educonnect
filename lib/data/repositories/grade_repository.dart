@@ -8,9 +8,6 @@ class GradeRepository {
 
   GradeRepository(this._supabase);
 
-  // ============================================================
-  // SAUVEGARDE DES NOTES (Bulk Insert)
-  // ============================================================
   Future<void> saveGrades({
     required String classId,
     required String subjectId,
@@ -77,9 +74,33 @@ class GradeRepository {
     }
   }
 
-  // ============================================================
-  // RÉCUPÉRATION — Notes d'une classe/matière/date
-  // ============================================================
+  // ✅ NOUVEAU : Charger les notes existantes pour modification
+  Future<Map<String, double>> getGradesByClassSubject({
+    required String classId,
+    required String subjectId,
+    required String evaluationType,
+  }) async {
+    try {
+      final response = await _supabase
+          .from('grades')
+          .select('student_id, score')
+          .eq('class_id', classId)
+          .eq('subject_id', subjectId)
+          .eq('type', evaluationType);
+
+      final Map<String, double> scores = {};
+      for (var row in response as List) {
+        final studentId = row['student_id'] as String;
+        final score = (row['score'] as num).toDouble();
+        scores[studentId] = score;
+      }
+      return scores;
+    } catch (e) {
+      debugPrint('❌ Erreur getGradesByClassSubject: $e');
+      return {};
+    }
+  }
+
   Future<Map<String, GradeModel>> getGradesForEvaluation({
     required String classId,
     required String subjectId,
@@ -91,7 +112,6 @@ class GradeRepository {
   }) async {
     final dateStr = date.toIso8601String().split('T')[0];
 
-    // 🔥 CORRECTION : .order() AVANT les filtres, pas après
     var query = _supabase
         .from('grades')
         .select('*, students!inner(first_name, last_name)')
@@ -106,10 +126,8 @@ class GradeRepository {
       query = query.eq('school_id', schoolId);
     }
 
-    // 🔥 ORDER À LA FIN (après tous les eq)
     final response = await query
         .order('students(last_name)', ascending: true);
-  
 
     final result = <String, GradeModel>{};
     for (final record in response as List) {
@@ -119,9 +137,6 @@ class GradeRepository {
     return result;
   }
 
-  // ============================================================
-  // RÉCUPÉRATION — Toutes les notes d'un élève
-  // ============================================================
   Future<List<GradeModel>> getStudentGrades(
     String studentId, {
     String? schoolId,
@@ -153,9 +168,6 @@ class GradeRepository {
         .toList();
   }
 
-  // ============================================================
-  // MOYENNES — Par élève / matière / période
-  // ============================================================
   Future<Map<String, dynamic>> getStudentAverage(
     String studentId, {
     String? subjectId,
@@ -202,9 +214,6 @@ class GradeRepository {
     };
   }
 
-  // ============================================================
-  // MOYENNES — Par classe / matière
-  // ============================================================
   Future<Map<String, dynamic>> getClassAverage({
     required String classId,
     required String subjectId,

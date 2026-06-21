@@ -7,68 +7,61 @@ class TeacherService {
   TeacherService({SupabaseClient? supabase}) 
       : _supabase = supabase ?? Supabase.instance.client;
 
-  // ============================================================
-  // EXISTANT : Récupérer les enseignants de l'enfant
-  // ============================================================
-Future<List<Map<String, dynamic>>> getTeachersForStudent(String studentId) async {
-  try {
-    final studentData = await _supabase
-        .from('students')
-        .select('class_id')
-        .eq('id', studentId)
-        .single();
+  Future<List<Map<String, dynamic>>> getTeachersForStudent(String studentId) async {
+    try {
+      final studentData = await _supabase
+          .from('students')
+          .select('class_id')
+          .eq('id', studentId)
+          .single();
 
-    final classId = studentData['class_id'] as String?;
-    if (classId == null) return [];
+      final classId = studentData['class_id'] as String?;
+      if (classId == null) return [];
 
-    // ✅ CORRIGÉ : app_users au lieu de teachers
-    final schedulesData = await _supabase
-        .from('schedules')
-        .select('''
-          teacher_id,
-          subject_id,
-          subjects(id, name),
-          app_users(id, first_name, last_name, email)
-        ''')
-        .eq('class_id', classId)
-        .eq('is_active', true);
+      final schedulesData = await _supabase
+          .from('schedules')
+          .select('''
+            teacher_id,
+            subject_id,
+            subjects(id, name),
+            app_users(id, first_name, last_name, email)
+          ''')
+          .eq('class_id', classId)
+          .eq('is_active', true);
 
-    final teachers = <Map<String, dynamic>>[];
-    final seen = <String>{};
+      final teachers = <Map<String, dynamic>>[];
+      final seen = <String>{};
 
-    for (final schedule in schedulesData as List) {
-      final teacherId = schedule['teacher_id'] as String?;
-      final subjectId = schedule['subject_id'] as String?;
-      if (teacherId == null || subjectId == null) continue;
+      for (final schedule in schedulesData as List) {
+        final teacherId = schedule['teacher_id'] as String?;
+        final subjectId = schedule['subject_id'] as String?;
+        if (teacherId == null || subjectId == null) continue;
 
-      final key = '${teacherId}_$subjectId';
-      if (seen.contains(key)) continue;
-      seen.add(key);
+        final key = '${teacherId}_$subjectId';
+        if (seen.contains(key)) continue;
+        seen.add(key);
 
-      final teacher = schedule['app_users'] as Map<String, dynamic>?; // ✅ CORRIGÉ
-      final subject = schedule['subjects'] as Map<String, dynamic>?;
+        final teacher = schedule['app_users'] as Map<String, dynamic>?;
+        final subject = schedule['subjects'] as Map<String, dynamic>?;
 
-      if (teacher != null && subject != null) {
-        teachers.add({
-          'teacher_id': teacherId,
-          'teacher_name': '${teacher['first_name']} ${teacher['last_name']}',
-          'teacher_email': teacher['email'],
-          'subject_id': subjectId,
-          'subject_name': subject['name'],
-        });
+        if (teacher != null && subject != null) {
+          teachers.add({
+            'teacher_id': teacherId,
+            'teacher_name': '${teacher['first_name']} ${teacher['last_name']}',
+            'teacher_email': teacher['email'],
+            'subject_id': subjectId,
+            'subject_name': subject['name'],
+          });
+        }
       }
+
+      return teachers;
+    } catch (e) {
+      print('❌ Erreur getTeachersForStudent: $e');
+      return [];
     }
-
-    return teachers;
-  } catch (e) {
-    print('❌ Erreur getTeachersForStudent: $e');
-    return [];
   }
-}
 
-  // ============================================================
-  // EXISTANT : Récupérer un enseignant spécifique par matière
-  // ============================================================
   Future<Map<String, dynamic>?> getTeacherForSubject({
     required String classId,
     required String subjectName,
@@ -112,63 +105,56 @@ Future<List<Map<String, dynamic>>> getTeachersForStudent(String studentId) async
     }
   }
 
-  // ============================================================
-  // RÉTABLI : Récupérer l'emploi du temps complet d'un enseignant
-  // ============================================================
-Future<List<Map<String, dynamic>>> getTeacherSchedule({
-  required String teacherId,
-  required String schoolId,
-}) async {
-  try {
-    final response = await _supabase
-        .from('schedules')
-        .select('''
-          id,
-          day_of_week,
-          start_time,
-          end_time,
-          room,
-          is_active,
-          subjects!inner(id, name),
-          classes!inner(id, name, level)
-        ''')
-        .eq('teacher_id', teacherId)
-        .eq('school_id', schoolId)
-        .eq('is_active', true)
-        .order('day_of_week', ascending: true)
-        .order('start_time', ascending: true);
+  Future<List<Map<String, dynamic>>> getTeacherSchedule({
+    required String teacherId,
+    required String schoolId,
+  }) async {
+    try {
+      final response = await _supabase
+          .from('schedules')
+          .select('''
+            id,
+            day_of_week,
+            start_time,
+            end_time,
+            room,
+            is_active,
+            subjects!inner(id, name),
+            classes!inner(id, name, level)
+          ''')
+          .eq('teacher_id', teacherId)
+          .eq('school_id', schoolId)
+          .eq('is_active', true)
+          .order('day_of_week', ascending: true)
+          .order('start_time', ascending: true);
 
-    // ✅ TRANSFORMER en champs plats pour fromJson
-    final flattened = (response as List).map((item) {
-      final subjects = item['subjects'] as Map<String, dynamic>?;
-      final classes = item['classes'] as Map<String, dynamic>?;
-      
-      return {
-        'id': item['id'],
-        'day_of_week': item['day_of_week'],
-        'start_time': item['start_time'],
-        'end_time': item['end_time'],
-        'room': item['room'],
-        'is_active': item['is_active'],
-        'subject_id': subjects?['id'],
-        'subject_name': subjects?['name'],
-        'class_id': classes?['id'],
-        'class_name': classes?['name'],
-        'level': classes?['level'],
-        'school_id': schoolId,
-      };
-    }).toList();
+      final flattened = (response as List).map((item) {
+        final subjects = item['subjects'] as Map<String, dynamic>?;
+        final classes = item['classes'] as Map<String, dynamic>?;
+        
+        return {
+          'id': item['id'],
+          'day_of_week': item['day_of_week'],
+          'start_time': item['start_time'],
+          'end_time': item['end_time'],
+          'room': item['room'],
+          'is_active': item['is_active'],
+          'subject_id': subjects?['id'],
+          'subject_name': subjects?['name'],
+          'class_id': classes?['id'],
+          'class_name': classes?['name'],
+          'level': classes?['level'],
+          'school_id': schoolId,
+        };
+      }).toList();
 
-    return flattened.cast<Map<String, dynamic>>();
-  } catch (e) {
-    print('❌ Erreur getTeacherSchedule: $e');
-    return [];
+      return flattened.cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('❌ Erreur getTeacherSchedule: $e');
+      return [];
+    }
   }
-}
 
-  // ============================================================
-  // RÉTABLI : Récupérer les cours assignés à un enseignant
-  // ============================================================
   Future<List<Map<String, dynamic>>> getTeacherAssignments(String teacherId) async {
     try {
       final response = await _supabase
@@ -194,9 +180,6 @@ Future<List<Map<String, dynamic>>> getTeacherSchedule({
     }
   }
 
-  // ============================================================
-  // NOUVEAU : Récupérer les messages des parents pour un enseignant
-  // ============================================================
   Future<List<Map<String, dynamic>>> getParentMessages({
     required String teacherId,
     int limit = 20,
@@ -227,9 +210,39 @@ Future<List<Map<String, dynamic>>> getTeacherSchedule({
     }
   }
 
-  // ============================================================
-  // NOUVEAU : Marquer un message comme lu
-  // ============================================================
+  // ✅ NOUVEAU : Messages admin + broadcasts pour les enseignants
+  Future<List<Map<String, dynamic>>> getTeacherMessages({
+    required String teacherId,
+    required String schoolId,
+    int limit = 50,
+  }) async {
+    try {
+      final response = await _supabase
+          .from('comments')
+          .select('''
+            id,
+            content,
+            sender_name,
+            sender_role,
+            target_subject,
+            is_broadcast,
+            is_read,
+            created_at,
+            students(id, first_name, last_name, class_id, classes(name))
+          ''')
+          .eq('school_id', schoolId)
+          .or('teacher_id.eq.$teacherId,and(is_broadcast.eq.true,recipient_type.eq.teacher)')
+          .eq('is_archived', false)
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      return (response as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      print('❌ Erreur getTeacherMessages: $e');
+      return [];
+    }
+  }
+
   Future<void> markMessageAsRead(String messageId) async {
     await _supabase.from('comments').update({
       'is_read': true,
