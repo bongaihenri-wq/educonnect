@@ -8,7 +8,7 @@ class CreateUserDialog extends StatefulWidget {
   final String roleName;
   final List<Map<String, dynamic>> schools;
   final String? defaultCountryCode;
-  final bool isAdminSingleSchool; // ⭐ NOUVEAU : Admin = 1 école obligatoire
+  final bool isAdminSingleSchool;
 
   const CreateUserDialog({
     super.key,
@@ -16,7 +16,7 @@ class CreateUserDialog extends StatefulWidget {
     required this.roleName,
     required this.schools,
     this.defaultCountryCode,
-    this.isAdminSingleSchool = false, // ⭐ NOUVEAU
+    this.isAdminSingleSchool = false,
   });
 
   @override
@@ -31,10 +31,36 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController(text: '123456');
 
+  // Champs dynamiques selon le rôle
   String? _selectedSchoolId;
+  String? _selectedCountryCode;
+  List<String> _selectedClassIds = [];
+  List<Map<String, dynamic>> _classesInSchool = [];
+  bool _isLoadingClasses = false;
+
   bool _isSubmitting = false;
   String? _errorMessage;
   String? _successMessage;
+
+  bool get _isAssistant => widget.roleCode == 'assistant';
+  bool get _isPrincipal => widget.roleCode == 'principal';
+
+  final List<Map<String, String>> _countries = const [
+    {'code': '+225', 'name': '🇨🇮 Côte d\'Ivoire'},
+    {'code': '+237', 'name': '🇨🇲 Cameroun'},
+    {'code': '+221', 'name': '🇸🇳 Sénégal'},
+    {'code': '+233', 'name': '🇬🇭 Ghana'},
+    {'code': '+226', 'name': '🇧🇫 Burkina Faso'},
+    {'code': '+241', 'name': '🇬🇦 Gabon'},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.defaultCountryCode != null) {
+      _selectedCountryCode = '+${widget.defaultCountryCode}';
+    }
+  }
 
   @override
   void dispose() {
@@ -46,8 +72,41 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
     super.dispose();
   }
 
+  Future<void> _loadClasses(String schoolId) async {
+    if (schoolId.isEmpty) return;
+    setState(() => _isLoadingClasses = true);
+    try {
+      final result = await Supabase.instance.client
+          .from('classes')
+          .select('id, name, level')
+          .eq('school_id', schoolId)
+          .order('name');
+
+      setState(() {
+        _classesInSchool = List<Map<String, dynamic>>.from(result);
+        _isLoadingClasses = false;
+      });
+    } catch (e) {
+      setState(() => _isLoadingClasses = false);
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Validation spécifique par rôle
+    if (_isAssistant && (_selectedCountryCode == null || _selectedCountryCode!.isEmpty)) {
+      setState(() => _errorMessage = 'Veuillez sélectionner un pays pour l\'assistant');
+      return;
+    }
+    if (_isPrincipal && (_selectedSchoolId == null || _selectedSchoolId!.isEmpty)) {
+      setState(() => _errorMessage = 'Veuillez sélectionner une école pour le principal');
+      return;
+    }
+    if (_isPrincipal && _selectedClassIds.isEmpty) {
+      setState(() => _errorMessage = 'Veuillez sélectionner au moins une classe');
+      return;
+    }
 
     setState(() {
       _isSubmitting = true;
@@ -70,8 +129,8 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
               : _emailController.text.trim(),
           'p_password': _passwordController.text,
           'p_role_code': widget.roleCode,
-          'p_country_code': widget.defaultCountryCode,
-          'p_school_id': _selectedSchoolId,
+          'p_country_code': _isAssistant ? _selectedCountryCode : null,
+          'p_school_id': _isPrincipal ? _selectedSchoolId : null,
           'p_created_by': currentUser?.id,
         },
       );
@@ -83,8 +142,21 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
       final result = response as Map<String, dynamic>;
 
       if (result['success'] == true) {
+        final newUserId = result['user_id'] as String?;
+
+        // ✅ SI PRINCIPAL : Créer les liaisons classes
+        if (_isPrincipal && newUserId != null && _selectedClassIds.isNotEmpty) {
+          for (final classId in _selectedClassIds) {
+            await supabase.from('principal_classes').insert({
+              'principal_id': newUserId,
+              'school_id': _selectedSchoolId,
+              'class_id': classId,
+            });
+          }
+        }
+
         setState(() {
-          _successMessage = '✅ Utilisateur créé !\n📱 ${result['phone']}\n🔑 MDP: ${result['password_temp']}';
+          _successMessage = '✅ ${widget.roleName} créé !\n📱 ${result['phone']}\n🔑 MDP: ${result['password_temp']}';
         });
         
         await Future.delayed(const Duration(seconds: 2));
@@ -109,24 +181,24 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return AlertDialog(
       title: Row(
         children: [
-          Icon(Icons.person_add, color: const Color(0xFF6C63FF)), // ⭐ Harmonisation couleur
+          Icon(Icons.person_add, color: const Color(0xFF6C63FF)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Créer ${widget.roleName}',
               style: const TextStyle(fontSize: 18),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
       ),
       content: SingleChildScrollView(
         child: ConstrainedBox(
-           constraints: BoxConstraints(
+          constraints: BoxConstraints(
             maxWidth: MediaQuery.of(context).size.width * 0.85,
             minWidth: 280,
           ),
@@ -172,9 +244,7 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.check_circle, 
-                             color: Colors.green.shade700, 
-                             size: 20),
+                        Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -195,9 +265,7 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                     border: OutlineInputBorder(),
                   ),
                   textCapitalization: TextCapitalization.words,
-                  validator: (v) => v?.trim().isEmpty == true 
-                      ? 'Prénom obligatoire' 
-                      : null,
+                  validator: (v) => v?.trim().isEmpty == true ? 'Prénom obligatoire' : null,
                 ),
                 const SizedBox(height: 12),
 
@@ -210,9 +278,7 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                     border: OutlineInputBorder(),
                   ),
                   textCapitalization: TextCapitalization.words,
-                  validator: (v) => v?.trim().isEmpty == true 
-                      ? 'Nom obligatoire' 
-                      : null,
+                  validator: (v) => v?.trim().isEmpty == true ? 'Nom obligatoire' : null,
                 ),
                 const SizedBox(height: 12),
 
@@ -221,21 +287,18 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                   controller: _phoneController,
                   decoration: InputDecoration(
                     labelText: 'Téléphone *',
-                    hintText: widget.defaultCountryCode != null 
-                        ? '+${widget.defaultCountryCode}0701234567' 
-                        : '+2250701234567',
+                    hintText: _selectedCountryCode != null 
+                        ? '$_selectedCountryCode 0701234567' 
+                        : '+225 0701234567',
                     prefixIcon: const Icon(Icons.phone),
                     border: const OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.phone,
                   inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9+]')),
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]')),
                   ],
                   validator: (v) {
                     if (v?.trim().isEmpty == true) return 'Téléphone obligatoire';
-                    if (!RegExp(r'^\+?[0-9]{8,15}$').hasMatch(v!.trim())) {
-                      return 'Format invalide (ex: +2250701234567)';
-                    }
                     return null;
                   },
                 ),
@@ -252,8 +315,7 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                   keyboardType: TextInputType.emailAddress,
                   validator: (v) {
                     if (v?.trim().isEmpty == true) return null;
-                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                        .hasMatch(v!.trim())) {
+                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v!.trim())) {
                       return 'Email invalide';
                     }
                     return null;
@@ -261,8 +323,133 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                 ),
                 const SizedBox(height: 12),
 
-                // École
-                if (widget.schools.isNotEmpty)
+                // ✅ ASSISTANT : Dropdown PAYS (obligatoire)
+                if (_isAssistant) ...[
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(
+                      labelText: 'Pays *',
+                      prefixIcon: Icon(Icons.public),
+                      border: OutlineInputBorder(),
+                    ),
+                    value: _selectedCountryCode,
+                    isExpanded: true,
+                    items: _countries.map((c) {
+                      return DropdownMenuItem(
+                        value: c['code'],
+                        child: Text(c['name']!, overflow: TextOverflow.ellipsis),
+                      );
+                    }).toList(),
+                    onChanged: (v) => setState(() => _selectedCountryCode = v),
+                    validator: (v) => v == null ? 'Pays obligatoire' : null,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // ✅ PRINCIPAL : Dropdown ÉCOLE (obligatoire)
+                if (_isPrincipal && widget.schools.isNotEmpty) ...[
+                  DropdownButtonFormField<String?>(
+                    decoration: const InputDecoration(
+                      labelText: 'École *',
+                      prefixIcon: Icon(Icons.school_outlined),
+                      border: OutlineInputBorder(),
+                    ),
+                    value: _selectedSchoolId,
+                    isExpanded: true,
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('Sélectionner une école'),
+                      ),
+                      ...widget.schools.map((s) => DropdownMenuItem(
+                        value: s['id']?.toString(),
+                        child: Text(
+                          '🏫 ${s['name']?.toString() ?? 'Sans nom'}',
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      )),
+                    ],
+                    onChanged: (v) {
+                      setState(() {
+                        _selectedSchoolId = v;
+                        _selectedClassIds = [];
+                        _classesInSchool = [];
+                      });
+                      if (v != null) _loadClasses(v);
+                    },
+                    validator: (v) => v == null ? 'École obligatoire' : null,
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ✅ PRINCIPAL : Sélection des CLASSES
+                  if (_isLoadingClasses)
+                    const Center(child: Padding(
+                      padding: EdgeInsets.all(12),
+                      child: CircularProgressIndicator(),
+                    ))
+                  else if (_selectedSchoolId != null && _classesInSchool.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.warning, color: Colors.orange, size: 20),
+                          SizedBox(width: 8),
+                          Expanded(child: Text('Aucune classe dans cette école', style: TextStyle(color: Colors.orange))),
+                        ],
+                      ),
+                    )
+                  else if (_selectedSchoolId != null && _classesInSchool.isNotEmpty) ...[
+                    Text(
+                      'Classe(s) *',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[800], fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _classesInSchool.map((cls) {
+                        final classId = cls['id'] as String;
+                        final isSelected = _selectedClassIds.contains(classId);
+                        return FilterChip(
+                          label: Text('${cls['name']} (${cls['level'] ?? ''})'),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _selectedClassIds.add(classId);
+                              } else {
+                                _selectedClassIds.remove(classId);
+                              }
+                            });
+                          },
+                          selectedColor: const Color(0xFF6C63FF).withOpacity(0.2),
+                          checkmarkColor: const Color(0xFF6C63FF),
+                          labelStyle: TextStyle(
+                            color: isSelected ? const Color(0xFF6C63FF) : Colors.grey[700],
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    if (_selectedClassIds.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Sélectionnez au moins une classe',
+                          style: TextStyle(fontSize: 12, color: Colors.red[400]),
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                  ],
+                ],
+
+                // École pour les autres rôles (non assistant, non principal)
+                if (!_isAssistant && !_isPrincipal && widget.schools.isNotEmpty)
                   DropdownButtonFormField<String?>(
                     decoration: const InputDecoration(
                       labelText: 'École (optionnel)',
@@ -270,6 +457,7 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                       border: OutlineInputBorder(),
                     ),
                     value: _selectedSchoolId,
+                    isExpanded: true,
                     items: [
                       const DropdownMenuItem(
                         value: null,
@@ -277,43 +465,15 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                       ),
                       ...widget.schools.map((s) => DropdownMenuItem(
                         value: s['id']?.toString(),
-                        child: Text('🏫 ${s['name']?.toString() ?? 'Sans nom'}',
-                        overflow: TextOverflow.ellipsis,
+                        child: Text(
+                          '🏫 ${s['name']?.toString() ?? 'Sans nom'}',
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
-                        
                       )),
                     ],
                     onChanged: (v) => setState(() => _selectedSchoolId = v),
-                    // ⭐ VALIDATOR : École obligatoire si Admin
-                    validator: widget.isAdminSingleSchool && widget.schools.isNotEmpty
-                        ? (v) => v == null ? 'Une école est obligatoire pour un admin' : null
-                        : null,
                   ),
-
-                // ⭐ NOUVEAU : Warning Admin = 1 école obligatoire
-                if (widget.isAdminSingleSchool) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.warning_amber, color: Colors.red, size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Un admin d\'école ne peut être rattaché qu\'à UNE SEULE école.',
-                            style: TextStyle(color: Colors.red[700], fontSize: 12),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
 
                 const SizedBox(height: 12),
 
@@ -325,15 +485,10 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                     prefixIcon: const Icon(Icons.lock_outline),
                     border: const OutlineInputBorder(),
                     helperText: 'Par défaut: 123456 (modifiable)',
-                    helperStyle: TextStyle(
-                      color: Colors.orange.shade700,
-                      fontSize: 12,
-                    ),
+                    helperStyle: TextStyle(color: Colors.orange.shade700, fontSize: 12),
                   ),
                   obscureText: true,
-                  validator: (v) => (v?.length ?? 0) < 6
-                      ? 'Minimum 6 caractères' 
-                      : null,
+                  validator: (v) => (v?.length ?? 0) < 6 ? 'Minimum 6 caractères' : null,
                 ),
 
                 const SizedBox(height: 16),
@@ -348,17 +503,16 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.info_outline, 
-                           color: Colors.blue.shade700, 
-                           size: 20),
+                      Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'L\'utilisateur pourra se connecter avec son téléphone et ce mot de passe. Le rôle "${widget.roleName}" sera automatiquement attribué.',
-                          style: TextStyle(
-                            color: Colors.blue.shade700,
-                            fontSize: 12,
-                          ),
+                          _isAssistant
+                              ? 'L\'assistant aura accès à TOUTES les écoles du pays sélectionné.'
+                              : _isPrincipal
+                                  ? 'Le principal verra les données des classes sélectionnées dans cette école.'
+                                  : 'L\'utilisateur pourra se connecter avec son téléphone et ce mot de passe.',
+                          style: TextStyle(color: Colors.blue.shade700, fontSize: 12),
                         ),
                       ),
                     ],

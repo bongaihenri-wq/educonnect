@@ -7,7 +7,7 @@ class SubscriptionExpiredPage extends StatefulWidget {
   final String parentId;
   final String? schoolId;
   final DateTime? expiresAt;
-  final int? daysRemaining;      // ✅ AJOUTÉ
+  final int? daysRemaining;
   final int amount;
   final String currency;
   final String? paymentPhoneNumber;
@@ -17,7 +17,7 @@ class SubscriptionExpiredPage extends StatefulWidget {
     required this.parentId,
     this.schoolId,
     this.expiresAt,
-    this.daysRemaining,        // ✅ AJOUTÉ
+    this.daysRemaining,
     this.amount = 1000,
     this.currency = 'XOF',
     this.paymentPhoneNumber,
@@ -39,9 +39,34 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
     super.dispose();
   }
 
+  void _logout() {
+    context.read<AuthBloc>().add(LogoutRequested());
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      // ✅ AJOUTÉ : AppBar transparent avec bouton de déconnexion
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        actions: [
+          TextButton.icon(
+            onPressed: _logout,
+            icon: const Icon(Icons.logout, color: Colors.white, size: 20),
+            label: const Text(
+              'Deconnexion',
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+          ),
+        ],
+      ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -107,7 +132,7 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
                 ),
                 const SizedBox(height: 40),
 
-                // ✅ Badge "Expiré depuis X jours" si applicable
+                // Badge "Expiré depuis X jours" si applicable
                 if (widget.daysRemaining != null && widget.daysRemaining! < 0)
                   Container(
                     margin: const EdgeInsets.only(bottom: 20),

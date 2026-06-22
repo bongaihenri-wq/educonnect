@@ -23,7 +23,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   bool _isSubscriptionExpired(Map<String, dynamic>? sub) {
     if (sub == null) {
-      print('SUBSCRIPTION NULL -> NOUVEAU PARENT (pas expiré)');
+      print('SUBSCRIPTION NULL -> NOUVEAU PARENT (pas expire)');
       return false;
     }
     
@@ -61,6 +61,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     return true;
   }
 
+  // ✅ CORRIGÉ : countryCode assistant depuis user + ajout principal
   void _emitAuthenticated(
     Map<String, dynamic> user,
     String schoolName,
@@ -92,6 +93,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         lastName: user['last_name'],
         schoolId: user['school_id'] ?? '',
         schoolName: schoolName,
+        countryCode: user['country_code'] ?? '', // ✅ CORRIGÉ : depuis user
+      ));
+    } else if (role == 'principal') { // ✅ AJOUTÉ : cas principal manquant
+      emit(PrincipalAuthenticated(
+        userId: user['id'],
+        firstName: user['first_name'],
+        lastName: user['last_name'],
+        schoolId: user['school_id'] ?? '',
+        schoolName: schoolName,
+        classId: '',
+        className: '',
       ));
     } else if (role == 'teacher') {
       emit(TeacherAuthenticated(
@@ -122,6 +134,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } else {
       emit(AuthError('Role inconnu: $role'));
     }
+  }
+
+  // ─── Helpers ───────────────────────────────────────────────
+
+  // ✅ Parser DateTime proprement depuis Supabase (String -> DateTime)
+  DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
   }
 
   // ─── Handlers ──────────────────────────────────────────────
@@ -166,7 +188,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             emit(SubscriptionExpired(
               parentId: userId,
               schoolId: user['school_id'],
-              expiresAt: sub?['trial_ends_at'] ?? sub?['current_period_end'],
+              expiresAt: _parseDate(sub?['trial_ends_at']) ?? _parseDate(sub?['current_period_end']),
               daysRemaining: sub?['days_remaining'],
               amount: sub?['amount'] ?? 1000,
               currency: sub?['currency'] ?? 'XOF',
@@ -269,7 +291,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             emit(SubscriptionExpired(
               parentId: result['user_id'],
               schoolId: schoolId,
-              expiresAt: sub?['trial_ends_at'] ?? sub?['current_period_end'],
+              expiresAt: _parseDate(sub?['trial_ends_at']) ?? _parseDate(sub?['current_period_end']),
               daysRemaining: sub?['days_remaining'],
               amount: sub?['amount'] ?? 1000,
               currency: sub?['currency'] ?? 'XOF',
@@ -379,7 +401,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         emit(SubscriptionExpired(
           parentId: userId,
           schoolId: schoolId,
-          expiresAt: sub?['trial_ends_at'] ?? sub?['current_period_end'],
+          expiresAt: _parseDate(sub?['trial_ends_at']) ?? _parseDate(sub?['current_period_end']),
           daysRemaining: sub?['days_remaining'],
           amount: sub?['amount'] ?? 1000,
           currency: sub?['currency'] ?? 'XOF',
@@ -405,8 +427,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
+  // ✅ CORRIGÉ : Protection contre blocage + emit garanti
   Future<void> _onLogout(LogoutRequested event, Emitter<AuthState> emit) async {
-    await _repository.clearSession();
+    try {
+      await _repository.clearSession();
+    } catch (e) {
+      print('Erreur clearSession: $e');
+    }
     emit(Unauthenticated());
   }
 }

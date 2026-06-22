@@ -9,6 +9,8 @@ import 'parent/subscription_expired_page.dart';
 import 'teacher/teacher_dashboard.dart';
 import 'admin/admin_dashboard.dart';
 import 'super_admin/super_admin_dashboard.dart';
+import 'assistant/assistant_dashboard.dart';
+import 'principal/principal_dashboard.dart';
 
 class AuthStateRouter extends StatelessWidget {
   const AuthStateRouter({super.key});
@@ -33,7 +35,6 @@ class AuthStateRouter extends StatelessWidget {
       builder: (context, state) {
         print('🎯 AuthStateRouter - State: ${state.runtimeType}');
 
-        // ✅ CORRIGÉ : AuthError affiche SchoolLoginPage (pas le splash)
         if (state is AuthError || state is Unauthenticated) {
           return const SchoolLoginPage();
         }
@@ -65,12 +66,21 @@ class AuthStateRouter extends StatelessWidget {
         if (state is SuperAdminAuthenticated) {
           return const SuperAdminDashboardPage();
         }
+
         if (state is AdminAuthenticated) {
           return const AdminDashboard();
         }
+
+        // ✅ CORRIGÉ : Assistant sans arguments dans le constructeur
         if (state is AssistantAuthenticated) {
-          return const AdminDashboard();
+          return AssistantDashboard(countryCode: state.countryCode);
         }
+
+        // ✅ CORRIGÉ : Principal SANS arguments (auto-récupération des classes)
+        if (state is PrincipalAuthenticated) {
+          return const PrincipalDashboard();
+        }
+
         if (state is TeacherAuthenticated) {
           return const TeacherDashboard();
         }

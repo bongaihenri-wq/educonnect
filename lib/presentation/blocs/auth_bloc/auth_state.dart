@@ -37,7 +37,7 @@ class SubscriptionExpired extends AuthState {
   final String parentId;
   final String? schoolId;
   final DateTime? expiresAt;
-  final int? daysRemaining;      // ✅ AJOUTÉ : pour afficher "Expiré depuis X jours"
+  final int? daysRemaining;
   final int amount;
   final String currency;
   final String? paymentPhoneNumber;
@@ -46,7 +46,7 @@ class SubscriptionExpired extends AuthState {
     required this.parentId,
     this.schoolId,
     this.expiresAt,
-    this.daysRemaining,         // ✅ AJOUTÉ
+    this.daysRemaining,
     this.amount = 1000,
     this.currency = 'XOF',
     this.paymentPhoneNumber,
@@ -85,14 +85,34 @@ class AdminAuthenticated extends Authenticated {
   }) : super(role: 'admin');
 }
 
+// ✅ MODIFIÉ : Ajout countryCode
 class AssistantAuthenticated extends Authenticated {
+  final String countryCode;
+  
   const AssistantAuthenticated({
     required super.userId,
     required super.firstName,
     required super.lastName,
     required super.schoolId,
     required super.schoolName,
+    required this.countryCode,
   }) : super(role: 'assistant');
+}
+
+// ✅ NOUVEAU : Principal (Professeur Principal)
+class PrincipalAuthenticated extends Authenticated {
+  final String classId;
+  final String className;
+  
+  const PrincipalAuthenticated({
+    required super.userId,
+    required super.firstName,
+    required super.lastName,
+    required super.schoolId,
+    required super.schoolName,
+    required this.classId,
+    required this.className,
+  }) : super(role: 'principal');
 }
 
 class TeacherAuthenticated extends Authenticated {

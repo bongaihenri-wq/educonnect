@@ -49,7 +49,13 @@ class AuthRepository {
     }
   }
 
+  // ✅ CORRIGÉ : Nettoyage complet (Supabase local + SharedPreferences)
   Future<void> clearSession() async {
+    try {
+      await _supabase.auth.signOut(scope: SignOutScope.local);
+    } catch (e) {
+      print('Erreur signOut local: $e');
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
   }
@@ -69,7 +75,7 @@ class AuthRepository {
     try {
       return await _supabase
           .from('app_users')
-          .select('id, first_name, last_name, role, school_id, email, phone')
+          .select('id, first_name, last_name, role, school_id, email, phone, country_code')
           .eq('id', userId)
           .single();
     } catch (e) {

@@ -4,7 +4,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'parent_support_detail_page.dart';
 
 class SupportDashboardPage extends StatefulWidget {
-  const SupportDashboardPage({super.key});
+  final String? countryCode;
+
+  const SupportDashboardPage({super.key, this.countryCode});
 
   @override
   State<SupportDashboardPage> createState() => _SupportDashboardPageState();
@@ -17,6 +19,8 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   List<Map<String, dynamic>> _pendingPayments = [];
   int _tmrMinutes = 0;
 
+  bool get _hasCountryFilter => widget.countryCode != null && widget.countryCode!.isNotEmpty;
+
   @override
   void initState() {
     super.initState();
@@ -26,15 +30,21 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      // ========== ÉTAPE 1 : Parents (100 derniers) ==========
-      final parentsResult = await _supabase
+      // ========== ÉTAPE 1 : Parents ==========
+      var parentsQuery = _supabase
           .from('app_users')
-          .select('id, first_name, last_name, phone, school_id, created_at')
-          .eq('role', 'parent')
-          .order('created_at', ascending: false)
-          .limit(100);
+          .select('id, first_name, last_name, phone, school_id, country_code, created_at')
+          .eq('role', 'parent');
 
-      final parentsList = List<Map<String, dynamic>>.from(parentsResult);
+      if (_hasCountryFilter) {
+        parentsQuery = parentsQuery.eq('country_code', widget.countryCode!);
+      }
+
+      final parentsResult = await parentsQuery
+          .order('created_at', ascending: false)
+          .limit(200);
+
+      var parentsList = List<Map<String, dynamic>>.from(parentsResult);
       final parentIds = parentsList.map((p) => p['id'] as String).toList();
       final schoolIds = parentsList
           .where((p) => p['school_id'] != null)
@@ -42,10 +52,9 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
           .toSet()
           .toList();
 
-      // Map rapide id -> parent pour les paiements
       final parentsById = {for (var p in parentsList) p['id'] as String: p};
 
-      // ========== ÉTAPE 2 : Subscriptions (toutes, filtrées côté Dart) ==========
+      // ========== ÉTAPE 2 : Subscriptions ==========
       final Map<String, Map<String, dynamic>> subsByParent = {};
       if (parentIds.isNotEmpty) {
         final subsResult = await _supabase
@@ -61,13 +70,18 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
         }
       }
 
-      // ========== ÉTAPE 3 : Schools (toutes, filtrées côté Dart) ==========
+      // ========== ÉTAPE 3 : Schools ==========
       final Map<String, Map<String, dynamic>> schoolsById = {};
       if (schoolIds.isNotEmpty) {
-        final schoolsResult = await _supabase
+        var schoolsQuery = _supabase
             .from('schools')
-            .select('id, name')
-            .limit(1000);
+            .select('id, name, country_code');
+
+        if (_hasCountryFilter) {
+          schoolsQuery = schoolsQuery.eq('country_code', widget.countryCode!);
+        }
+
+        final schoolsResult = await schoolsQuery.limit(1000);
 
         for (final s in List<Map<String, dynamic>>.from(schoolsResult)) {
           final sid = s['id'] as String?;
@@ -77,7 +91,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
         }
       }
 
-      // ========== Assembler parents + subs + schools ==========
+      // ========== Assembler parents ==========
       final rawList = parentsList.map((p) {
         final sub = subsByParent[p['id']];
         final school = schoolsById[p['school_id']];
@@ -89,66 +103,46 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       }).toList();
 
       // ========== ÉTAPE 4 : Paiements en attente ==========
-      final pendingPaymentsResult = await _supabase
-          .from('payment_transactions')
-          .select('id, parent_id, amount, currency, status, external_ref, created_at, screenshot_url, depositor_phone')
-          .eq('status', 'pending')
-          .order('created_at', ascending: false)
-          .limit(50);
+      // ✅ CORRIGÉ : On récupère les paiements des parents du pays uniquement
+      List<Map<String, dynamic>> pending = [];
+      if (parentIds.isNotEmpty) {
+        final pendingResult = await _supabase
+            .from('payment_transactions')
+            .select('id, parent_id, amount, currency, status, external_ref, created_at, screenshot_url, depositor_phone')
+            .eq('status', 'pending')
+            .order('created_at', ascending: false)
+            .limit(200);
 
-      final pendingRaw = List<Map<String, dynamic>>.from(pendingPaymentsResult);
-
-      // ========== ÉTAPE 5 : Noms des parents pour les paiements ==========
-      // Identifier les parents manquants dans parentsById
-      final Set<String> neededParentIds = pendingRaw
-          .map((p) => p['parent_id'] as String?)
-          .where((id) => id != null)
-          .cast<String>()
-          .toSet();
-      
-      final missingParentIds = neededParentIds.difference(parentsById.keys.toSet()).toList();
-      
-      // Charger les parents manquants (tous les parents, filtrés côté Dart)
-      final Map<String, Map<String, dynamic>> extraParents = {};
-      if (missingParentIds.isNotEmpty) {
-        final allParentsResult = await _supabase
-            .from('app_users')
-            .select('id, first_name, last_name, phone')
-            .eq('role', 'parent')
-            .limit(1000);
+        final allPending = List<Map<String, dynamic>>.from(pendingResult);
         
-        for (final p in List<Map<String, dynamic>>.from(allParentsResult)) {
-          final id = p['id'] as String?;
-          if (id != null && missingParentIds.contains(id)) {
-            extraParents[id] = p;
-          }
-        }
+        // Filtrer côté client pour ne garder que les parents du pays
+        final pendingFiltered = allPending.where((p) {
+          final pid = p['parent_id'] as String?;
+          return pid != null && parentIds.contains(pid);
+        }).toList();
+
+        pending = pendingFiltered.map((p) {
+          final parentId = p['parent_id'] as String?;
+          final parent = parentsById[parentId];
+          return {
+            'id': p['id'],
+            'parent_id': parentId,
+            'parent_name': parent != null
+                ? '${parent['first_name'] ?? ''} ${parent['last_name'] ?? ''}'
+                : '—',
+            'phone': parent?['phone'],
+            'amount': p['amount'],
+            'currency': p['currency'],
+            'external_ref': p['external_ref'],
+            'status': p['status'],
+            'created_at': p['created_at'],
+            'screenshot_url': p['screenshot_url'],
+            'depositor_phone': p['depositor_phone'],
+          };
+        }).toList();
       }
-      
-      // Fusionner avec les parents déjà chargés
-      final allParentsForPayments = {...parentsById, ...extraParents};
 
-      final pending = pendingRaw.map((p) {
-        final parentId = p['parent_id'] as String?;
-        final parent = allParentsForPayments[parentId];
-        return {
-          'id': p['id'],
-          'parent_id': parentId,
-          'parent_name': parent != null
-              ? '${parent['first_name'] ?? ''} ${parent['last_name'] ?? ''}'
-              : '—',
-          'phone': parent?['phone'],
-          'amount': p['amount'],
-          'currency': p['currency'],
-          'external_ref': p['external_ref'],
-          'status': p['status'],
-          'created_at': p['created_at'],
-          'screenshot_url': p['screenshot_url'],
-          'depositor_phone': p['depositor_phone'],
-        };
-      }).toList();
-
-      // ========== Filtrer SEULEMENT les vrais bloqués ==========
+      // ========== Filtrer bloqués ==========
       final blocked = rawList.where((p) {
         final subs = p['parent_subscriptions'] as List?;
         if (subs == null || subs.isEmpty) return true;
@@ -239,7 +233,11 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
       appBar: AppBar(
-        title: const Text('Support Client'),
+        title: const Text(
+          'Support Client',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         backgroundColor: const Color(0xFF6C63FF),
         foregroundColor: Colors.white,
         actions: [
@@ -251,7 +249,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
           : RefreshIndicator(
               onRefresh: _loadData,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -300,9 +298,21 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
         children: [
           Icon(icon, color: color, size: 24),
           const SizedBox(height: 8),
-          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+          ),
           const SizedBox(height: 4),
-          Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600]), textAlign: TextAlign.center),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );
@@ -313,7 +323,14 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
       children: [
         Container(width: 4, height: 20, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
         const SizedBox(width: 8),
-        Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }
@@ -331,7 +348,15 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
         children: [
           Icon(icon, color: color, size: 20),
           const SizedBox(width: 8),
-          Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w500)),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: color, fontWeight: FontWeight.w500),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ),
         ],
       ),
     );
@@ -349,7 +374,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
         final bool isTrialExpired = planType == 'trial' && (days == null || days <= 0);
         final bool isPending = status == 'pending';
 
-        final name = '${p['first_name'] ?? ''} ${p['last_name'] ?? ''}';
+        final name = '${p['first_name'] ?? ''} ${p['last_name'] ?? ''}'.trim();
         final phone = p['phone'] ?? '—';
         final school = p['school_name'] ?? '—';
 
@@ -389,14 +414,26 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
               backgroundColor: statusColor,
               child: Icon(statusIcon, color: Colors.white, size: 18),
             ),
-            title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+            title: Text(
+              name.isNotEmpty ? name : '—',
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$phone • $school', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                Text(
+                  '$phone • $school',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 Text(
                   subtitleText,
                   style: TextStyle(fontSize: 12, color: statusColor, fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -414,6 +451,7 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
         final name = p['parent_name'] ?? '—';
         final ref = p['external_ref'] ?? '—';
         final amount = p['amount'] ?? 0;
+        final currency = p['currency'] ?? 'XOF';
 
         return Card(
           margin: const EdgeInsets.only(bottom: 10),
@@ -423,8 +461,18 @@ class _SupportDashboardPageState extends State<SupportDashboardPage> {
               backgroundColor: Colors.orange.withOpacity(0.15),
               child: const Icon(Icons.hourglass_top, color: Colors.orange, size: 18),
             ),
-            title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-            subtitle: Text('Réf: $ref • $amount XOF', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+            title: Text(
+              name,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              'Réf: $ref • $amount $currency',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

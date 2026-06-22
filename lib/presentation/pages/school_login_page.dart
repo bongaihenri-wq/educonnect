@@ -65,13 +65,11 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
   void _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // ⭐ COMME AVANT : L'utilisateur tape le numéro complet avec +225
     final phone = _phoneController.text.replaceAll(RegExp(r'\s'), '');
-      print('🔍 TELEPHONE ENVOYE: "$phone"');
-  print('🔍 LONGUEUR: ${phone.length}');
-  print('🔍 CODEPOINTS: ${phone.runes.toList()}');
+    print('🔍 TELEPHONE ENVOYE: "$phone"');
+    print('🔍 LONGUEUR: ${phone.length}');
+    print('🔍 CODEPOINTS: ${phone.runes.toList()}');
 
-    // Code école optionnel pour super admin
     if (_schoolCodeController.text.isNotEmpty && _schoolName == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Veuillez valider le code école')),
@@ -84,7 +82,7 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
     await prefs.setString('saved_phone', phone);
 
     context.read<auth.AuthBloc>().add(auth.LoginWithPhoneRequested(
-      phone: phone, // ⭐ ENVOIE TEL QUE TAPÉ (+2250506224449)
+      phone: phone,
       password: _passwordController.text,
     ));
   }
@@ -95,6 +93,7 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
       backgroundColor: Colors.white,
       body: BlocListener<auth.AuthBloc, auth.AuthState>(
         listener: (context, state) {
+          // ✅ CORRIGÉ : Ajout des cas manquants pour éviter de rester bloqué sur login
           if (state is auth.SuperAdminAuthenticated) {
             Navigator.pushReplacementNamed(context, AppRoutes.superAdminDashboard);
           } else if (state is auth.TeacherAuthenticated) {
@@ -103,6 +102,26 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
             Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
           } else if (state is auth.ParentAuthenticated) {
             Navigator.pushReplacementNamed(context, AppRoutes.parentDashboard);
+          } else if (state is auth.AssistantAuthenticated) {
+            Navigator.pushReplacementNamed(context, AppRoutes.assistantDashboard);
+          } else if (state is auth.PrincipalAuthenticated) {
+            Navigator.pushReplacementNamed(context, AppRoutes.principalDashboard);
+          } else if (state is auth.SubscriptionExpired) {
+            Navigator.pushReplacementNamed(
+              context,
+              AppRoutes.subscriptionExpired,
+              arguments: {
+                'parentId': state.parentId,
+                'schoolId': state.schoolId,
+                'expiresAt': state.expiresAt?.toIso8601String(),
+                'daysRemaining': state.daysRemaining,
+                'amount': state.amount,
+                'currency': state.currency,
+                'paymentPhoneNumber': state.paymentPhoneNumber,
+              },
+            );
+          } else if (state is auth.PaymentSubmittedSuccessfully || state is auth.PaymentPending) {
+            Navigator.pushReplacementNamed(context, AppRoutes.paymentPending);
           } else if (state is auth.AuthError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(state.message), backgroundColor: Colors.red),
@@ -146,13 +165,13 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
                       ),
                     const SizedBox(height: 24),
 
-                    // ⭐ COMME AVANT : Téléphone complet avec +225
+                    // Téléphone complet avec +225
                     TextFormField(
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
                       decoration: InputDecoration(
                         labelText: 'Téléphone',
-                        hintText: '+225 05 06 22 44 49', // ⭐ EXEMPLE AVEC +225
+                        hintText: '+225 05 06 22 44 49',
                         prefixIcon: const Icon(Icons.phone),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
