@@ -1,9 +1,11 @@
-
+// lib/presentation/pages/splash/splash_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../config/theme.dart';
 import '../../blocs/auth_bloc/auth_bloc.dart';
 import '/config/routes.dart';
+import '../../../services/update_service.dart';
+import '../../widgets/update_dialog.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -13,11 +15,55 @@ class SplashPage extends StatefulWidget {
 }
 
 class _SplashPageState extends State<SplashPage> {
+  bool _updateChecked = false;
+
   @override
   void initState() {
     super.initState();
-    // Déclencher la vérification de session
-    context.read<AuthBloc>().add(AppStarted());
+    // Vérifier mise à jour AVANT de déclencher l'auth
+    _checkForUpdate();
+  }
+
+  /// Vérifie si une mise à jour OTA est disponible
+  Future<void> _checkForUpdate() async {
+    final updateService = UpdateService();
+    final result = await updateService.checkForUpdate();
+
+    if (!mounted) return;
+
+    if (result.hasUpdate) {
+      // Afficher dialog de mise à jour
+      await showDialog(
+        context: context,
+        barrierDismissible: !result.isMandatory,
+        builder: (_) => UpdateDialog(
+          update: result,
+          isBlocking: true,
+          onDismiss: () {
+            // Si non obligatoire, continuer vers l'auth
+            if (!result.isMandatory) {
+              _startAuth();
+            }
+          },
+        ),
+      );
+
+      // Si obligatoire et dialog fermé sans téléchargement, on reste sur splash
+      if (result.isMandatory) {
+        return;
+      }
+    } else {
+      // Pas de mise à jour, continuer normalement
+      _startAuth();
+    }
+  }
+
+  /// Déclenche la vérification de session (code original)
+  void _startAuth() {
+    if (!_updateChecked) {
+      _updateChecked = true;
+      context.read<AuthBloc>().add(AppStarted());
+    }
   }
 
   @override
@@ -25,13 +71,12 @@ class _SplashPageState extends State<SplashPage> {
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
         print('🔄 SplashPage - État: ${state.runtimeType}');
-        
-        if (state is Unauthenticated || state is AuthError) {
-  print('⚠️ Non authentifié -> Login');
-  Navigator.pushReplacementNamed(context, AppRoutes.schoolLogin);  // ✅ Utiliser la constante
-  return;
-}
 
+        if (state is Unauthenticated || state is AuthError) {
+          print('⚠️ Non authentifié -> Login');
+          Navigator.pushReplacementNamed(context, AppRoutes.schoolLogin);
+          return;
+        }
 
         // ⭐ ADMIN
         if (state is AdminAuthenticated) {
@@ -39,21 +84,21 @@ class _SplashPageState extends State<SplashPage> {
           Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
           return;
         }
-        
-        // ⭐ ENSEIGNANT  
+
+        // ⭐ ENSEIGNANT
         if (state is TeacherAuthenticated) {
           print('✅ Enseignant authentifié !');
           Navigator.pushReplacementNamed(context, AppRoutes.teacherDashboard);
           return;
         }
-        
+
         // ⭐ PARENT
         if (state is ParentAuthenticated) {
           print('✅ Parent authentifié !');
           Navigator.pushReplacementNamed(context, AppRoutes.parentDashboard);
           return;
         }
-        
+
         // ⭐ NON AUTHENTIFIÉ ou ERREUR
         if (state is Unauthenticated || state is AuthError) {
           print('⚠️ Non authentifié -> Login');
@@ -68,7 +113,7 @@ class _SplashPageState extends State<SplashPage> {
           Navigator.pushReplacementNamed(context, AppRoutes.schoolLogin);
           return;
         }
-        
+
         // AuthLoading : on reste sur le splash (rien à faire)
       },
       child: Scaffold(
