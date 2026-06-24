@@ -242,7 +242,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                 : CourseListSection(courses: _assignedCourses),
               TeacherCommentListSection(teacherId: teacherId),
               const LogoutButton(),
-              const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
+              const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
             ],
           ),
         ),

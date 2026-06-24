@@ -44,6 +44,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.1
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.4
 
 flutter:
   uses-material-design: true
@@ -52,4 +54,25 @@ flutter:
     - assets/templates/students_parents_template.csv
     - assets/templates/teachers_template.csv
     - assets/templates/schedules_template.csv
-    
+  # ============================================
+# ICÔNE DE L'APP (remplace le logo Flutter)
+# ============================================
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo/app_logo.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#7C3AED"
+  adaptive_icon_foreground: "assets/logo/app_logo.png"
+
+# ============================================
+# SPLASH SCREEN (remplace le logo Flutter blanc)
+# ============================================
+flutter_native_splash:
+  color: "#7C3AED"
+  image: assets/logo/app_logo.png
+  android: true
+  ios: true
+  android_12:
+    image: assets/logo/app_logo.png
+    icon_background_color: "#7C3AED"  
