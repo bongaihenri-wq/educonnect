@@ -292,6 +292,12 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
         color: Colors.indigo,
         onTap: () => Navigator.pushNamed(context, AppRoutes.roleManagement),
       ),
+      _AdminAction(
+        icon: Icons.date_range,
+        label: 'Trimestres Écoles',
+        color: Colors.pink,
+        onTap: () => Navigator.pushNamed(context, AppRoutes.schoolManagement),
+  ),
     ];
 
     return Column(

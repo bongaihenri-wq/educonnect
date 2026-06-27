@@ -32,8 +32,9 @@ class AdminQuickActions extends StatelessWidget {
                 const SizedBox(width: 12),
                 _quickAccessButton(context, Icons.person_outline, 'Enseignants', Colors.orange, '/admin/teachers'),
                 const SizedBox(width: 12),
-                _quickAccessButton(context, Icons.family_restroom, 'Parents', Colors.pink, '/admin/parents'),
-              ],
+                 _quickAccessButton(context, Icons.bar_chart, 'Notes', Colors.purple, '/grades'),
+                const SizedBox(width: 12),
+                            ],
             ),
           ),
           
@@ -48,10 +49,7 @@ class AdminQuickActions extends StatelessWidget {
                 const SizedBox(width: 12),
                 _quickAccessButton(context, Icons.assignment, 'Devoirs', Colors.deepOrange, '/homework'),
                 const SizedBox(width: 12),
-                _quickAccessButton(context, Icons.bar_chart, 'Notes', Colors.purple, '/grades'),
-                const SizedBox(width: 12),
-                _quickAccessButton(context, Icons.fact_check, 'Notes en\nattente', Colors.red, '/admin/grades-pending'),
-                const SizedBox(width: 12),
+               
                 _quickAccessButton(context, Icons.analytics, 'Rapports', Colors.cyan, '/admin/reports'),
               ],
             ),

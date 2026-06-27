@@ -1,4 +1,5 @@
 // lib/presentation/pages/super_admin/widgets/trimester_dialog.dart
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../config/theme.dart';
@@ -42,7 +43,10 @@ class _TrimesterDialogState extends State<TrimesterDialog> {
       context: context,
       initialDate: start ? (_startDate ?? DateTime.now()) : (_endDate ?? DateTime.now()),
       firstDate: DateTime(2020), lastDate: DateTime(2030),
-      builder: (_, child) => Theme(data: Theme.of(_).copyWith(colorScheme: ColorScheme.light(primary: AppTheme.violet, onPrimary: Colors.white)), child: child!),
+      builder: (_, child) => Theme(
+        data: Theme.of(_).copyWith(colorScheme: ColorScheme.light(primary: AppTheme.violet, onPrimary: Colors.white)),
+        child: child!,
+      ),
     );
     if (p != null) setState(() => start ? _startDate = p : _endDate = p);
   }
@@ -50,47 +54,122 @@ class _TrimesterDialogState extends State<TrimesterDialog> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate() || _startDate == null || _endDate == null) return;
     if (_endDate!.isBefore(_startDate!)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Date de fin après date de début')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Date de fin doit être après date de début')),
+      );
       return;
     }
+    
     setState(() => _loading = true);
+    
     try {
       if (_isEdit) {
-        await _service.updateTrimester(id: widget.trimester!['id'], name: _nameCtrl.text.trim(), startDate: _startDate!, endDate: _endDate!);
+        developer.log('Updating trimester: ${widget.trimester!['id']}');
+        await _service.updateTrimester(
+          id: widget.trimester!['id'],
+          name: _nameCtrl.text.trim(),
+          startDate: _startDate!,
+          endDate: _endDate!,
+        );
       } else {
-        await _service.createTrimester(schoolId: widget.schoolId, name: _nameCtrl.text.trim(), startDate: _startDate!, endDate: _endDate!);
+        developer.log('Creating trimester for school: ${widget.schoolId}');
+        await _service.createTrimester(
+          schoolId: widget.schoolId,
+          name: _nameCtrl.text.trim(),
+          startDate: _startDate!,
+          endDate: _endDate!,
+        );
       }
-      if (mounted) Navigator.pop(context, true);
+      
+      if (mounted) {
+        developer.log('Success, closing dialog');
+        Navigator.pop(context, true);
+      }
+      
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
+      developer.log('Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(_isEdit ? 'Modifier' : 'Nouveau trimestre'),
+      title: Text(_isEdit ? 'Modifier trimestre' : 'Nouveau trimestre'),
       content: Form(
         key: _formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextFormField(controller: _nameCtrl, decoration: const InputDecoration(labelText: 'Nom (T1, Semestre 1...)', border: OutlineInputBorder()), validator: (v) => v?.trim().isEmpty ?? true ? 'Requis' : null),
+            TextFormField(
+              controller: _nameCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Nom (T1, T2, T3...)',
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) => v?.trim().isEmpty ?? true ? 'Requis' : null,
+            ),
             const SizedBox(height: 12),
-            InkWell(onTap: () => _pickDate(true), child: InputDecorator(decoration: const InputDecoration(labelText: 'Début', border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today)), child: Text(_startDate != null ? DateFormat('dd/MM/yyyy').format(_startDate!) : 'Sélectionner'))),
+            InkWell(
+              onTap: () => _pickDate(true),
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Début',
+                  border: OutlineInputBorder(),
+                  suffixIcon: Icon(Icons.calendar_today),
+                ),
+                child: Text(
+                  _startDate != null ? DateFormat('dd/MM/yyyy').format(_startDate!) : 'Sélectionner',
+                ),
+              ),
+            ),
             const SizedBox(height: 12),
-            InkWell(onTap: () => _pickDate(false), child: InputDecorator(decoration: const InputDecoration(labelText: 'Fin', border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today)), child: Text(_endDate != null ? DateFormat('dd/MM/yyyy').format(_endDate!) : 'Sélectionner'))),
+            InkWell(
+              onTap: () => _pickDate(false),
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Fin',
+                  border: OutlineInputBorder(),
+                  suffixIcon: Icon(Icons.calendar_today),
+                ),
+                child: Text(
+                  _endDate != null ? DateFormat('dd/MM/yyyy').format(_endDate!) : 'Sélectionner',
+                ),
+              ),
+            ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: _loading ? null : () => Navigator.pop(context), child: const Text('Annuler')),
+        TextButton(
+          onPressed: _loading ? null : () => Navigator.pop(context),
+          child: const Text('Annuler'),
+        ),
         ElevatedButton(
           onPressed: _loading ? null : _save,
-          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.violet, foregroundColor: Colors.white),
-          child: _loading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text(_isEdit ? 'Modifier' : 'Créer'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.violet,
+            foregroundColor: Colors.white,
+          ),
+          child: _loading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : Text(_isEdit ? 'Modifier' : 'Créer'),
         ),
       ],
     );

@@ -1,4 +1,3 @@
-// lib/presentation/pages/admin/widgets/school_stats_section.dart
 import 'package:flutter/material.dart';
 import '../../../../services/admin_stats_service.dart';
 import '../../../../config/theme.dart';
@@ -7,8 +6,15 @@ import '../../../widgets/scrollable_list_section.dart';
 
 class SchoolStatsSection extends StatefulWidget {
   final String? schoolId;
+  final int daysRange;
+  final Map<String, dynamic>? selectedPeriod;
 
-  const SchoolStatsSection({super.key, this.schoolId});
+  const SchoolStatsSection({
+    super.key,
+    this.schoolId,
+    this.daysRange = 30,
+    this.selectedPeriod,
+  });
 
   @override
   State<SchoolStatsSection> createState() => _SchoolStatsSectionState();
@@ -29,7 +35,9 @@ class _SchoolStatsSectionState extends State<SchoolStatsSection> {
   @override
   void didUpdateWidget(SchoolStatsSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.schoolId != widget.schoolId && widget.schoolId != null) {
+    if (oldWidget.daysRange != widget.daysRange ||
+        oldWidget.selectedPeriod != widget.selectedPeriod ||
+        oldWidget.schoolId != widget.schoolId) {
       _loadData();
     }
   }
@@ -40,8 +48,14 @@ class _SchoolStatsSectionState extends State<SchoolStatsSection> {
     setState(() => _loading = true);
     
     try {
-      _classAttendance = await _statsService.getAttendanceByClass(widget.schoolId!);
-      _teacherStats = await _statsService.getTeachersWithAttendanceStats(widget.schoolId!);
+      _classAttendance = await _statsService.getAttendanceByClass(
+        widget.schoolId!,
+        daysRange: widget.daysRange,
+      );
+      _teacherStats = await _statsService.getTeachersWithAttendanceStats(
+        widget.schoolId!,
+        daysRange: widget.daysRange,
+      );
     } catch (e) {
       print('❌ Erreur chargement stats: $e');
     } finally {
@@ -49,14 +63,21 @@ class _SchoolStatsSectionState extends State<SchoolStatsSection> {
     }
   }
 
+  String get _periodTitle {
+    if (widget.selectedPeriod != null) {
+      final name = widget.selectedPeriod!['name'] as String;
+      return 'Assiduité par Classe ($name)';
+    }
+    return 'Assiduité par Classe (${widget.daysRange} derniers jours)';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // === ASSIDUITÉ PAR CLASSE (scrollable) ===
         _buildSectionCard(
-          title: 'Assiduité par Classe (30 derniers jours)',
+          title: _periodTitle,
           icon: Icons.bar_chart,
           color: AppTheme.violet,
           child: _loading
@@ -67,7 +88,7 @@ class _SchoolStatsSectionState extends State<SchoolStatsSection> {
               : _classAttendance.isEmpty
                   ? _buildEmptyState('Aucune donnée d\'assiduité')
                   : ScrollableListSection(
-                      maxHeight: 320, // ~5 barres visibles
+                      maxHeight: 320,
                       children: _classAttendance.map((classe) {
                         return StackedAttendanceBar(
                           label: classe['class_name']?.toString() ?? 'Classe',
@@ -81,7 +102,6 @@ class _SchoolStatsSectionState extends State<SchoolStatsSection> {
 
         const SizedBox(height: 16),
 
-        // === ASSIDUITÉ PAR ENSEIGNANT (scrollable compact) ===
         _buildSectionCard(
           title: 'Performance Enseignants',
           icon: Icons.people_outline,
@@ -94,7 +114,7 @@ class _SchoolStatsSectionState extends State<SchoolStatsSection> {
               : _teacherStats.isEmpty
                   ? _buildEmptyState('Aucun enseignant trouvé')
                   : ScrollableListSection(
-                      maxHeight: 260, // ~5 barres compactes
+                      maxHeight: 260,
                       isSmall: true,
                       children: _teacherStats.map((teacher) {
                         return StackedAttendanceBar(

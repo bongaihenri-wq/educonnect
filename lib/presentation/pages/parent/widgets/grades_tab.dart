@@ -1,16 +1,24 @@
 // lib/presentation/pages/parent/widgets/grades_tab.dart
 import 'package:flutter/material.dart';
 import '../../../../config/theme.dart';
+import '../../admin/widgets/period_selector.dart'; // ✅ AJOUTÉ
 import 'common_widgets.dart';
 
 class GradesTab extends StatefulWidget {
   final List<Map<String, dynamic>> grades;
   final Map<String, dynamic> stats;
+  // ✅ PARAMÈTRES PÉRIODES AJOUTÉS
+  final List<Map<String, dynamic>> periods;
+  final Map<String, dynamic>? selectedPeriod;
+  final ValueChanged<Map<String, dynamic>?> onPeriodChanged;
 
   const GradesTab({
     super.key,
     required this.grades,
     required this.stats,
+    this.periods = const [], // ✅ AJOUTÉ
+    this.selectedPeriod, // ✅ AJOUTÉ
+    required this.onPeriodChanged, // ✅ AJOUTÉ
   });
 
   @override
@@ -18,7 +26,6 @@ class GradesTab extends StatefulWidget {
 }
 
 class _GradesTabState extends State<GradesTab> {
-  String _selectedDateFilter = 'Tout';
   String _selectedTypeFilter = 'Tout';
   String _selectedSubjectFilter = 'Tout';
   List<Map<String, dynamic>> _filteredGrades = [];
@@ -29,30 +36,39 @@ class _GradesTabState extends State<GradesTab> {
     _filteredGrades = widget.grades;
   }
 
-  void _applyFilters() {
-    var filtered = List<Map<String, dynamic>>.from(widget.grades);
-
-    // Filtre par date (simplifié : 7 jours, 30 jours, tout)
-    if (_selectedDateFilter == '7 jours') {
-      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
-      filtered = filtered.where((g) {
-        final date = DateTime.parse(g['date'] as String);
-        return date.isAfter(sevenDaysAgo);
-      }).toList();
-    } else if (_selectedDateFilter == '30 jours') {
-      final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
-      filtered = filtered.where((g) {
-        final date = DateTime.parse(g['date'] as String);
-        return date.isAfter(thirtyDaysAgo);
-      }).toList();
+  // ✅ NOUVEAU : Appliquer le filtre période
+  void _applyPeriodFilter() {
+    if (widget.selectedPeriod == null) {
+      _applyTypeAndSubjectFilters();
+      return;
     }
 
-    // Filtre par type
+    final startDate = widget.selectedPeriod!['start_date'] as String?;
+    final endDate = widget.selectedPeriod!['end_date'] as String?;
+
+    if (startDate == null || endDate == null) {
+      _applyTypeAndSubjectFilters();
+      return;
+    }
+
+    var filtered = widget.grades.where((g) {
+      final date = DateTime.parse(g['date'] as String);
+      final start = DateTime.parse(startDate);
+      final end = DateTime.parse(endDate);
+      return !date.isBefore(start) && !date.isAfter(end);
+    }).toList();
+
+    setState(() => _filteredGrades = filtered);
+    _applyTypeAndSubjectFilters();
+  }
+
+  void _applyTypeAndSubjectFilters() {
+    var filtered = List<Map<String, dynamic>>.from(_filteredGrades);
+
     if (_selectedTypeFilter != 'Tout') {
       filtered = filtered.where((g) => g['type'] == _selectedTypeFilter).toList();
     }
 
-    // Filtre par matière
     if (_selectedSubjectFilter != 'Tout') {
       filtered = filtered.where((g) {
         final subject = g['subjects']?['name'] as String?;
@@ -128,14 +144,14 @@ class _GradesTabState extends State<GradesTab> {
 
           const SizedBox(height: 20),
 
-          // ─── FILTRES ─────────────────────────
+          // ✅ REMPLACÉ : Filtres date/type/sujet par PeriodSelector + filtres type/sujet
           _buildFilters(),
 
           const SizedBox(height: 20),
 
           // ─── TABLEAU DES NOTES ─────────────
           if (_filteredGrades.isEmpty)
-            CommonWidgets.buildEmptyState('Aucune note pour ces filtres')
+            CommonWidgets.buildEmptyState('Aucune note pour cette période')
           else
             _buildGradesTable(),
         ],
@@ -146,21 +162,20 @@ class _GradesTabState extends State<GradesTab> {
   Widget _buildFilters() {
     return Column(
       children: [
-        // Ligne 1 : Date + Type
+        // ✅ LIGNE 1 : PeriodSelector (remplace le filtre date)
+        if (widget.periods.isNotEmpty)
+          PeriodSelector(
+            periods: widget.periods,
+            selectedPeriod: widget.selectedPeriod,
+            onPeriodChanged: (period) {
+              widget.onPeriodChanged(period);
+              _applyPeriodFilter();
+            },
+          ),
+        const SizedBox(height: 12),
+        // ✅ LIGNE 2 : Type + Matière
         Row(
           children: [
-            Expanded(
-              child: _buildDropdown(
-                value: _selectedDateFilter,
-                items: const ['Tout', '7 jours', '30 jours'],
-                label: 'Période',
-                onChanged: (val) {
-                  setState(() => _selectedDateFilter = val);
-                  _applyFilters();
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: _buildDropdown(
                 value: _selectedTypeFilter,
@@ -168,22 +183,23 @@ class _GradesTabState extends State<GradesTab> {
                 label: 'Type',
                 onChanged: (val) {
                   setState(() => _selectedTypeFilter = val);
-                  _applyFilters();
+                  _applyPeriodFilter();
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildDropdown(
+                value: _selectedSubjectFilter,
+                items: _getAvailableSubjects(),
+                label: 'Matière',
+                onChanged: (val) {
+                  setState(() => _selectedSubjectFilter = val);
+                  _applyPeriodFilter();
                 },
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 12),
-        // Ligne 2 : Matière
-        _buildDropdown(
-          value: _selectedSubjectFilter,
-          items: _getAvailableSubjects(),
-          label: 'Matière',
-          onChanged: (val) {
-            setState(() => _selectedSubjectFilter = val);
-            _applyFilters();
-          },
         ),
       ],
     );
@@ -228,6 +244,8 @@ class _GradesTabState extends State<GradesTab> {
     );
   }
 
+  // ─── RESTE DU FICHIER INCHANGÉ ─────────────────────────
+
   Widget _buildGradesTable() {
     return Card(
       elevation: 0,
@@ -239,7 +257,6 @@ class _GradesTabState extends State<GradesTab> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // ─── EN-TÊTE ─────────────────────
             Container(
               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
               decoration: BoxDecoration(
@@ -257,8 +274,6 @@ class _GradesTabState extends State<GradesTab> {
               ),
             ),
             const SizedBox(height: 4),
-
-            // ─── LIGNES ──────────────────────
             ..._filteredGrades.map((g) => _buildGradeRow(g)),
           ],
         ),
@@ -289,7 +304,6 @@ class _GradesTabState extends State<GradesTab> {
       ),
       child: Row(
         children: [
-          // Date
           Expanded(
             flex: 2,
             child: Text(
@@ -301,7 +315,6 @@ class _GradesTabState extends State<GradesTab> {
               ),
             ),
           ),
-          // Type
           Expanded(
             flex: 2,
             child: Text(
@@ -312,7 +325,6 @@ class _GradesTabState extends State<GradesTab> {
               ),
             ),
           ),
-          // Matière
           Expanded(
             flex: 3,
             child: Text(
@@ -323,7 +335,6 @@ class _GradesTabState extends State<GradesTab> {
               ),
             ),
           ),
-          // Coef
           Expanded(
             flex: 1,
             child: Text(
@@ -336,7 +347,6 @@ class _GradesTabState extends State<GradesTab> {
               ),
             ),
           ),
-          // Note /20
           Expanded(
             flex: 2,
             child: Container(

@@ -1,4 +1,5 @@
 // lib/presentation/pages/super_admin/school_trimesters_page.dart
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import '../../../../config/theme.dart';
 import '../../../../services/super_admin_trimester_service.dart';
@@ -27,20 +28,26 @@ class _SchoolTrimestersPageState extends State<SchoolTrimestersPage> {
   @override
   void initState() {
     super.initState();
+    developer.log('SchoolTrimestersPage - schoolId: ${widget.schoolId}');
     _load();
   }
 
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
+      developer.log('Loading trimesters...');
       final data = await _service.getTrimesters(widget.schoolId);
+      developer.log('Loaded ${data.length} trimesters: $data');
+      
       if (mounted) {
         setState(() {
           _trimesters = data;
           _loading = false;
+          _error = null;
         });
       }
     } catch (e) {
+      developer.log('Error loading trimesters: $e');
       if (mounted) {
         setState(() {
           _error = e.toString();
@@ -51,22 +58,22 @@ class _SchoolTrimestersPageState extends State<SchoolTrimestersPage> {
   }
 
   Future<void> _add() async {
-    final result = await showDialog<Map<String, dynamic>>(
+    await showDialog<bool>(
       context: context,
       builder: (_) => TrimesterDialog(schoolId: widget.schoolId),
     );
-    if (result != null) await _load();
+    await _load();
   }
 
   Future<void> _edit(Map<String, dynamic> t) async {
-    final result = await showDialog<Map<String, dynamic>>(
+    await showDialog<bool>(
       context: context,
       builder: (_) => TrimesterDialog(
         schoolId: widget.schoolId,
         trimester: t,
       ),
     );
-    if (result != null) await _load();
+    await _load();
   }
 
   Future<void> _delete(String id, String name) async {
@@ -82,8 +89,7 @@ class _SchoolTrimestersPageState extends State<SchoolTrimestersPage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Supprimer',
-                style: TextStyle(color: Colors.red)),
+            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -96,7 +102,7 @@ class _SchoolTrimestersPageState extends State<SchoolTrimestersPage> {
             const SnackBar(content: Text('Trimestre supprimé')),
           );
         }
-        _load();
+        await _load();
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -195,13 +201,11 @@ class _SchoolTrimestersPageState extends State<SchoolTrimestersPage> {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.edit,
-                  color: AppTheme.violet, size: 20),
+              icon: const Icon(Icons.edit, color: AppTheme.violet, size: 20),
               onPressed: () => _edit(t),
             ),
             IconButton(
-              icon: const Icon(Icons.delete,
-                  color: Colors.red, size: 20),
+              icon: const Icon(Icons.delete, color: Colors.red, size: 20),
               onPressed: () => _delete(id, name),
             ),
           ],
@@ -230,8 +234,7 @@ class _SchoolTrimestersPageState extends State<SchoolTrimestersPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.calendar_month_outlined,
-              size: 64, color: Colors.grey[400]),
+          Icon(Icons.calendar_month_outlined, size: 64, color: Colors.grey[400]),
           const SizedBox(height: 16),
           Text(
             'Aucun trimestre configuré',

@@ -47,7 +47,7 @@ class SubscriptionService {
             depositor_phone,
             notes,
             created_at,
-            app_users!inner(first_name, last_name, phone),
+            parent:app_users!payment_transactions_parent_id_fkey(first_name, last_name, phone),
             schools!inner(name, country_code, payment_phone_number)
           """)
           .eq('status', 'pending')
@@ -56,9 +56,7 @@ class SubscriptionService {
       final List<Map<String, dynamic>> result = [];
       
       for (final item in response) {
-        final parent = item['app_users'] is List 
-            ? (item['app_users'] as List).firstOrNull 
-            : item['app_users'];
+        final parent = item['parent'];
         final school = item['schools'] is List 
             ? (item['schools'] as List).firstOrNull 
             : item['schools'];

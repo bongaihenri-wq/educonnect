@@ -1,5 +1,6 @@
 // lib/presentation/blocs/report/report_bloc.dart
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/models/report_period_model.dart';
 import '../../../data/repositories/report_repository.dart';
 import '../../../data/repositories/class_repository.dart';
@@ -50,17 +51,8 @@ class ReportBloc extends Bloc<ReportEvent, ReportState> {
         'capacity': c.capacity ?? 0,
       }).toList();
 
-      final periods = ReportPeriodModel.generateForSchoolYear(
-        schoolYear: '2025-2026',
-        yearStart: DateTime(2025, 9, 1),
-        yearEnd: DateTime(2026, 6, 30),
-        trimesters: [
-          {'number': 1, 'start_date': '2025-09-01', 'end_date': '2025-11-15'},
-          {'number': 2, 'start_date': '2025-11-16', 'end_date': '2026-02-15'},
-          {'number': 3, 'start_date': '2026-02-16', 'end_date': '2026-06-30'},
-        ],
-        semesters: null,
-      );
+      // ✅ NOUVEAU : Charger les périodes depuis Supabase
+      final periods = await _getPeriodsFromSupabase();
 
       final currentPeriod = ReportPeriodModel.getCurrentPeriod(periods);
 
@@ -75,6 +67,64 @@ class ReportBloc extends Bloc<ReportEvent, ReportState> {
     }
   }
 
+  // ✅ NOUVEAU : Récupérer les périodes depuis Supabase
+  Future<List<ReportPeriodModel>> _getPeriodsFromSupabase() async {
+    try {
+      final response = await Supabase.instance.client.rpc(
+        'get_school_periods',
+        params: {'p_school_id': _schoolId},
+      );
+      
+      if (response == null || response.isEmpty) {
+        // Fallback sur les périodes par défaut
+        return _getDefaultPeriods();
+      }
+      
+      return (response as List).map((item) {
+        final level = item['level'] as int;
+        final type = _mapLevelToType(level);
+        
+        return ReportPeriodModel(
+          type: type,
+          value: '${item['academic_year']}-${item['name']}',
+          label: item['name'] as String,
+          startDate: DateTime.parse(item['start_date'] as String),
+          endDate: DateTime.parse(item['end_date'] as String),
+          schoolYear: item['academic_year'] as String,
+        );
+      }).toList();
+    } catch (e) {
+      // En cas d'erreur, fallback sur les périodes par défaut
+      return _getDefaultPeriods();
+    }
+  }
+
+  // ✅ NOUVEAU : Fallback sur les périodes hardcodées
+  List<ReportPeriodModel> _getDefaultPeriods() {
+    return ReportPeriodModel.generateForSchoolYear(
+      schoolYear: '2025-2026',
+      yearStart: DateTime(2025, 9, 1),
+      yearEnd: DateTime(2026, 6, 30),
+      trimesters: [
+        {'number': 1, 'start_date': '2025-09-01', 'end_date': '2025-11-15'},
+        {'number': 2, 'start_date': '2025-11-16', 'end_date': '2026-02-15'},
+        {'number': 3, 'start_date': '2026-02-16', 'end_date': '2026-06-30'},
+      ],
+      semesters: null,
+    );
+  }
+
+  // ✅ NOUVEAU : Mapper le level vers PeriodType
+  PeriodType _mapLevelToType(int level) {
+    switch (level) {
+      case 1: return PeriodType.semaine;
+      case 2: return PeriodType.mois;
+      case 3: return PeriodType.mois;
+      case 4: return PeriodType.trimestre;
+      default: return PeriodType.trimestre;
+    }
+  }
+
   Future<void> _onPeriodSelected(
     ReportPeriodSelected event,
     Emitter<ReportState> emit,
@@ -83,42 +133,42 @@ class ReportBloc extends Bloc<ReportEvent, ReportState> {
     if (state.selectedClassId != null) add(const ReportLoadDataRequested());
   }
 
- Future<void> _onClassSelected(
-  ReportClassSelected event,
-  Emitter<ReportState> emit,
-) async {
-  print('🔍 [8] _onClassSelected: ${event.classId}');
+  Future<void> _onClassSelected(
+    ReportClassSelected event,
+    Emitter<ReportState> emit,
+  ) async {
+    print('🔍 [8] _onClassSelected: ${event.classId}');
 
-  emit(state.copyWith(
-    selectedClassId: event.classId,
-    selectedClassName: event.className,
-    selectedStudentId: null,
-    selectedStudentName: null,
-    viewMode: ReportViewMode.classView,
-    clearStudentData: true,
-    clearClassData: false,
-  ));
+    emit(state.copyWith(
+      selectedClassId: event.classId,
+      selectedClassName: event.className,
+      selectedStudentId: null,
+      selectedStudentName: null,
+      viewMode: ReportViewMode.classView,
+      clearStudentData: true,
+      clearClassData: false,
+    ));
 
-  try {
-    print('🔍 [9] Loading students for class: ${event.classId}');
-    final studentModels = await _studentRepository.getStudentsByClass(event.classId);
-    print('🔍 [10] Students loaded: ${studentModels.length}');
-    
-    final students = studentModels.map((s) => {
-      'id': s.id,
-      'first_name': s.firstName,
-      'last_name': s.lastName,
-      'full_name': '${s.firstName} ${s.lastName}',
-    }).toList();
-    
-    emit(state.copyWith(students: students));
-    print('🔍 [11] Students emitted: ${students.length}');
-  } catch (e) {
-    print('🔍 [ERROR] Loading students: $e');
+    try {
+      print('🔍 [9] Loading students for class: ${event.classId}');
+      final studentModels = await _studentRepository.getStudentsByClass(event.classId);
+      print('🔍 [10] Students loaded: ${studentModels.length}');
+      
+      final students = studentModels.map((s) => {
+        'id': s.id,
+        'first_name': s.firstName,
+        'last_name': s.lastName,
+        'full_name': '${s.firstName} ${s.lastName}',
+      }).toList();
+      
+      emit(state.copyWith(students: students));
+      print('🔍 [11] Students emitted: ${students.length}');
+    } catch (e) {
+      print('🔍 [ERROR] Loading students: $e');
+    }
+
+    add(const ReportLoadDataRequested());
   }
-
-  add(const ReportLoadDataRequested());
-}
 
   Future<void> _onStudentSelected(
     ReportStudentSelected event,
@@ -129,13 +179,12 @@ class ReportBloc extends Bloc<ReportEvent, ReportState> {
       selectedStudentName: event.studentName,
       viewMode: event.studentId != null ? ReportViewMode.studentView : ReportViewMode.classView,
       clearStudentData: false,
-      clearClassData: event.studentId == null, // ✅ Effacer données élève si "Toute la classe"
+      clearClassData: event.studentId == null,
     ));
     
     add(const ReportLoadDataRequested());
   }
 
-  // ✅ CORRIGÉ : _onLoadData avec vérification isStudentView
   Future<void> _onLoadData(
     ReportLoadDataRequested event,
     Emitter<ReportState> emit,
@@ -144,7 +193,6 @@ class ReportBloc extends Bloc<ReportEvent, ReportState> {
     emit(state.copyWith(isLoading: true, error: null));
 
     try {
-      // ✅ VÉRIFIER si on est en mode student ET qu'un élève est sélectionné
       final isStudentView = state.viewMode == ReportViewMode.studentView && state.selectedStudentId != null;
       
       if (isStudentView) {
@@ -170,7 +218,7 @@ class ReportBloc extends Bloc<ReportEvent, ReportState> {
           isLoading: false,
           studentAttendance: attendance,
           studentGrades: grades,
-          classAttendance: null, // ✅ Effacer données classe
+          classAttendance: null,
           classGrades: null,
         ));
       } else {
@@ -194,7 +242,7 @@ class ReportBloc extends Bloc<ReportEvent, ReportState> {
           isLoading: false,
           classAttendance: attendance,
           classGrades: grades,
-          studentAttendance: null, // ✅ Effacer données élève
+          studentAttendance: null,
           studentGrades: null,
         ));
       }

@@ -1,4 +1,3 @@
-// lib/services/admin_stats_service.dart
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminStatsService {
@@ -281,8 +280,13 @@ class AdminStatsService {
     }
   }
 
-  /// ✅ CORRIGÉ : Récupère les stats des enseignants avec NOMBRE D'APPELS CORRECT
-  Future<List<Map<String, dynamic>>> getTeachersWithAttendanceStats(String schoolId) async {
+  /// Récupère les stats des enseignants avec NOMBRE D'APPELS CORRECT
+  Future<List<Map<String, dynamic>>> getTeachersWithAttendanceStats(
+    String schoolId, {
+    int daysRange = 30,
+  }) async {
+    final startDate = DateTime.now().subtract(Duration(days: daysRange));
+
     try {
       final teachersResponse = await _client
           .from('app_users')
@@ -293,20 +297,16 @@ class AdminStatsService {
       final teachers = List<Map<String, dynamic>>.from(teachersResponse);
       final result = <Map<String, dynamic>>[];
 
-      final thirtyDaysAgo = DateTime.now()
-          .subtract(const Duration(days: 30))
-          .toIso8601String();
-
       for (var teacher in teachers) {
         final teacherId = teacher['id'] as String;
 
-        // ✅ CORRIGÉ : Compter les SESSIONS d'appel uniques (pas les lignes)
+        // Compter les SESSIONS d'appel uniques (pas les lignes)
         final callsResponse = await _client
             .from('attendance')
             .select('date, class_id, schedule_id')
             .eq('school_id', schoolId)
             .eq('teacher_id', teacherId)
-            .gte('date', thirtyDaysAgo);
+            .gte('date', startDate.toIso8601String());
 
         // Compter les sessions uniques (date + class_id + schedule_id)
         final uniqueSessions = <String>{};
@@ -314,7 +314,6 @@ class AdminStatsService {
           final date = call['date']?.toString() ?? '';
           final classId = call['class_id']?.toString() ?? '';
           final scheduleId = call['schedule_id']?.toString() ?? '';
-          // Clé unique : date_classId_scheduleId
           uniqueSessions.add('${date}_${classId}_$scheduleId');
         }
         final callsThisMonth = uniqueSessions.length;
@@ -355,8 +354,8 @@ class AdminStatsService {
           'teacher_name': '${teacher['first_name'] ?? ''} ${teacher['last_name'] ?? ''}'.trim(),
           'email': teacher['email'],
           'phone': teacher['phone'],
-          'calls_this_month': callsThisMonth,  // ✅ Nombre de sessions uniques
-          'total_student_records': totalStudentRecords, // Nombre total de lignes (élèves)
+          'calls_this_month': callsThisMonth,
+          'total_student_records': totalStudentRecords,
           'present_count': present,
           'absent_count': absent,
           'late_count': late,
@@ -378,9 +377,13 @@ class AdminStatsService {
   /// Récupère l'assiduité par classe
   Future<List<Map<String, dynamic>>> getAttendanceByClass(
     String schoolId, {
+    int daysRange = 30,
     DateTime? startDate,
     DateTime? endDate,
   }) async {
+    final effectiveStartDate = startDate ?? DateTime.now().subtract(Duration(days: daysRange));
+    final effectiveEndDate = endDate ?? DateTime.now();
+    
     try {
       final classesResponse = await _client
           .from('classes')
@@ -392,9 +395,6 @@ class AdminStatsService {
       final classes = List<Map<String, dynamic>>.from(classesResponse);
       final result = <Map<String, dynamic>>[];
 
-      final start = startDate ?? DateTime.now().subtract(const Duration(days: 30));
-      final end = endDate ?? DateTime.now();
-
       for (var classe in classes) {
         final classId = classe['id'] as String;
 
@@ -403,8 +403,8 @@ class AdminStatsService {
             .select('status')
             .eq('school_id', schoolId)
             .eq('class_id', classId)
-            .gte('date', start.toIso8601String())
-            .lte('date', end.toIso8601String());
+            .gte('date', effectiveStartDate.toIso8601String())
+            .lte('date', effectiveEndDate.toIso8601String());
 
         int total = attendanceResponse.length;
         int present = 0;
@@ -424,7 +424,7 @@ class AdminStatsService {
 
         result.add({
           'class_id': classId,
-          'class_name': classe['name'],  // ✅ CORRIGÉ : pas de concaténation
+          'class_name': classe['name'],
           'presence_rate': total > 0 ? (present / total * 100).round() : 0,
           'present_count': present,
           'absent_count': absent,

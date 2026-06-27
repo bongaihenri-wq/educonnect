@@ -112,6 +112,7 @@ class _SchoolManagementPageState extends State<SchoolManagementPage> {
           onEdit: () => _showEditSchoolDialog(school),
           onDelete: () => _confirmDelete(school),
           onViewDetails: () => _showSchoolDetails(school),
+          onTrimesters: () => _showTrimesters(school),
         );
       },
     );
@@ -169,6 +170,18 @@ class _SchoolManagementPageState extends State<SchoolManagementPage> {
       ),
     ).then((_) => _loadSchools());
   }
+
+  // ✅ AJOUTÉ : Navigation vers les trimestres de l'école
+  void _showTrimesters(Map<String, dynamic> school) {
+    Navigator.pushNamed(
+      context,
+      AppRoutes.schoolTrimesters,
+      arguments: {
+        'schoolId': school['id'] as String,
+        'schoolName': school['name'] as String,
+      },
+    );
+  }
 }
 
 class _SchoolCard extends StatelessWidget {
@@ -176,12 +189,14 @@ class _SchoolCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onViewDetails;
+  final VoidCallback onTrimesters; // ✅ AJOUTÉ
 
   const _SchoolCard({
     required this.school,
     required this.onEdit,
     required this.onDelete,
     required this.onViewDetails,
+    required this.onTrimesters, // ✅ AJOUTÉ
   });
 
   @override
@@ -229,10 +244,15 @@ class _SchoolCard extends StatelessWidget {
                       if (value == 'edit') onEdit();
                       if (value == 'delete') onDelete();
                       if (value == 'import') _showImportMenu(context);
+                      if (value == 'trimesters') onTrimesters(); // ✅ AJOUTÉ
                     },
                     itemBuilder: (context) => [
                       const PopupMenuItem(value: 'edit', child: Row(
                         children: [Icon(Icons.edit, size: 18), SizedBox(width: 8), Text('Modifier')],
+                      )),
+                      // ✅ AJOUTÉ : Menu Trimestres
+                      const PopupMenuItem(value: 'trimesters', child: Row(
+                        children: [Icon(Icons.date_range, size: 18, color: Colors.pink), SizedBox(width: 8), Text('Trimestres', style: TextStyle(color: Colors.pink))],
                       )),
                       const PopupMenuItem(value: 'import', child: Row(
                         children: [Icon(Icons.upload_file, size: 18, color: Colors.green), SizedBox(width: 8), Text('Importer données', style: TextStyle(color: Colors.green))],
@@ -277,7 +297,6 @@ class _SchoolCard extends StatelessWidget {
     }
   }
 
-  // ⭐ CORRIGÉ : Navigation vers BulkImportPage
   void _showImportMenu(BuildContext context) {
     final schoolId = school['id']?.toString() ?? '';
     final schoolCode = school['school_code']?.toString() ?? '';

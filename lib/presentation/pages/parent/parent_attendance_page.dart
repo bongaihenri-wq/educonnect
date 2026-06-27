@@ -2,6 +2,7 @@
 import 'package:educonnect/services/child_detail_service.dart';
 import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
+import '../admin/widgets/period_selector.dart'; // ✅ AJOUTÉ
 import 'widgets/presence_stats_cards.dart';
 import 'widgets/presence_filter_bar.dart';
 import 'widgets/presence_table_widget.dart';
@@ -10,12 +11,19 @@ class ParentAttendancePage extends StatefulWidget {
   final String studentId;
   final String studentName;
   final bool isEmbedded;
+  // ✅ PARAMÈTRES PÉRIODES AJOUTÉS
+  final List<Map<String, dynamic>> periods;
+  final Map<String, dynamic>? selectedPeriod;
+  final ValueChanged<Map<String, dynamic>?> onPeriodChanged;
 
   const ParentAttendancePage({
     super.key,
     required this.studentId,
     required this.studentName,
     this.isEmbedded = false,
+    this.periods = const [], // ✅ AJOUTÉ
+    this.selectedPeriod, // ✅ AJOUTÉ
+    required this.onPeriodChanged, // ✅ AJOUTÉ
   });
 
   @override
@@ -29,9 +37,10 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
   List<Map<String, dynamic>> _filteredAttendance = [];
   List<String> _availableSubjects = [];
   
-  String _selectedPeriod = 'Tout';
+  // ✅ SUPPRIMÉ : _selectedPeriod String hardcodé
+  // ✅ SUPPRIMÉ : _selectedDate
+  
   String _selectedSubject = 'Tous';
-  DateTime? _selectedDate;
 
   @override
   void initState() {
@@ -58,70 +67,55 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
     });
   }
 
-  void _applyFilters() {
-    var filtered = List<Map<String, dynamic>>.from(_allAttendance);
-
-    if (_selectedPeriod == 'Jour' && _selectedDate != null) {
-      filtered = filtered.where((a) {
-        final date = DateTime.parse(a['date'] as String);
-        return date.year == _selectedDate!.year &&
-               date.month == _selectedDate!.month &&
-               date.day == _selectedDate!.day;
-      }).toList();
-    } else if (_selectedPeriod == 'Mois' && _selectedDate != null) {
-      filtered = filtered.where((a) {
-        final date = DateTime.parse(a['date'] as String);
-        return date.year == _selectedDate!.year &&
-               date.month == _selectedDate!.month;
-      }).toList();
-    } else if (_selectedPeriod == 'Trimestre' && _selectedDate != null) {
-      final trimestre = _getTrimestre(_selectedDate!.month);
-      filtered = filtered.where((a) {
-        final date = DateTime.parse(a['date'] as String);
-        return date.year == _selectedDate!.year &&
-               _getTrimestre(date.month) == trimestre;
-      }).toList();
+  // ✅ NOUVEAU : Filtrer par période réelle (start_date / end_date)
+  void _applyPeriodFilter(Map<String, dynamic>? period) {
+    if (period == null) {
+      setState(() => _filteredAttendance = _allAttendance);
+      _applySubjectFilter();
+      return;
     }
 
-    if (_selectedSubject != 'Tous') {
-      filtered = filtered.where((a) {
+    final startDate = period['start_date'] as String?;
+    final endDate = period['end_date'] as String?;
+
+    if (startDate == null || endDate == null) {
+      setState(() => _filteredAttendance = _allAttendance);
+      _applySubjectFilter();
+      return;
+    }
+
+    var filtered = _allAttendance.where((a) {
+      final date = DateTime.parse(a['date'] as String);
+      final start = DateTime.parse(startDate);
+      final end = DateTime.parse(endDate);
+      return !date.isBefore(start) && !date.isAfter(end);
+    }).toList();
+
+    setState(() => _filteredAttendance = filtered);
+    _applySubjectFilter();
+  }
+
+  void _applySubjectFilter() {
+    if (_selectedSubject == 'Tous') return;
+    
+    setState(() {
+      _filteredAttendance = _filteredAttendance.where((a) {
         final subject = a['schedules']?['subjects']?['name'] as String?;
         return subject == _selectedSubject;
       }).toList();
-    }
-
-    setState(() {
-      _filteredAttendance = filtered;
     });
   }
 
-  int _getTrimestre(int month) {
-    if (month <= 3) return 1;
-    if (month <= 6) return 2;
-    if (month <= 9) return 3;
-    return 4;
-  }
-
-  void _onPeriodChanged(String period) {
-    setState(() {
-      _selectedPeriod = period;
-      if (period == 'Tout') {
-        _selectedDate = null;
-      } else {
-        _selectedDate = DateTime.now();
-      }
-    });
-    _applyFilters();
+  // ✅ MODIFIÉ : Utilise le PeriodSelector au lieu du filter bar hardcodé
+  void _onPeriodChanged(Map<String, dynamic>? period) {
+    widget.onPeriodChanged(period);
+    _applyPeriodFilter(period);
   }
 
   void _onSubjectChanged(String subject) {
     setState(() => _selectedSubject = subject);
-    _applyFilters();
-  }
-
-  void _onDateChanged(DateTime date) {
-    setState(() => _selectedDate = date);
-    _applyFilters();
+    // Re-appliquer le filtre période + sujet
+    _applyPeriodFilter(widget.selectedPeriod);
   }
 
   @override
@@ -166,16 +160,18 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
                 SliverToBoxAdapter(
                   child: PresenceStatsCards(attendance: _filteredAttendance),
                 ),
-                SliverToBoxAdapter(
-                  child: PresenceFilterBar(
-                    selectedPeriod: _selectedPeriod,
-                    selectedSubject: _selectedSubject,
-                    selectedDate: _selectedDate,
-                    availableSubjects: _availableSubjects,
-                    onPeriodChanged: _onPeriodChanged,
-                    onSubjectChanged: _onSubjectChanged,
-                    onDateChanged: _onDateChanged,
+                // ✅ REMPLACÉ : PresenceFilterBar par PeriodSelector
+                if (widget.periods.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: PeriodSelector(
+                      periods: widget.periods,
+                      selectedPeriod: widget.selectedPeriod,
+                      onPeriodChanged: _onPeriodChanged,
+                    ),
                   ),
+                // ✅ FILTRE MATIÈRE CONSERVÉ (plus simple)
+                SliverToBoxAdapter(
+                  child: _buildSubjectFilter(),
                 ),
                 SliverPadding(
                   padding: const EdgeInsets.all(16),
@@ -187,5 +183,86 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
               ],
             ),
           );
+  }
+
+  // ✅ NOUVEAU : Filtre matière simplifié
+  Widget _buildSubjectFilter() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.violet.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.violet.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              Icons.book_outlined,
+              color: AppTheme.violet,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Matière',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[500],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    value: _selectedSubject,
+                    icon: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppTheme.violet,
+                      size: 20,
+                    ),
+                    dropdownColor: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.nightBlue,
+                    ),
+                    items: _availableSubjects.map((subject) {
+                      return DropdownMenuItem<String>(
+                        value: subject,
+                        child: Text(subject),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) _onSubjectChanged(val);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -54,6 +54,7 @@ import '../presentation/pages/super_admin/parent_support_detail_page.dart';
 import '../presentation/pages/super_admin/school_year_management_page.dart';
 import '../presentation/pages/super_admin/commercial_dashboard_page.dart';
 import '../presentation/pages/super_admin/school_trimesters_page.dart';
+import '../presentation/pages/super_admin/school_trimester_setup_page.dart';
 
 // ==================== BLOCS & REPOSITORIES ====================
 import '../presentation/blocs/attendance/attendance_bloc.dart';
@@ -124,6 +125,7 @@ class AppRoutes {
   static const String commercialDashboard = '/super-admin/commercial-dashboard';
   static const String roleUsersList = '/super-admin/role-users-list';
   static const String schoolTrimesters = '/super-admin/school-trimesters';
+  static const String schoolTrimesterSetup = '/school-trimester-setup';
 
   // -------------------- ANCIENNES ROUTES (compatibilité) --------------------
   static const String classesStudents = '/classes_students';
@@ -172,7 +174,6 @@ class AppRoutes {
     teacherDashboard: (context) => const TeacherDashboard(),
     teacherScheduleFull: (context) => const TeacherScheduleFullPage(),
     
-    // ✅ CORRIGÉ : Récupération des arguments pour TeacherReportsPage
     teacherReports: (context) {
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       return TeacherReportsPage(
@@ -252,16 +253,15 @@ class AppRoutes {
     homework: (context) => const HomeworkPage(),
     grades: (context) => const GradesPage(),
     
-    // ✅ CORRIGÉ : Récupération des arguments pour AssistantDashboard
-      assistantDashboard: (context) {
+    // ASSISTANT & PRINCIPAL
+    assistantDashboard: (context) {
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       return AssistantDashboard(
         countryCode: args?['countryCode'] ?? '+225',
       );
     },
     
-    // ✅ CORRIGÉ : Récupération des arguments pour PrincipalDashboard
-   principalDashboard: (context) => const PrincipalDashboard(),
+    principalDashboard: (context) => const PrincipalDashboard(),
     
     // SUPER ADMIN
     superAdminDashboard: (context) => const SuperAdminDashboardPage(),
@@ -270,7 +270,6 @@ class AppRoutes {
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       return SchoolDetailPage(school: args?['school'] ?? {});
     },
-    // ✅ CORRIGÉ : Ajout de subscriptionTracking dans le Map
     subscriptionTracking: (context) => const SubscriptionDashboardPage(),
     supportDashboard: (context) => const SupportDashboardPage(),
     parentSupportDetail: (context) {
@@ -292,7 +291,13 @@ class AppRoutes {
         schoolName: args?['schoolName'] as String? ?? 'École',
       );
     },
-  
+    schoolTrimesterSetup: (context) {
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      return SchoolTrimesterSetupPage(
+        schoolId: args?['schoolId'] ?? '',
+        schoolName: args?['schoolName'] ?? '',
+      );
+    },
     roleManagement: (context) => const RoleManagementPage(),
     subscriptionDashboard: (context) => const SubscriptionDashboardPage(),
     schoolYearManagement: (context) => const SchoolYearManagementPage(),
