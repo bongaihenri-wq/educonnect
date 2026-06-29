@@ -37,6 +37,7 @@ import '../presentation/pages/admin/parents_list_page.dart';
 import '../presentation/pages/admin/classes_students_page.dart';
 import '../presentation/pages/admin/admin_send_message_page.dart';
 import '../presentation/pages/admin/bulk_import_page.dart';
+import '../presentation/pages/admin/school_report/school_report_page.dart'; // ✅ AJOUTÉ
 
 // ==================== ASSISTANT & PRINCIPAL ====================
 import '../presentation/pages/assistant/assistant_dashboard.dart';
@@ -101,6 +102,7 @@ class AppRoutes {
   static const String adminSettings = '/admin/settings';
   static const String adminSendMessage = '/admin/send-message';
   static const String adminBulkImport = '/admin/bulk-import';
+  static const String schoolReport = '/school-report'; // ✅ AJOUTÉ
   
   // Routes pilotage
   static const String schedule = '/schedule';
@@ -247,6 +249,7 @@ class AppRoutes {
         schoolYear: args?['schoolYear'] ?? '2024-2025',
       );
     },
+    schoolReport: (context) => const SchoolReportPage(), // ✅ AJOUTÉ
     
     // Routes pilotage
     schedule: (context) => const SchedulePage(),

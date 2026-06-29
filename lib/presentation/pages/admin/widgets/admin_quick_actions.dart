@@ -27,14 +27,13 @@ class AdminQuickActions extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                // ✅ FUSIONNÉ : Classes & Élèves (supprime Liste Classes + Liste Élèves)
                 _quickAccessButton(context, Icons.people_alt, 'Classes &\nÉlèves', Colors.indigo, '/admin/classes-students'),
                 const SizedBox(width: 12),
                 _quickAccessButton(context, Icons.person_outline, 'Enseignants', Colors.orange, '/admin/teachers'),
                 const SizedBox(width: 12),
-                 _quickAccessButton(context, Icons.bar_chart, 'Notes', Colors.purple, '/grades'),
+                _quickAccessButton(context, Icons.bar_chart, 'Notes', Colors.purple, '/grades'),
                 const SizedBox(width: 12),
-                            ],
+              ],
             ),
           ),
           
@@ -49,8 +48,8 @@ class AdminQuickActions extends StatelessWidget {
                 const SizedBox(width: 12),
                 _quickAccessButton(context, Icons.assignment, 'Devoirs', Colors.deepOrange, '/homework'),
                 const SizedBox(width: 12),
-               
-                _quickAccessButton(context, Icons.analytics, 'Rapports', Colors.cyan, '/admin/reports'),
+                // ✅ MODIFIÉ : '/admin/reports' → '/school-report'
+                _quickAccessButton(context, Icons.analytics, 'Rapports', Colors.cyan, '/school-report'),
               ],
             ),
           ),
@@ -58,15 +57,14 @@ class AdminQuickActions extends StatelessWidget {
           const SizedBox(height: 20),
 
           // Actions avancées
-
           _buildActionTile(
-           icon: Icons.campaign,
-           label: 'Envoyer un message',
-           color: Colors.purple,
-           onTap: () => Navigator.pushNamed(context, '/admin/send-message'),
-              ),
-        const SizedBox(height: 12),
-           _buildActionTile(
+            icon: Icons.campaign,
+            label: 'Envoyer un message',
+            color: Colors.purple,
+            onTap: () => Navigator.pushNamed(context, '/admin/send-message'),
+          ),
+          const SizedBox(height: 12),
+          _buildActionTile(
             icon: Icons.settings,
             label: 'Paramètres École',
             color: Colors.grey,

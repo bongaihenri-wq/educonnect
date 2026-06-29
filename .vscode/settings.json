@@ -8,4 +8,20 @@
   "[typescript]": {
     "editor.defaultFormatter": "denoland.vscode-deno"
   }
+  "dart.flutterHotReloadOnSave": true,
+  "dart.previewFlutterUiGuides": true,
+  "dart.showLintNames": true,
+  "dart.analysisServerFolding": true,
+  "dart.flutterOutline": true,
+  "dart.closeToEdit": true,
+  "[dart]": {
+    "editor.formatOnSave": true,
+    "editor.formatOnType": true,
+    "editor.rulers": [80],
+    "editor.selectionHighlight": false,
+    "editor.suggest.snippetsPreventQuickSuggestions": false,
+    "editor.suggestSelection": "first",
+    "editor.tabCompletion": "onlySnippets",
+    "editor.wordBasedSuggestions": "off"
+  }
 }

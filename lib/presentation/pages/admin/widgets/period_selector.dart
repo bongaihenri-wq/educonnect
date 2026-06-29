@@ -23,8 +23,16 @@ class _PeriodSelectorState extends State<PeriodSelector> {
   Widget build(BuildContext context) {
     if (widget.periods.isEmpty) return const SizedBox.shrink();
 
-    final dynamicPeriods = widget.periods.where((p) => p['is_dynamic'] == true).toList();
-    final academicPeriods = widget.periods.where((p) => p['is_dynamic'] != true).toList();
+    // ✅ Séparer dynamiques (id commence par "dynamic_") et académiques
+    final dynamicPeriods = widget.periods.where((p) {
+      final id = p['id'] as String?;
+      return id != null && id.startsWith('dynamic_');
+    }).toList();
+
+    final academicPeriods = widget.periods.where((p) {
+      final id = p['id'] as String?;
+      return id == null || !id.startsWith('dynamic_');
+    }).toList();
 
     final List<DropdownMenuItem<String>> items = [];
 
@@ -142,7 +150,7 @@ class _PeriodSelectorState extends State<PeriodSelector> {
                     color: Colors.grey[500],
                     fontWeight: FontWeight.w500,
                     letterSpacing: 0.3,
-                    height: 1.0, // Réduit l'espacement
+                    height: 1.0,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -158,7 +166,7 @@ class _PeriodSelectorState extends State<PeriodSelector> {
                     dropdownColor: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     menuMaxHeight: 400,
-                    itemHeight: 48, // ← RÉDUIT DE 56 À 48
+                    itemHeight: 48,
                     selectedItemBuilder: (context) {
                       return items.map((item) {
                         if (item.value?.startsWith('__') == true) {
@@ -235,7 +243,6 @@ class _PeriodSelectorState extends State<PeriodSelector> {
 
     final bool isSelected = widget.selectedPeriod?['name'] == name;
 
-    // === UTILISER UN WRAP AU LIEU DE COLUMN POUR ÉVITER OVERFLOW ===
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
@@ -248,11 +255,10 @@ class _PeriodSelectorState extends State<PeriodSelector> {
           ),
         ),
         const SizedBox(width: 10),
-        // Nom et dates sur une seule ligne si possible
         Text(
           name,
           style: const TextStyle(
-            fontSize: 13, // ← RÉDUIT DE 14 À 13
+            fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -261,7 +267,7 @@ class _PeriodSelectorState extends State<PeriodSelector> {
           Text(
             '($dateRange)',
             style: TextStyle(
-              fontSize: 10, // ← RÉDUIT DE 11 À 10
+              fontSize: 10,
               color: Colors.grey[500],
             ),
           ),
@@ -277,7 +283,7 @@ class _PeriodSelectorState extends State<PeriodSelector> {
             child: Text(
               'Actif',
               style: TextStyle(
-                fontSize: 9, // ← RÉDUIT
+                fontSize: 9,
                 fontWeight: FontWeight.bold,
                 color: Colors.green[700],
               ),
@@ -289,7 +295,7 @@ class _PeriodSelectorState extends State<PeriodSelector> {
           Icon(
             Icons.check_rounded,
             color: AppTheme.violet,
-            size: 16, // ← RÉDUIT DE 18 À 16
+            size: 16,
           ),
         ],
       ],
