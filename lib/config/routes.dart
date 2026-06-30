@@ -23,6 +23,7 @@ import '../presentation/pages/teacher/grades_entry_page.dart';
 import '../presentation/pages/teacher/grades_classes_page.dart';
 import '../presentation/pages/teacher/teacher_schedule_full_page.dart';
 import '../presentation/pages/teacher/teacher_reports_page.dart';
+import '../presentation/pages/teacher/teacher_messages_page.dart'; // ✅ AJOUTÉ
 
 // ==================== ADMIN ÉCOLE ====================
 import '../presentation/pages/admin/admin_dashboard.dart';
@@ -89,6 +90,7 @@ class AppRoutes {
   static const String teacherCommentsEntry = '/teacher/comments-entry';
   static const String teacherScheduleFull = '/teacher/schedule-full';
   static const String teacherReports = '/teacher/reports';
+  static const String teacherMessages = '/teacher/messages';
   
   // -------------------- ADMIN ÉCOLE --------------------
   static const String adminDashboard = '/admin/dashboard';
@@ -228,6 +230,7 @@ class AppRoutes {
         className: args?['className'] ?? '',
       );
     },
+    teacherMessages: (context) => const TeacherMessagesPage(),
     
     // ADMIN ÉCOLE
     adminDashboard: (context) => const AdminDashboard(),

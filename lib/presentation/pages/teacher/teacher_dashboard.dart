@@ -10,7 +10,7 @@ import 'widgets/dashboard_header.dart';
 import 'widgets/stat_cards_row.dart';
 import 'widgets/quick_actions_grid.dart';
 import 'widgets/course_list_section.dart';
-import 'widgets/teacher_comment_list_section.dart';
+import 'teacher_messages_page.dart';
 
 class TeacherDashboard extends StatefulWidget {
   const TeacherDashboard({super.key});
@@ -22,6 +22,7 @@ class TeacherDashboard extends StatefulWidget {
 class _TeacherDashboardState extends State<TeacherDashboard> {
   List<CourseModel> _assignedCourses = [];
   List<Map<String, dynamic>> _adminMessages = [];
+  List<Map<String, dynamic>> _parentMessages = [];
   bool _isLoading = true;
   bool _isLoadingMessages = true;
 
@@ -29,7 +30,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   void initState() {
     super.initState();
     _loadDashboardData();
-    _loadAdminMessages();
+    _loadMessages();
   }
 
   String _extractUserId(AuthState state) {
@@ -64,7 +65,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     }
   }
 
-  Future<void> _loadAdminMessages() async {
+  Future<void> _loadMessages() async {
     final authState = context.read<AuthBloc>().state;
     final teacherId = _extractUserId(authState);
     final schoolId = _extractSchoolId(authState);
@@ -75,18 +76,35 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     }
 
     try {
-      final messages = await TeacherService().getTeacherMessages(
+      final adminMsgs = await TeacherService().getTeacherMessages(
         teacherId: teacherId,
         schoolId: schoolId,
       );
+      
+      final parentMsgs = await TeacherService().getParentMessages(
+        teacherId: teacherId,
+        limit: 50,
+      );
+
       setState(() {
-        _adminMessages = messages;
+        _adminMessages = List<Map<String, dynamic>>.from(adminMsgs);
+        _parentMessages = List<Map<String, dynamic>>.from(parentMsgs);
         _isLoadingMessages = false;
       });
     } catch (e) {
-      debugPrint("Erreur messages admin: $e");
+      debugPrint("Erreur messages: $e");
       setState(() => _isLoadingMessages = false);
     }
+  }
+
+  List<Map<String, dynamic>> _filterRecentMessages(List<Map<String, dynamic>> messages) {
+    final now = DateTime.now();
+    final yesterday = now.subtract(const Duration(hours: 24));
+    
+    return messages.where((msg) {
+      final createdAt = DateTime.tryParse(msg['created_at'] as String? ?? '');
+      return createdAt != null && createdAt.isAfter(yesterday);
+    }).toList();
   }
 
   @override
@@ -95,13 +113,19 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     final teacherId = _extractUserId(authState);
     final schoolId = _extractSchoolId(authState);
 
+    final recentAdminMessages = _filterRecentMessages(_adminMessages);
+    final recentParentMessages = _filterRecentMessages(_parentMessages);
+    final hasMessages = recentAdminMessages.isNotEmpty || recentParentMessages.isNotEmpty;
+    final totalUnread = recentAdminMessages.where((m) => !(m['is_read'] as bool? ?? true)).length +
+                       recentParentMessages.where((m) => !(m['is_read'] as bool? ?? true)).length;
+
     return Scaffold(
       backgroundColor: AppTheme.bisLight,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
             await _loadDashboardData();
-            await _loadAdminMessages();
+            await _loadMessages();
           },
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -128,124 +152,274 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                 teacherId: teacherId,
                 schoolId: schoolId,
               ),
-              if (_adminMessages.isNotEmpty) ...[
-                const SliverToBoxAdapter(
+              _isLoading 
+                ? const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()))
+                : CourseListSection(courses: _assignedCourses),
+              
+              if (hasMessages) ...[
+                SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
+                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
                     child: Row(
                       children: [
-                        Icon(Icons.campaign, color: Colors.orange, size: 22),
-                        SizedBox(width: 8),
-                        Text(
-                          'Messages de l\'administration',
+                        const Icon(Icons.message, color: AppTheme.violet, size: 22),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Messages',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: AppTheme.nightBlue,
                           ),
                         ),
+                        const Spacer(),
+                        if (totalUnread > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '$totalUnread',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final msg = _adminMessages[index];
-                        final isBroadcast = msg['is_broadcast'] == true;
-                        final isRead = msg['is_read'] == true;
-                        
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: isRead ? Colors.white : Colors.orange.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: isRead ? AppTheme.bisDark : Colors.orange.withOpacity(0.3),
-                              width: isRead ? 1 : 1.5,
+                
+                if (recentAdminMessages.isNotEmpty) ...[
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                      child: Row(
+                        children: [
+                          Icon(Icons.campaign, color: Colors.orange, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Administration',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[600],
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.03),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: isBroadcast 
-                                          ? Colors.red.withOpacity(0.1) 
-                                          : Colors.blue.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      isBroadcast ? '📢 ANNONCE' : '💬 Message',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: isBroadcast ? Colors.red : Colors.blue,
-                                      ),
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  if (!isRead)
-                                    Container(
-                                      width: 8,
-                                      height: 8,
-                                      decoration: const BoxDecoration(
-                                        color: Colors.red,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                msg['content'] ?? 'Sans contenu',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: isRead ? FontWeight.normal : FontWeight.w600,
-                                  color: AppTheme.nightBlue,
-                                ),
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'De: ${msg['sender_name'] ?? 'Admin'} • ${msg['sender_role'] ?? 'Administration'}',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => _buildAdminMessageCard(recentAdminMessages[index]),
+                        childCount: recentAdminMessages.length > 3 ? 3 : recentAdminMessages.length,
+                      ),
+                    ),
+                  ),
+                ],
+                
+                if (recentParentMessages.isNotEmpty) ...[
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                      child: Row(
+                        children: [
+                          Icon(Icons.person, color: Colors.green, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Parents',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[600],
+                            ),
                           ),
-                        );
-                      },
-                      childCount: _adminMessages.length > 5 ? 5 : _adminMessages.length,
+                        ],
+                      ),
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => _buildParentMessageCard(recentParentMessages[index]),
+                        childCount: recentParentMessages.length > 3 ? 3 : recentParentMessages.length,
+                      ),
+                    ),
+                  ),
+                ],
+                
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                    child: InkWell(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const TeacherMessagesPage(),
+                        ),
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.violet.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.violet.withOpacity(0.2)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Voir tous les messages',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.violet,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(Icons.arrow_forward, size: 16, color: AppTheme.violet),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ],
-              _isLoading 
-                ? const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()))
-                : CourseListSection(courses: _assignedCourses),
-              TeacherCommentListSection(teacherId: teacherId),
+              
               const LogoutButton(),
               const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildAdminMessageCard(Map<String, dynamic> msg) {
+    final isBroadcast = msg['is_broadcast'] == true;
+    final isRead = msg['is_read'] == true;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isRead ? Colors.white : Colors.orange.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isRead ? Colors.grey.shade200 : Colors.orange.withOpacity(0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isBroadcast ? Colors.red.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  isBroadcast ? '📢 ANNONCE' : '💬 Message',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: isBroadcast ? Colors.red : Colors.blue,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              if (!isRead)
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            msg['content'] ?? 'Sans contenu',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isRead ? FontWeight.normal : FontWeight.w600,
+              color: AppTheme.nightBlue,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'De: ${msg['sender_name'] ?? 'Admin'}',
+            style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildParentMessageCard(Map<String, dynamic> msg) {
+    final isRead = msg['is_read'] == true;
+    final student = msg['students'] as Map<String, dynamic>?;
+    final studentName = student != null 
+        ? '${student['first_name']} ${student['last_name']}'
+        : 'Élève';
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isRead ? Colors.white : AppTheme.violet.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isRead ? Colors.grey.shade200 : AppTheme.violet.withOpacity(0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.person, size: 14, color: Colors.green),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  msg['sender_name'] ?? 'Parent',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (!isRead)
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Pour: $studentName',
+            style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            msg['content'] ?? '',
+            style: TextStyle(fontSize: 12, color: AppTheme.nightBlue.withOpacity(0.8)),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
