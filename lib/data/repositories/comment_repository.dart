@@ -63,7 +63,6 @@ class CommentRepository {
         List<dynamic> parentsResponse;
         
         if (studentId != null) {
-          // Commentaire individuel → parent de l'élève
           parentsResponse = await _supabase
               .from('students')
               .select('parent_id')
@@ -71,7 +70,6 @@ class CommentRepository {
               .eq('school_id', schoolId)
               .not('parent_id', 'is', null);
         } else {
-          // Broadcast → tous les parents de la classe
           parentsResponse = await _supabase
               .from('students')
               .select('parent_id')
@@ -107,12 +105,11 @@ class CommentRepository {
       debugPrint('✅ Destinataires enregistrés dans message_recipients');
     } catch (e) {
       debugPrint('❌ Erreur insertion destinataires: $e');
-      // Ne pas bloquer le flux principal
     }
   }
 
   // ============================================================
-  // SAUVEGARDE COMMENTAIRE INDIVIDUEL — MISE À JOUR avec sender_id
+  // SAUVEGARDE COMMENTAIRE INDIVIDUEL
   // ============================================================
   Future<void> saveComment({
     required String studentId,
@@ -124,6 +121,7 @@ class CommentRepository {
     required String studentName,
     required String senderName,
     required String targetSubject,
+    required String senderRole,
     String? className,
     DateTime? effectiveDate,
   }) async {
@@ -148,21 +146,20 @@ class CommentRepository {
         'expires_at': expiresAt.toIso8601String(),
         'is_archived': false,
         'is_deleted': false,
-        'sender_id': teacherId, // ✅ NOUVEAU
-        'sender_role': 'teacher', // ✅ NOUVEAU
+        'sender_id': teacherId,
+        'sender_role': senderRole,
         'sender_name': senderName,
-        'sender_type': 'teacher',
+        'sender_type': senderRole,
         'recipient_type': recipientType,
         'target_subject': targetSubject,
         'is_broadcast': false,
         'is_read': false,
-        'author_type': 'teacher',
+        'author_type': senderRole,
         'author_name': senderName,
       }).select('id');
 
       final commentId = (commentResponse as List).first['id'] as String;
 
-      // ✅ NOUVEAU : Insérer les destinataires traçables
       await _insertMessageRecipients(
         commentId: commentId,
         classId: classId,
@@ -184,7 +181,7 @@ class CommentRepository {
         expiresAt: expiresAt,
       );
 
-      debugPrint('✅ Commentaire sauvegardé - ID: $commentId, Enseignant: $senderName');
+      debugPrint('✅ Commentaire sauvegardé - ID: $commentId, senderRole: $senderRole');
     } catch (e) {
       debugPrint('❌ Erreur commentaire: $e');
       throw Exception('Erreur sauvegarde commentaire: $e');
@@ -192,7 +189,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // ENVOI NOTIFICATIONS INDIVIDUELLES — INCHANGÉ
+  // ENVOI NOTIFICATIONS INDIVIDUELLES
   // ============================================================
   Future<void> _sendNotifications({
     required String studentId,
@@ -260,7 +257,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // BROADCAST — MISE À JOUR avec sender_id
+  // BROADCAST
   // ============================================================
   Future<void> saveBroadcastComment({
     required String classId,
@@ -271,6 +268,7 @@ class CommentRepository {
     required String className,
     required String senderName,
     required String targetSubject,
+    required String senderRole,
     DateTime? effectiveDate,
   }) async {
     if (schoolId.isEmpty) throw Exception('schoolId requis');
@@ -294,21 +292,20 @@ class CommentRepository {
         'expires_at': expiresAt.toIso8601String(),
         'is_archived': false,
         'is_deleted': false,
-        'sender_id': teacherId, // ✅ NOUVEAU
-        'sender_role': 'teacher', // ✅ NOUVEAU
+        'sender_id': teacherId,
+        'sender_role': senderRole,
         'sender_name': senderName,
-        'sender_type': 'teacher',
+        'sender_type': senderRole,
         'recipient_type': recipientType,
         'target_subject': targetSubject,
         'is_broadcast': true,
         'is_read': false,
-        'author_type': 'teacher',
+        'author_type': senderRole,
         'author_name': senderName,
       }).select('id');
 
       final commentId = (commentResponse as List).first['id'] as String;
 
-      // ✅ NOUVEAU : Insérer les destinataires traçables
       await _insertMessageRecipients(
         commentId: commentId,
         classId: classId,
@@ -327,7 +324,7 @@ class CommentRepository {
         expiresAt: expiresAt,
       );
 
-      debugPrint('✅ Broadcast envoyé - ID: $commentId, Classe: $className');
+      debugPrint('✅ Broadcast envoyé - ID: $commentId, senderRole: $senderRole');
     } catch (e) {
       debugPrint('❌ Erreur broadcast: $e');
       throw Exception('Erreur envoi broadcast: $e');
@@ -335,7 +332,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // NOTIFICATIONS BROADCAST — INCHANGÉ
+  // NOTIFICATIONS BROADCAST
   // ============================================================
   Future<void> _sendBroadcastNotifications({
     required String classId,
@@ -401,7 +398,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // RÉCUPÉRATION — Commentaires ACTIFS d'un élève — INCHANGÉ
+  // RÉCUPÉRATIONS
   // ============================================================
   Future<List<CommentModel>> getStudentActiveComments(
     String studentId, {
@@ -415,7 +412,7 @@ class CommentRepository {
         .select()
         .eq('student_id', studentId)
         .eq('is_archived', false)
-        .eq('is_deleted', false) // ✅ NOUVEAU
+        .eq('is_deleted', false)
         .or('expires_at.is.null,expires_at.gte.$now');
 
     if (schoolId != null && schoolId.isNotEmpty) {
@@ -431,9 +428,6 @@ class CommentRepository {
         .toList();
   }
 
-  // ============================================================
-  // RÉCUPÉRATION — Commentaires ACTIFS d'une classe — INCHANGÉ
-  // ============================================================
   Future<List<CommentModel>> getClassActiveComments(
     String classId, {
     String? schoolId,
@@ -446,7 +440,7 @@ class CommentRepository {
         .select()
         .eq('class_id', classId)
         .eq('is_archived', false)
-        .eq('is_deleted', false) // ✅ NOUVEAU
+        .eq('is_deleted', false)
         .or('expires_at.is.null,expires_at.gte.$now');
 
     if (schoolId != null && schoolId.isNotEmpty) {
@@ -462,9 +456,6 @@ class CommentRepository {
         .toList();
   }
 
-  // ============================================================
-  // RÉCUPÉRATION — TOUS les commentaires — INCHANGÉ
-  // ============================================================
   Future<List<CommentModel>> getStudentAllComments(
     String studentId, {
     String? schoolId,
@@ -474,7 +465,7 @@ class CommentRepository {
         .from('comments')
         .select()
         .eq('student_id', studentId)
-        .eq('is_deleted', false); // ✅ NOUVEAU
+        .eq('is_deleted', false);
 
     if (schoolId != null && schoolId.isNotEmpty) {
       query = query.eq('school_id', schoolId);
@@ -490,7 +481,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // ✅ NOUVEAU : Récupérer messages ENSEIGNANT (envoyés + reçus)
+  // Récupérer messages ENSEIGNANT
   // ============================================================
   Future<Map<String, List<Map<String, dynamic>>>> getTeacherMessages({
     required String teacherId,
@@ -498,7 +489,6 @@ class CommentRepository {
     int limit = 50,
   }) async {
     try {
-      // 1. Messages ENVOYÉS par l'enseignant
       final sentResponse = await _supabase
           .from('comments')
           .select('''
@@ -517,7 +507,6 @@ class CommentRepository {
           .order('created_at', ascending: false)
           .limit(limit);
 
-      // 2. Messages REÇUS par l'enseignant (via message_recipients)
       final receivedResponse = await _supabase
           .from('comments')
           .select('''
@@ -547,17 +536,16 @@ class CommentRepository {
   }
 
   // ============================================================
-  // ✅ NOUVEAU : Récupérer TOUS les messages (ADMIN)
+  // ✅ CORRIGÉ : Récupérer TOUS les messages — SANS relation FK admin_messages
   // ============================================================
   Future<Map<String, List<Map<String, dynamic>>>> getAllMessages({
     required String schoolId,
     String? classId,
-    String? senderRole,
-    String? recipientRole,
+    String? senderType,
     int limit = 100,
   }) async {
     try {
-      // Requête de base
+      // 1. Récupérer comments
       var query = _supabase
           .from('comments')
           .select('''
@@ -574,38 +562,74 @@ class CommentRepository {
           .eq('school_id', schoolId)
           .eq('is_deleted', false);
 
-      // Filtre par classe
       if (classId != null && classId.isNotEmpty) {
         query = query.eq('class_id', classId);
       }
-
-      // Filtre par rôle expéditeur
-      if (senderRole != null && senderRole.isNotEmpty) {
-        query = query.eq('sender_role', senderRole);
+      if (senderType != null && senderType.isNotEmpty) {
+        query = query.eq('sender_type', senderType);
       }
 
-      final response = await query
+      final commentsResponse = await query
           .order('created_at', ascending: false)
           .limit(limit);
 
-      final allMessages = List<Map<String, dynamic>>.from(response as List);
+      // 2. ✅ CORRIGÉ : Récupérer admin_messages SANS relation FK
+      var adminQuery = _supabase
+          .from('admin_messages')
+          .select()  // ✅ Pas de relation FK, colonnes brutes uniquement
+          .eq('school_id', schoolId)
+          .eq('is_active', true);
 
-      // Classer par rôle d'expéditeur
-      final parentMessages = allMessages.where((m) => m['sender_role'] == 'parent').toList();
-      final teacherMessages = allMessages.where((m) => m['sender_role'] == 'teacher').toList();
-      final adminMessages = allMessages.where((m) => m['sender_role'] == 'admin').toList();
+      if (classId != null && classId.isNotEmpty) {
+        adminQuery = adminQuery.eq('target_class_id', classId);
+      }
 
-      // Classer par type (broadcast ou individuel)
-      final broadcasts = allMessages.where((m) => m['is_broadcast'] == true).toList();
-      final individuals = allMessages.where((m) => m['is_broadcast'] != true).toList();
+      final adminResponse = await adminQuery
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      // 3. ✅ CORRIGÉ : Normaliser admin_messages SANS target_class
+      final normalizedAdmin = (adminResponse as List).map((msg) {
+        return {
+          'id': msg['id'],
+          'content': '${msg['title'] ?? ''}\n${msg['content'] ?? ''}',
+          'sender_id': null,
+          'sender_role': 'admin',
+          'sender_type': 'admin',
+          'sender_name': msg['sender_name'] ?? 'Administration',
+          'sender': {'first_name': 'Admin', 'last_name': 'istration', 'role': 'admin'},
+          'created_at': msg['created_at'],
+          'is_broadcast': msg['recipient_type']?.toString().contains('all') ?? false,
+          'is_read': msg['is_read'] ?? true,
+          'class_id': msg['target_class_id'],  // ✅ Valeur brute, pas de relation
+          'students': null,
+          'message_recipients': [],
+          'priority': msg['priority'],
+          'target_parent_id': msg['target_parent_id'],
+          'target_teacher_id': msg['target_teacher_id'],
+          'is_admin_message': true,
+        };
+      }).toList();
+
+      // 4. Combiner
+      final allComments = List<Map<String, dynamic>>.from(commentsResponse as List);
+      final allMessages = [...allComments, ...normalizedAdmin];
+      
+      allMessages.sort((a, b) {
+        final dateA = DateTime.parse(a['created_at'] as String);
+        final dateB = DateTime.parse(b['created_at'] as String);
+        return dateB.compareTo(dateA);
+      });
+
+      final parentMessages = allMessages.where((m) => m['sender_type'] == 'parent').toList();
+      final teacherMessages = allMessages.where((m) => m['sender_type'] == 'teacher').toList();
+      final adminMessages = allMessages.where((m) => m['sender_type'] == 'admin').toList();
 
       return {
         'all': allMessages,
         'parent': parentMessages,
         'teacher': teacherMessages,
         'admin': adminMessages,
-        'broadcasts': broadcasts,
-        'individuals': individuals,
       };
     } catch (e) {
       debugPrint('❌ Erreur getAllMessages: $e');
@@ -614,27 +638,37 @@ class CommentRepository {
         'parent': [],
         'teacher': [],
         'admin': [],
-        'broadcasts': [],
-        'individuals': [],
       };
     }
   }
 
   // ============================================================
-  // ✅ NOUVEAU : Soft delete d'un message
+  // Soft delete (comments OU admin_messages)
   // ============================================================
   Future<void> softDeleteMessage({
-    required String commentId,
+    required String messageId,
     required String deletedBy,
+    String? sourceTable,
   }) async {
     try {
-      await _supabase.from('comments').update({
-        'is_deleted': true,
-        'deleted_at': DateTime.now().toIso8601String(),
-        'deleted_by': deletedBy,
-      }).eq('id', commentId);
+      final table = sourceTable ?? (messageId.startsWith('adm_') ? 'admin_messages' : 'comments');
+      final cleanId = messageId.startsWith('adm_') ? messageId.substring(4) : messageId;
 
-      debugPrint('✅ Message $commentId soft-deleted par $deletedBy');
+      if (table == 'admin_messages') {
+        await _supabase.from('admin_messages').update({
+          'is_active': false,
+          'deleted_at': DateTime.now().toIso8601String(),
+          'deleted_by': deletedBy,
+        }).eq('id', cleanId);
+      } else {
+        await _supabase.from('comments').update({
+          'is_deleted': true,
+          'deleted_at': DateTime.now().toIso8601String(),
+          'deleted_by': deletedBy,
+        }).eq('id', cleanId);
+      }
+
+      debugPrint('✅ Message $messageId soft-deleted dans $table par $deletedBy');
     } catch (e) {
       debugPrint('❌ Erreur soft delete: $e');
       throw Exception('Erreur suppression message: $e');
@@ -642,7 +676,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // ✅ NOUVEAU : Marquer comme lu pour un destinataire spécifique
+  // Marquer comme lu pour un destinataire spécifique
   // ============================================================
   Future<void> markRecipientAsRead({
     required String commentId,
@@ -664,7 +698,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // ✅ NOUVEAU : Compter les lectures d'un message
+  // Compter les lectures d'un message
   // ============================================================
   Future<Map<String, dynamic>> getMessageReadStats(String commentId) async {
     try {
@@ -689,7 +723,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // ARCHIVAGE MANUEL — INCHANGÉ
+  // ARCHIVAGE
   // ============================================================
   Future<void> archiveComment(String commentId) async {
     await _supabase.from('comments').update({
@@ -698,9 +732,6 @@ class CommentRepository {
     }).eq('id', commentId);
   }
 
-  // ============================================================
-  // ARCHIVAGE AUTOMATIQUE — INCHANGÉ
-  // ============================================================
   Future<int> archiveExpiredComments() async {
     try {
       final response = await _supabase.rpc('archive_expired_comments', params: {
@@ -716,9 +747,6 @@ class CommentRepository {
     }
   }
 
-  // ============================================================
-  // RÉCUPÉRATION ARCHIVE — INCHANGÉ
-  // ============================================================
   Future<List<CommentModel>> getStudentArchivedComments(
     String studentId, {
     String? schoolId,
@@ -742,9 +770,6 @@ class CommentRepository {
         .toList();
   }
 
-  // ============================================================
-  // MARQUER COMME LU (ancien) — INCHANGÉ pour compatibilité
-  // ============================================================
   Future<void> markAsRead(String commentId) async {
     await _supabase.from('comments').update({
       'is_read': true,
@@ -752,9 +777,6 @@ class CommentRepository {
     }).eq('id', commentId);
   }
 
-  // ============================================================
-  // SUPPRESSION DÉFINITIVE — INCHANGÉ
-  // ============================================================
   Future<void> deleteComment(String commentId) async {
     await _supabase.from('comments').delete().eq('id', commentId);
   }

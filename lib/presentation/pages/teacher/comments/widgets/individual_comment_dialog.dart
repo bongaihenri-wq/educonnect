@@ -56,6 +56,7 @@ class _IndividualCommentDialogState extends State<IndividualCommentDialog> {
         className: widget.className,
         senderName: teacherName,
         targetSubject: subjectName,
+        senderRole: 'teacher',
         effectiveDate: _effectiveDate,
       );
 

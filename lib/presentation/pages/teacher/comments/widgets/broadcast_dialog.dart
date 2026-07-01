@@ -51,6 +51,7 @@ class _BroadcastDialogState extends State<BroadcastDialog> {
         className: widget.className,
         senderName: teacherName,
         targetSubject: subjectName,
+        senderRole: 'teacher',
         effectiveDate: _effectiveDate,
       );
 

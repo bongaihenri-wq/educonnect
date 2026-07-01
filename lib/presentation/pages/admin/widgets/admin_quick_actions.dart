@@ -59,9 +59,9 @@ class AdminQuickActions extends StatelessWidget {
           // Actions avancées
           _buildActionTile(
             icon: Icons.campaign,
-            label: 'Envoyer un message',
+            label: 'Messagerie',
             color: Colors.purple,
-            onTap: () => Navigator.pushNamed(context, '/admin/send-message'),
+            onTap: () => Navigator.pushNamed(context,'/admin/messages'),
           ),
           const SizedBox(height: 12),
           _buildActionTile(

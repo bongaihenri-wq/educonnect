@@ -38,7 +38,8 @@ import '../presentation/pages/admin/parents_list_page.dart';
 import '../presentation/pages/admin/classes_students_page.dart';
 import '../presentation/pages/admin/admin_send_message_page.dart';
 import '../presentation/pages/admin/bulk_import_page.dart';
-import '../presentation/pages/admin/school_report/school_report_page.dart'; // ✅ AJOUTÉ
+import '../presentation/pages/admin/school_report/school_report_page.dart';
+import '../presentation/pages/admin/admin_messages_page.dart';
 
 // ==================== ASSISTANT & PRINCIPAL ====================
 import '../presentation/pages/assistant/assistant_dashboard.dart';
@@ -240,7 +241,7 @@ class AppRoutes {
     classesStudents: (context) => const ClassesStudentsPage(),
     adminGradesPending: (context) => const GradesPage(),
     adminReports: (context) => const AdminDashboard(),
-    adminMessages: (context) => const MessagesPage(),
+    adminMessages: (context) => const AdminMessagesPage(),
     adminTeacherTracking: (context) => const TeacherTrackingPage(),
     adminSettings: (context) => const SettingsPage(),
     adminSendMessage: (context) => const AdminSendMessagePage(),

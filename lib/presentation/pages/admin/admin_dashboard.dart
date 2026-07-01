@@ -215,7 +215,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   child: AdminQuickActions(),
                 ),
                 
-                const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                const SliverToBoxAdapter(child: SizedBox(height: 80)),
               ],
             ),
           ),
