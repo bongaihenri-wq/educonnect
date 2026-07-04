@@ -5,47 +5,54 @@ import 'package:intl/intl.dart';
 import '../../blocs/auth_bloc/auth_bloc.dart';
 
 class PaymentPendingPage extends StatelessWidget {
-  // ✅ CORRIGÉ : Aucun paramètre required, la page lit le state du Bloc
   const PaymentPendingPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE),
-      body: SafeArea(
-        child: BlocConsumer<AuthBloc, AuthState>(
-          listener: (context, state) {
-            if (state is ParentAuthenticated) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('✅ Paiement validé ! Accès réactivé.'),
-                  backgroundColor: Colors.green,
-                  duration: Duration(seconds: 3),
-                ),
-              );
-              // ✅ CORRIGÉ : Navigation via pushReplacementNamed au lieu de pushAndRemoveUntil
-              Navigator.of(context).pushReplacementNamed('/parent/dashboard');
-            } else if (state is AuthError) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('❌ ${state.message}'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          },
-          builder: (context, state) {
-            if (state is AuthLoading) {
+    // ✅ AJOUTÉ : BlocListener pour gérer la déconnexion
+    return BlocListener<AuthBloc, AuthState>(
+      listenWhen: (previous, current) => current is Unauthenticated,
+      listener: (context, state) {
+        if (state is Unauthenticated) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8F9FE),
+        body: SafeArea(
+          child: BlocConsumer<AuthBloc, AuthState>(
+            listener: (context, state) {
+              if (state is ParentAuthenticated) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('✅ Paiement validé ! Accès réactivé.'),
+                    backgroundColor: Colors.green,
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+                Navigator.of(context).pushReplacementNamed('/parent/dashboard');
+              } else if (state is AuthError) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('❌ ${state.message}'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            builder: (context, state) {
+              if (state is AuthLoading) {
+                return _buildLoading();
+              }
+
+              if (state is PaymentSubmittedSuccessfully) {
+                return _buildContent(context, state);
+              }
+
+              // Fallback si le state change vers autre chose
               return _buildLoading();
-            }
-
-            if (state is PaymentSubmittedSuccessfully) {
-              return _buildContent(context, state);
-            }
-
-            // Fallback si le state change vers autre chose
-            return _buildLoading();
-          },
+            },
+          ),
         ),
       ),
     );

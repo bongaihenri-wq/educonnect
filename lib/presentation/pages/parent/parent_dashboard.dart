@@ -1,4 +1,3 @@
-// lib/presentation/pages/parent/parent_dashboard.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '/presentation/blocs/auth_bloc/auth_bloc.dart';
@@ -15,40 +14,76 @@ class ParentDashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE),
-      body: BlocBuilder<AuthBloc, AuthState>(
-        builder: (context, state) {
-          if (state is ParentAuthenticated) {
-            return CustomScrollView(
-              slivers: [
-                // ✅ Bannière si abonnement expire bientôt
-                if (state.daysRemaining != null &&
-                    state.daysRemaining! > 0 &&
-                    state.daysRemaining! <= 3)
-                  SubscriptionWarningBanner(
-                    daysRemaining: state.daysRemaining!,
-                    onRenew: () => _navigateToRenewal(context, state),
-                  ),
-
-                // 🔒 CORRECTION : SafeArea + padding top pour éviter la barre de statut
-                SliverSafeArea(
-                  sliver: SliverPadding(
-                    padding: const EdgeInsets.only(top: 8),
-                    sliver: const ParentHeader(),
-                  ),
+    return BlocListener<AuthBloc, AuthState>(
+      listenWhen: (previous, current) => current is Unauthenticated,
+      listener: (context, state) {
+        // ✅ Redirection forcée vers le login quand déconnecté
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8F9FE),
+        body: BlocBuilder<AuthBloc, AuthState>(
+          builder: (context, state) {
+            // ✅ Gérer le chargement pendant le logout
+            if (state is AuthLoading) {
+              return const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Déconnexion en cours...'),
+                  ],
                 ),
-                const ChildCard(),
-                const AlertsSection(),
-                const QuickActionsGrid(),
-                const LogoutButton(),
-                const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
-              ],
-            );
-          }
+              );
+            }
 
-          return const Center(child: CircularProgressIndicator());
-        },
+            // ✅ Gérer l'état déconnecté (sécurité)
+            if (state is Unauthenticated) {
+              return const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Redirection vers la connexion...'),
+                  ],
+                ),
+              );
+            }
+
+            if (state is ParentAuthenticated) {
+              return CustomScrollView(
+                slivers: [
+                  // ✅ Bannière si abonnement expire bientôt
+                  if (state.daysRemaining != null &&
+                      state.daysRemaining! > 0 &&
+                      state.daysRemaining! <= 3)
+                    SubscriptionWarningBanner(
+                      daysRemaining: state.daysRemaining!,
+                      onRenew: () => _navigateToRenewal(context, state),
+                    ),
+
+                  // 🔒 CORRECTION : SafeArea + padding top pour éviter la barre de statut
+                  SliverSafeArea(
+                    sliver: SliverPadding(
+                      padding: const EdgeInsets.only(top: 8),
+                      sliver: const ParentHeader(),
+                    ),
+                  ),
+                  const ChildCard(),
+                  const AlertsSection(),
+                  const QuickActionsGrid(),
+                  const LogoutButton(),
+                  const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
+                ],
+              );
+            }
+
+            // État par défaut (chargement initial)
+            return const Center(child: CircularProgressIndicator());
+          },
+        ),
       ),
     );
   }

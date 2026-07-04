@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../config/routes.dart';
 import '../../../../config/theme.dart';
 import '../teacher_reports_page.dart';
+import '../teacher_messages_page.dart'; // ✅ AJOUTÉ
 import 'teacher_add_homework_dialog.dart';
 
 class QuickActionsGrid extends StatelessWidget {
@@ -73,11 +74,17 @@ class QuickActionsGrid extends StatelessWidget {
                     },
                   ),
                   const SizedBox(width: 12),
+                  // ✅ MODIFIÉ : Commentaires → TeacherMessagesPage
                   _ActionCard(
                     icon: Icons.comment,
                     title: 'Commentaires',
                     color: AppTheme.sunshine,
-                    onTap: () => Navigator.pushNamed(context, AppRoutes.teacherCommentsClasses),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const TeacherMessagesPage(),
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   _ActionCard(

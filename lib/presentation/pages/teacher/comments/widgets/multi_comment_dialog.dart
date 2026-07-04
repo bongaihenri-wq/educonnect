@@ -58,6 +58,7 @@ class _MultiCommentDialogState extends State<MultiCommentDialog> {
           className: widget.className,
           senderName: teacherName,
           targetSubject: subjectName,
+          senderRole: 'teacher',
           effectiveDate: _effectiveDate,
         );
       }

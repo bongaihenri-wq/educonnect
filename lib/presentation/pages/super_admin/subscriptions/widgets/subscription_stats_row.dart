@@ -55,9 +55,9 @@ class SubscriptionStatsRow extends StatelessWidget {
   String _formatNumber(dynamic n) {
     if (n == null) return '0';
     return n.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]} ',
-    );
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (m) => '${m[1]} ',
+        );
   }
 }
 
@@ -88,6 +88,7 @@ class _StatItem extends StatelessWidget {
           Icon(icon, color: color, size: 22),
           const SizedBox(width: 8),
           Expanded(
+            // ✅ Expanded seul, pas de Flexible imbriqué
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
@@ -100,6 +101,7 @@ class _StatItem extends StatelessWidget {
                     color: color,
                   ),
                   overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
                 Text(
                   label,
@@ -108,6 +110,7 @@ class _StatItem extends StatelessWidget {
                     color: color.withOpacity(0.8),
                   ),
                   overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ],
             ),

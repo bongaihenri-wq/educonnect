@@ -1,9 +1,11 @@
 // lib/presentation/blocs/auth_bloc/auth_repository.dart
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/logging/app_logger.dart';
 
 class AuthRepository {
   final SupabaseClient _supabase;
+  final AppLogger _logger = AppLogger();
 
   AuthRepository(this._supabase);
 
@@ -23,11 +25,22 @@ class AuthRepository {
 
   Future<Map<String, String?>> getSession() async {
     final prefs = await SharedPreferences.getInstance();
-    return {
+    final session = {
       'user_id': prefs.getString('user_id'),
       'role': prefs.getString('role'),
       'school_id': prefs.getString('school_id'),
     };
+    
+    _logger.logDebug(
+      category: LogCategory.auth,
+      message: 'Session récupérée',
+      metadata: {
+        'has_user_id': session['user_id'] != null,
+        'role': session['role'],
+      },
+    );
+    
+    return session;
   }
 
   Future<void> saveSession({
@@ -47,39 +60,153 @@ class AuthRepository {
     } else {
       await prefs.remove('school_id');
     }
+    
+    // ✅ Mettre à jour le contexte du logger
+    _logger.setUserContext(
+      userId: userId,
+      userRole: role,
+      schoolId: schoolId,
+    );
+    
+    _logger.logInfo(
+      category: LogCategory.auth,
+      message: 'Session sauvegardée',
+      metadata: {
+        'user_id': userId,
+        'role': role,
+        'school_id': schoolId,
+      },
+    );
   }
 
-  // ✅ CORRIGÉ : Nettoyage complet (Supabase local + SharedPreferences)
   Future<void> clearSession() async {
     try {
       await _supabase.auth.signOut(scope: SignOutScope.local);
     } catch (e) {
-      print('Erreur signOut local: $e');
+      _logger.logWarning(
+        category: LogCategory.auth,
+        message: 'Erreur signOut local',
+        errorCode: e.toString(),
+      );
     }
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
+    
+    _logger.clearUserContext();
+    _logger.logInfo(
+      category: LogCategory.auth,
+      message: 'Session effacée',
+    );
+    
+    // Flush les logs avant logout
+    await _logger.flush();
   }
 
   // ─── Appels RPC / Auth ─────────────────────────────────────
 
   Future<List<dynamic>?> loginByPhone(String phone, String password) async {
-    return await _supabase.rpc('login_by_phone', params: {
-      'p_phone': phone,
-      'p_password': password,
-    });
+    final stopwatch = Stopwatch()..start();
+    
+    _logger.logInfo(
+      category: LogCategory.auth,
+      message: 'Tentative de connexion',
+      metadata: {'phone': _anonymizePhone(phone)},
+    );
+    
+    try {
+      final response = await _supabase.rpc('login_by_phone', params: {
+        'p_phone': phone,
+        'p_password': password,
+      });
+      
+      stopwatch.stop();
+      
+      if (response == null || response.isEmpty) {
+        _logger.logError(
+          category: LogCategory.auth,
+          message: 'Réponse vide de login_by_phone',
+          apiEndpoint: 'login_by_phone',
+        );
+        return null;
+      }
+
+      final result = response[0];
+      
+      if (result['success'] == true) {
+        _logger.logApi(
+          endpoint: 'login_by_phone',
+          method: 'RPC',
+          statusCode: 200,
+          durationMs: stopwatch.elapsedMilliseconds,
+        );
+        
+        _logger.logAnalytics(
+          eventName: 'login_success',
+          parameters: {
+            'role': result['role'],
+            'phone': _anonymizePhone(phone),
+          },
+        );
+      } else {
+        _logger.logWarning(
+          category: LogCategory.auth,
+          message: 'Échec connexion: ${result['message']}',
+          metadata: {
+            'reason': result['message'],
+            'phone': _anonymizePhone(phone),
+          },
+        );
+      }
+      
+      return response;
+    } catch (e, stackTrace) {
+      stopwatch.stop();
+      
+      _logger.logError(
+        category: LogCategory.auth,
+        message: 'Erreur login_by_phone',
+        error: e,
+        stackTrace: stackTrace,
+        apiEndpoint: 'login_by_phone',
+        metadata: {'duration_ms': stopwatch.elapsedMilliseconds},
+      );
+      
+      rethrow;
+    }
   }
 
   // ─── Utilisateurs ──────────────────────────────────────────
 
   Future<Map<String, dynamic>?> getUserById(String userId) async {
+    final stopwatch = Stopwatch()..start();
+    
     try {
-      return await _supabase
+      final user = await _supabase
           .from('app_users')
           .select('id, first_name, last_name, role, school_id, email, phone, country_code')
           .eq('id', userId)
           .single();
-    } catch (e) {
-      print('Erreur getUserById: $e');
+      
+      stopwatch.stop();
+      
+      _logger.logApi(
+        endpoint: 'app_users/select',
+        method: 'GET',
+        statusCode: user != null ? 200 : 404,
+        durationMs: stopwatch.elapsedMilliseconds,
+      );
+      
+      return user;
+    } catch (e, stackTrace) {
+      stopwatch.stop();
+      
+      _logger.logError(
+        category: LogCategory.api,
+        message: 'Erreur getUserById',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      
       return null;
     }
   }
@@ -91,7 +218,14 @@ class AuthRepository {
   ) async {
     try {
       final countryCode = extractCountryCode(phone);
-      if (countryCode == null) return null;
+      if (countryCode == null) {
+        _logger.logWarning(
+          category: LogCategory.auth,
+          message: 'Code pays non extrait',
+          metadata: {'phone': _anonymizePhone(phone)},
+        );
+        return null;
+      }
 
       final response = await _supabase.rpc('get_role_for_user', params: {
         'p_user_id': userId,
@@ -104,13 +238,24 @@ class AuthRepository {
       final data = response is List ? (response.isNotEmpty ? response[0] : null) : response;
       if (data == null) return null;
 
+      _logger.logInfo(
+        category: LogCategory.auth,
+        message: 'Rôle spécifique récupéré',
+        metadata: {'role_code': data['code']},
+      );
+
       return {
         'code': data['code']?.toString(),
         'name': data['name']?.toString(),
         'level': data['level'],
       };
-    } catch (e) {
-      print('Erreur role specifique: $e');
+    } catch (e, stackTrace) {
+      _logger.logError(
+        category: LogCategory.auth,
+        message: 'Erreur getSpecificRole',
+        error: e,
+        stackTrace: stackTrace,
+      );
       return null;
     }
   }
@@ -118,15 +263,28 @@ class AuthRepository {
   // ─── Écoles ────────────────────────────────────────────────
 
   Future<String> getSchoolName(String? schoolId) async {
-    if (schoolId == null) return 'Toutes les ecoles';
+    if (schoolId == null) {
+      _logger.logDebug(
+        category: LogCategory.api,
+        message: 'getSchoolName: school_id null',
+      );
+      return 'Toutes les ecoles';
+    }
     try {
       final school = await _supabase
           .from('schools')
           .select('name')
           .eq('id', schoolId)
           .single();
+      
       return school?['name'] ?? 'Mon Ecole';
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _logger.logError(
+        category: LogCategory.api,
+        message: 'Erreur getSchoolName',
+        error: e,
+        stackTrace: stackTrace,
+      );
       return 'Mon Ecole';
     }
   }
@@ -141,7 +299,11 @@ class AuthRepository {
           .maybeSingle();
       return school?['payment_phone_number'];
     } catch (e) {
-      print('Erreur recuperation ecole: $e');
+      _logger.logError(
+        category: LogCategory.api,
+        message: 'Erreur getSchoolPaymentPhone',
+        error: e,
+      );
       return null;
     }
   }
@@ -159,9 +321,13 @@ class AuthRepository {
           .eq('parent_id', parentId)
           .maybeSingle();
 
-      // Création auto du trial si manquant
       if (response == null && schoolId != null) {
-        print('Aucune subscription trouvée pour $parentId -> Création trial auto');
+        _logger.logInfo(
+          category: LogCategory.business,
+          message: 'Création trial auto',
+          metadata: {'parent_id': parentId},
+        );
+        
         try {
           await _supabase.from('parent_subscriptions').insert({
             'parent_id': parentId,
@@ -177,9 +343,16 @@ class AuthRepository {
         } catch (e) {
           final errorStr = e.toString().toLowerCase();
           if (errorStr.contains('duplicate') || errorStr.contains('23505') || errorStr.contains('unique')) {
-            print('Trial déjà existant (race condition), on continue');
+            _logger.logDebug(
+              category: LogCategory.business,
+              message: 'Trial déjà existant (race condition)',
+            );
           } else {
-            print('Erreur création trial auto: $e');
+            _logger.logError(
+              category: LogCategory.business,
+              message: 'Erreur création trial auto',
+              error: e,
+            );
           }
         }
 
@@ -188,8 +361,6 @@ class AuthRepository {
             .select('id, status, plan_type, trial_ends_at, current_period_end, amount, currency')
             .eq('parent_id', parentId)
             .maybeSingle();
-
-        print('Trial auto créé/relu: $response');
       }
 
       if (response == null) return null;
@@ -208,6 +379,15 @@ class AuthRepository {
         daysRemaining = endDate.difference(DateTime.now()).inDays;
       }
 
+      _logger.logInfo(
+        category: LogCategory.business,
+        message: 'Abonnement vérifié',
+        metadata: {
+          'status': response['status'],
+          'days_remaining': daysRemaining,
+        },
+      );
+
       return {
         'id': response['id'],
         'status': response['status'],
@@ -219,8 +399,13 @@ class AuthRepository {
         'payment_phone_number': paymentPhoneNumber,
         'days_remaining': daysRemaining,
       };
-    } catch (e) {
-      print('Erreur verification abonnement: $e');
+    } catch (e, stackTrace) {
+      _logger.logError(
+        category: LogCategory.business,
+        message: 'Erreur vérification abonnement',
+        error: e,
+        stackTrace: stackTrace,
+      );
       return null;
     }
   }
@@ -238,9 +423,18 @@ class AuthRepository {
           .limit(1)
           .maybeSingle();
 
-      if (response == null) return null;
+      if (response != null) {
+        _logger.logInfo(
+          category: LogCategory.business,
+          message: 'Paiement pending trouvé',
+          metadata: {
+            'reference': response['external_ref'],
+            'amount': response['amount'],
+          },
+        );
+      }
 
-      return {
+      return response == null ? null : {
         'id': response['id'],
         'external_ref': response['external_ref'],
         'amount': (response['amount'] as num).toDouble(),
@@ -248,8 +442,13 @@ class AuthRepository {
         'created_at': response['created_at'],
         'screenshot_url': response['screenshot_url'],
       };
-    } catch (e) {
-      print('Erreur verification paiement pending: $e');
+    } catch (e, stackTrace) {
+      _logger.logError(
+        category: LogCategory.business,
+        message: 'Erreur vérification paiement pending',
+        error: e,
+        stackTrace: stackTrace,
+      );
       return null;
     }
   }
@@ -262,6 +461,15 @@ class AuthRepository {
     String? phoneNumber,
     String? screenshotUrl,
   }) async {
+    _logger.logInfo(
+      category: LogCategory.business,
+      message: 'Sauvegarde paiement',
+      metadata: {
+        'reference': reference,
+        'amount': amount,
+      },
+    );
+    
     final existing = await _supabase
         .from('payment_transactions')
         .select('id')
@@ -277,6 +485,11 @@ class AuthRepository {
         'screenshot_url': screenshotUrl,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', existing['id']);
+      
+      _logger.logInfo(
+        category: LogCategory.business,
+        message: 'Paiement mis à jour',
+      );
     } else {
       await _supabase.from('payment_transactions').insert({
         'parent_id': parentId,
@@ -290,6 +503,11 @@ class AuthRepository {
         'screenshot_url': screenshotUrl,
         'created_at': DateTime.now().toIso8601String(),
       });
+      
+      _logger.logInfo(
+        category: LogCategory.business,
+        message: 'Nouveau paiement créé',
+      );
     }
   }
 
@@ -348,6 +566,15 @@ class AuthRepository {
         currency = 'XOF';
       }
 
+      _logger.logInfo(
+        category: LogCategory.auth,
+        message: 'Données parent récupérées',
+        metadata: {
+          'has_student': studentData.isNotEmpty,
+          'subscription_status': status,
+        },
+      );
+
       return {
         ...studentData,
         'subscriptionStatus': status,
@@ -357,13 +584,25 @@ class AuthRepository {
         'subscriptionCurrency': currency ?? 'XOF',
         'paymentPhoneNumber': paymentPhone,
       };
-    } catch (e) {
-      print('Erreur recuperation parent data: $e');
+    } catch (e, stackTrace) {
+      _logger.logError(
+        category: LogCategory.auth,
+        message: 'Erreur récupération parent data',
+        error: e,
+        stackTrace: stackTrace,
+      );
       return {
         'subscriptionStatus': 'no_subscription',
         'subscriptionAmount': 1000,
         'subscriptionCurrency': 'XOF',
       };
     }
+  }
+
+  // ─── Helper ────────────────────────────────────────────────
+
+  String _anonymizePhone(String phone) {
+    if (phone.length < 4) return '***';
+    return '${phone.substring(0, 2)}****${phone.substring(phone.length - 2)}';
   }
 }
