@@ -40,392 +40,407 @@ class _SubscriptionExpiredPageState extends State<SubscriptionExpiredPage> {
   }
 
   void _logout() {
-    context.read<AuthBloc>().add(LogoutRequested());
+    context.read<AuthBloc>().add(const LogoutRequested());
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      // ✅ AJOUTÉ : AppBar transparent avec bouton de déconnexion
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        actions: [
-          TextButton.icon(
-            onPressed: _logout,
-            icon: const Icon(Icons.logout, color: Colors.white, size: 20),
-            label: const Text(
-              'Deconnexion',
-              style: TextStyle(color: Colors.white, fontSize: 14),
+    // ✅ AJOUTÉ : BlocListener pour gérer la déconnexion et la navigation paiement
+    return BlocListener<AuthBloc, AuthState>(
+      listenWhen: (previous, current) => 
+          current is Unauthenticated || 
+          current is PaymentSubmittedSuccessfully ||
+          current is PaymentPending,
+      listener: (context, state) {
+        if (state is Unauthenticated) {
+          // ✅ Redirection vers login quand déconnecté
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        }
+        // Note: PaymentSubmittedSuccessfull/PaymentPending sont gérés par AuthStateRouter
+        // mais on ajoute une sécurité ici si la page est ouverte via Navigator.push
+      },
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        // ✅ AppBar transparent avec bouton de déconnexion
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          automaticallyImplyLeading: false,
+          actions: [
+            TextButton.icon(
+              onPressed: _logout,
+              icon: const Icon(Icons.logout, color: Colors.white, size: 20),
+              label: const Text(
+                'Deconnexion',
+                style: TextStyle(color: Colors.white, fontSize: 14),
+              ),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
             ),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-            ),
-          ),
-        ],
-      ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF6B4EFF),
-              Color(0xFF9B7BFF),
-              Colors.white,
-            ],
-            stops: [0.0, 0.4, 0.8],
-          ),
+          ],
         ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const SizedBox(height: 20),
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF6B4EFF),
+                Color(0xFF9B7BFF),
+                Colors.white,
+              ],
+              stops: [0.0, 0.4, 0.8],
+            ),
+          ),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 20),
 
-                // Icône
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
+                  // Icône
+                  Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.school, size: 60, color: Colors.white),
                   ),
-                  child: const Icon(Icons.school, size: 60, color: Colors.white),
-                ),
-                const SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
-                // Message principal
-                const Text(
-                  'Piloter l\'avenir,\nc\'est avoir la bonne\ninformation à temps',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    height: 1.3,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Sous-message
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    '👋 On vous attend !\nVotre enfant mérite de rester connecté à son école.',
+                  // Message principal
+                  const Text(
+                    'Piloter l\'avenir,\nc\'est avoir la bonne\ninformation à temps',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
                       color: Colors.white,
-                      height: 1.5,
+                      height: 1.3,
                     ),
                   ),
-                ),
-                const SizedBox(height: 40),
+                  const SizedBox(height: 16),
 
-                // Badge "Expiré depuis X jours" si applicable
-                if (widget.daysRemaining != null && widget.daysRemaining! < 0)
+                  // Sous-message
                   Container(
-                    margin: const EdgeInsets.only(bottom: 20),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.9),
+                      color: Colors.white.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Text(
-                      '⏰ Expiré depuis ${widget.daysRemaining!.abs()} jour${widget.daysRemaining!.abs() > 1 ? 's' : ''}',
-                      style: const TextStyle(
+                    child: const Text(
+                      '👋 On vous attend !\nVotre enfant mérite de rester connecté à son école.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
                         color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        height: 1.5,
                       ),
                     ),
                   ),
+                  const SizedBox(height: 40),
 
-                // Carte de paiement
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
+                  // Badge "Expiré depuis X jours" si applicable
+                  if (widget.daysRemaining != null && widget.daysRemaining! < 0)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 20),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFF6D00).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.lock_clock,
-                              color: Color(0xFFFF6D00),
-                              size: 28,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Abonnement expiré',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF2D3142),
-                                  ),
-                                ),
-                                Text(
-                                  'Renouvelez pour continuer',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Montant
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF6B4EFF), Color(0xFF9B7BFF)],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
+                      child: Text(
+                        '⏰ Expiré depuis ${widget.daysRemaining!.abs()} jour${widget.daysRemaining!.abs() > 1 ? 's' : ''}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                      ),
+                    ),
+
+                  // Carte de paiement
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            const Text('💰 ', style: TextStyle(fontSize: 24)),
-                            Text(
-                              '${widget.amount} ${widget.currency}',
-                              style: const TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFF6D00).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.lock_clock,
+                                color: Color(0xFFFF6D00),
+                                size: 28,
                               ),
                             ),
-                            const Text(
-                              ' / mois',
-                              style: TextStyle(fontSize: 16, color: Colors.white70),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      _buildPaymentStep(
-                        number: '1',
-                        icon: Icons.phone_android,
-                        title: 'Faites un dépôt',
-                        description: 'Envoyez ${widget.amount} ${widget.currency} au numéro ci-dessous',
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Numéro de paiement
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF3F0FF),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: const Color(0xFF6B4EFF).withOpacity(0.3),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.phone, color: Color(0xFF6B4EFF)),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 16),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    'Numéro de dépôt',
+                                  const Text(
+                                    'Abonnement expiré',
                                     style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[600],
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF2D3142),
                                     ),
                                   ),
                                   Text(
-                                    widget.paymentPhoneNumber ?? 'Contactez l\'école',
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF6B4EFF),
+                                    'Renouvelez pour continuer',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.copy, color: Color(0xFF6B4EFF)),
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('📋 Numéro copié')),
-                                );
-                              },
-                            ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 16),
+                        const SizedBox(height: 20),
 
-                      _buildPaymentStep(
-                        number: '2',
-                        icon: Icons.receipt_long,
-                        title: 'Saisissez la référence',
-                        description: 'Entrez la référence de votre transaction',
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Champ référence
-                      TextField(
-                        controller: _referenceController,
-                        decoration: InputDecoration(
-                          hintText: 'Ex: MM123456789',
-                          prefixIcon: const Icon(Icons.confirmation_number),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                        // Montant
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF6B4EFF), Color(0xFF9B7BFF)],
+                            ),
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          focusedBorder: OutlineInputBorder(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Text('💰 ', style: TextStyle(fontSize: 24)),
+                              Text(
+                                '${widget.amount} ${widget.currency}',
+                                style: const TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const Text(
+                                ' / mois',
+                                style: TextStyle(fontSize: 16, color: Colors.white70),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        _buildPaymentStep(
+                          number: '1',
+                          icon: Icons.phone_android,
+                          title: 'Faites un dépôt',
+                          description: 'Envoyez ${widget.amount} ${widget.currency} au numéro ci-dessous',
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Numéro de paiement
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF3F0FF),
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF6B4EFF),
-                              width: 2,
+                            border: Border.all(
+                              color: const Color(0xFF6B4EFF).withOpacity(0.3),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.phone, color: Color(0xFF6B4EFF)),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Numéro de dépôt',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                    Text(
+                                      widget.paymentPhoneNumber ?? 'Contactez l\'école',
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF6B4EFF),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.copy, color: Color(0xFF6B4EFF)),
+                                onPressed: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('📋 Numéro copié')),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        _buildPaymentStep(
+                          number: '2',
+                          icon: Icons.receipt_long,
+                          title: 'Saisissez la référence',
+                          description: 'Entrez la référence de votre transaction',
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Champ référence
+                        TextField(
+                          controller: _referenceController,
+                          decoration: InputDecoration(
+                            hintText: 'Ex: MM123456789',
+                            prefixIcon: const Icon(Icons.confirmation_number),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF6B4EFF),
+                                width: 2,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
+                        const SizedBox(height: 16),
 
-                      // Champ téléphone
-                      TextField(
-                        controller: _phoneController,
-                        decoration: InputDecoration(
-                          hintText: 'Votre numéro utilisé pour le dépôt (optionnel)',
-                          prefixIcon: const Icon(Icons.phone_android),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                        // Champ téléphone
+                        TextField(
+                          controller: _phoneController,
+                          decoration: InputDecoration(
+                            hintText: 'Votre numéro utilisé pour le dépôt (optionnel)',
+                            prefixIcon: const Icon(Icons.phone_android),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF6B4EFF),
+                                width: 2,
+                              ),
+                            ),
                           ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF6B4EFF),
-                              width: 2,
+                          keyboardType: TextInputType.phone,
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Bouton "J'ai payé"
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _isSubmitting ? null : _submitPayment,
+                            icon: _isSubmitting
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.check_circle),
+                            label: Text(
+                              _isSubmitting ? 'Envoi en cours...' : '✅ J\'ai payé',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF00C853),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              disabledBackgroundColor: Colors.grey,
                             ),
                           ),
                         ),
-                        keyboardType: TextInputType.phone,
-                      ),
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 12),
 
-                      // Bouton "J'ai payé"
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _isSubmitting ? null : _submitPayment,
-                          icon: _isSubmitting
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.check_circle),
-                          label: Text(
-                            _isSubmitting ? 'Envoi en cours...' : '✅ J\'ai payé',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                        Center(
+                          child: TextButton.icon(
+                            onPressed: () {
+                              // TODO: Support
+                            },
+                            icon: const Icon(Icons.help_outline, size: 18),
+                            label: const Text('Un problème ? Contactez-nous'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.grey[600],
                             ),
                           ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00C853),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            disabledBackgroundColor: Colors.grey,
-                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      Center(
-                        child: TextButton.icon(
-                          onPressed: () {
-                            // TODO: Support
-                          },
-                          icon: const Icon(Icons.help_outline, size: 18),
-                          label: const Text('Un problème ? Contactez-nous'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.grey[600],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Message motivation
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF8E1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: const Color(0xFFFFB300).withOpacity(0.3),
+                      ],
                     ),
                   ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.lightbulb, color: Color(0xFFFFB300), size: 32),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          '💡 Chaque minute compte pour l\'avenir de votre enfant. Ne manquez plus aucune information importante !',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF2D3142),
-                            height: 1.5,
+                  const SizedBox(height: 24),
+
+                  // Message motivation
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF8E1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFFFFB300).withOpacity(0.3),
+                      ),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.lightbulb, color: Color(0xFFFFB300), size: 32),
+                        SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            '💡 Chaque minute compte pour l\'avenir de votre enfant. Ne manquez plus aucune information importante !',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF2D3142),
+                              height: 1.5,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 40),
-              ],
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
           ),
         ),

@@ -12,9 +12,9 @@ class SubscriptionRenewalPage extends StatefulWidget {
   final int amount;
   final String currency;
   final String? paymentPhoneNumber;
-  final String? currentStatus;      // ✅ AJOUTÉ
-  final DateTime? currentEndDate;   // ✅ AJOUTÉ
-  final int? daysRemaining;       // ✅ AJOUTÉ
+  final String? currentStatus;
+  final DateTime? currentEndDate;
+  final int? daysRemaining;
 
   const SubscriptionRenewalPage({
     super.key,
@@ -134,31 +134,45 @@ class _SubscriptionRenewalPageState extends State<SubscriptionRenewalPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE),
-      appBar: AppBar(
-        title: const Text('Renouvellement'),
-        backgroundColor: const Color(0xFF6C63FF),
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: BlocListener<AuthBloc, AuthState>(
-        listener: (context, state) {
-          if (state is PaymentSubmittedSuccessfully) {
-            Navigator.of(context).pushReplacementNamed('/paymentPending');
-          } else if (state is AuthError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message), backgroundColor: Colors.red),
-            );
-            setState(() => _isUploading = false);
-          }
-        },
-        child: SingleChildScrollView(
+    return BlocListener<AuthBloc, AuthState>(
+      listenWhen: (previous, current) =>
+          current is Unauthenticated ||
+          current is PaymentSubmittedSuccessfully || // ✅ CORRIGÉ : typo (2 l -> 1 l)
+          current is PaymentPending,
+      listener: (context, state) {
+        if (state is Unauthenticated) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8F9FE),
+        appBar: AppBar(
+          title: const Text('Renouvellement'),
+          backgroundColor: const Color(0xFF6C63FF),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          actions: [
+            TextButton.icon(
+              onPressed: () {
+                context.read<AuthBloc>().add(const LogoutRequested());
+              },
+              icon: const Icon(Icons.logout, color: Colors.white, size: 20),
+              label: const Text(
+                'Déconnexion',
+                style: TextStyle(color: Colors.white, fontSize: 14),
+              ),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+            ),
+          ],
+        ),
+        body: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ✅ Carte info avec statut dynamique
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
@@ -215,7 +229,6 @@ class _SubscriptionRenewalPageState extends State<SubscriptionRenewalPage> {
               ),
               const SizedBox(height: 24),
 
-              // ✅ Sélecteur de mois
               const Text(
                 'Durée de l\'abonnement',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),

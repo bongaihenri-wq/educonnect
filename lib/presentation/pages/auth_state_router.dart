@@ -1,4 +1,3 @@
-// lib/presentation/pages/auth_state_router.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '/presentation/blocs/auth_bloc/auth_bloc.dart';
@@ -35,11 +34,16 @@ class AuthStateRouter extends StatelessWidget {
       builder: (context, state) {
         print('🎯 AuthStateRouter - State: ${state.runtimeType}');
 
+        // ✅ AJOUTÉ : Gérer AuthLoading pendant le logout
+        if (state is AuthLoading) {
+          return _buildLogoutLoading();
+        }
+
         if (state is AuthError || state is Unauthenticated) {
           return const SchoolLoginPage();
         }
 
-        if (state is AuthLoading || state is AuthInitial) {
+        if (state is AuthInitial) {
           return _buildSplashFallback();
         }
 
@@ -87,6 +91,42 @@ class AuthStateRouter extends StatelessWidget {
 
         return _buildSplashFallback();
       },
+    );
+  }
+
+  // ✅ AJOUTÉ : Widget de chargement pendant le logout
+  Widget _buildLogoutLoading() {
+    return const Scaffold(
+      backgroundColor: Color(0xFF6C63FF),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 60,
+              height: 60,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(height: 24),
+            Text(
+              'EduConnect',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Déconnexion...',
+              style: TextStyle(fontSize: 14, color: Colors.white70),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

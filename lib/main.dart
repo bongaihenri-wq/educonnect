@@ -1,4 +1,6 @@
 // lib/main.dart
+import 'package:educonnect/core/logging/app_bloc_observer.dart';
+import 'package:educonnect/core/logging/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -14,9 +16,11 @@ import 'data/repositories/course_repository.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   print('🚀 MAIN - Début initialisation');
-    print('🔍 SUPABASE_URL: ${const String.fromEnvironment('SUPABASE_URL')}');
-  print('🔍 FUNCTION_URL: ${const String.fromEnvironment('SUPABASE_FUNCTION_URL')}');
-  print('🔍 SERVICE_KEY empty: ${const String.fromEnvironment('SUPABASE_SERVICE_ROLE_KEY').isEmpty}');
+  print('🔍 SUPABASE_URL: ${const String.fromEnvironment('SUPABASE_URL')}');
+  print(
+      '🔍 FUNCTION_URL: ${const String.fromEnvironment('SUPABASE_FUNCTION_URL')}');
+  print(
+      '🔍 SERVICE_KEY empty: ${const String.fromEnvironment('SUPABASE_SERVICE_ROLE_KEY').isEmpty}');
 
   try {
     await dotenv.load(fileName: ".env");
@@ -27,19 +31,22 @@ void main() async {
   await initializeDateFormatting('fr_FR', null);
 
   await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL'] ?? '', 
+    url: dotenv.env['SUPABASE_URL'] ?? '',
     anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
   );
 
   print('✅ Supabase initialisé');
 
   final supabase = Supabase.instance.client;
+  final logger = AppLogger();
+  await logger.initialize(supabase);
+  Bloc.observer = AppBlocObserver();
 
   runApp(
     MultiRepositoryProvider(
       providers: [
         RepositoryProvider<TeacherService>(
-          create: (context) => TeacherService(supabase: supabase),  // ✅ CORRIGÉ
+          create: (context) => TeacherService(supabase: supabase), // ✅ CORRIGÉ
         ),
         RepositoryProvider<AttendanceRepository>(
           create: (context) => AttendanceRepository(supabase),

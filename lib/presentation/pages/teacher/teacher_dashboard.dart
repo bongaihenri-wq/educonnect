@@ -1,4 +1,3 @@
-// lib/presentation/pages/teacher/teacher_dashboard.dart
 import 'package:educonnect/config/routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -109,6 +108,63 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    return BlocListener<AuthBloc, AuthState>(
+      listenWhen: (previous, current) => current is Unauthenticated,
+      listener: (context, state) {
+        // ✅ Redirection forcée vers le login quand déconnecté
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.bisLight,
+        body: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: () async {
+              await _loadDashboardData();
+              await _loadMessages();
+            },
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                const DashboardHeader(),
+                StatCardsRow(
+                  teacherId: _extractUserId(context.read<AuthBloc>().state),
+                  schoolId: _extractSchoolId(context.read<AuthBloc>().state),
+                ),
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
+                    child: Text(
+                      'Actions rapides',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.nightBlue,
+                      ),
+                    ),
+                  ),
+                ),
+                QuickActionsGrid(
+                  teacherId: _extractUserId(context.read<AuthBloc>().state),
+                  schoolId: _extractSchoolId(context.read<AuthBloc>().state),
+                ),
+                _isLoading 
+                  ? const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()))
+                  : CourseListSection(courses: _assignedCourses),
+                
+                // Messages section
+                _buildMessagesSection(),
+                
+                const LogoutButton(),
+                const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessagesSection() {
     final authState = context.read<AuthBloc>().state;
     final teacherId = _extractUserId(authState);
     final schoolId = _extractSchoolId(authState);
@@ -119,187 +175,130 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     final totalUnread = recentAdminMessages.where((m) => !(m['is_read'] as bool? ?? true)).length +
                        recentParentMessages.where((m) => !(m['is_read'] as bool? ?? true)).length;
 
-    return Scaffold(
-      backgroundColor: AppTheme.bisLight,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () async {
-            await _loadDashboardData();
-            await _loadMessages();
-          },
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              const DashboardHeader(),
-              StatCardsRow(
-                teacherId: teacherId,
-                schoolId: schoolId,
-              ),
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
-                  child: Text(
-                    'Actions rapides',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.nightBlue,
-                    ),
+    if (!hasMessages) return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+    return SliverToBoxAdapter(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+            child: Row(
+              children: [
+                const Icon(Icons.message, color: AppTheme.violet, size: 22),
+                const SizedBox(width: 8),
+                const Text(
+                  'Messages',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.nightBlue,
                   ),
                 ),
-              ),
-              QuickActionsGrid(
-                teacherId: teacherId,
-                schoolId: schoolId,
-              ),
-              _isLoading 
-                ? const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()))
-                : CourseListSection(courses: _assignedCourses),
-              
-              if (hasMessages) ...[
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.message, color: AppTheme.violet, size: 22),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Messages',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.nightBlue,
-                          ),
-                        ),
-                        const Spacer(),
-                        if (totalUnread > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '$totalUnread',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                
-                if (recentAdminMessages.isNotEmpty) ...[
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                      child: Row(
-                        children: [
-                          Icon(Icons.campaign, color: Colors.orange, size: 16),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Administration',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => _buildAdminMessageCard(recentAdminMessages[index]),
-                        childCount: recentAdminMessages.length > 3 ? 3 : recentAdminMessages.length,
-                      ),
-                    ),
-                  ),
-                ],
-                
-                if (recentParentMessages.isNotEmpty) ...[
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                      child: Row(
-                        children: [
-                          Icon(Icons.person, color: Colors.green, size: 16),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Parents',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => _buildParentMessageCard(recentParentMessages[index]),
-                        childCount: recentParentMessages.length > 3 ? 3 : recentParentMessages.length,
-                      ),
-                    ),
-                  ),
-                ],
-                
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                    child: InkWell(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const TeacherMessagesPage(),
-                        ),
-                      ),
+                const Spacer(),
+                if (totalUnread > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
                       borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: AppTheme.violet.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppTheme.violet.withOpacity(0.2)),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Voir tous les messages',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.violet,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Icon(Icons.arrow_forward, size: 16, color: AppTheme.violet),
-                          ],
-                        ),
+                    ),
+                    child: Text(
+                      '$totalUnread',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                ),
               ],
-              
-              const LogoutButton(),
-              const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
-            ],
+            ),
           ),
-        ),
+          
+          if (recentAdminMessages.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Row(
+                children: [
+                  Icon(Icons.campaign, color: Colors.orange, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Administration',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ...recentAdminMessages.take(3).map((msg) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _buildAdminMessageCard(msg),
+            )),
+          ],
+          
+          if (recentParentMessages.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+              child: Row(
+                children: [
+                  Icon(Icons.person, color: Colors.green, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Parents',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ...recentParentMessages.take(3).map((msg) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _buildParentMessageCard(msg),
+            )),
+          ],
+          
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            child: InkWell(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TeacherMessagesPage(),
+                ),
+              ),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: AppTheme.violet.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.violet.withOpacity(0.2)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Voir tous les messages',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.violet,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(Icons.arrow_forward, size: 16, color: AppTheme.violet),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
