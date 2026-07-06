@@ -1,5 +1,7 @@
 // lib/config/routes.dart
-import 'package:educonnect/presentation/blocs/attendance/attendance_page.dart' show AttendancePage;
+import 'package:educonnect/presentation/blocs/attendance/attendance_page.dart'
+    show AttendancePage;
+import 'package:educonnect/presentation/pages/super_admin/analytics_dashboard_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -74,13 +76,13 @@ class AppRoutes {
   // -------------------- AUTH --------------------
   static const String schoolLogin = '/login';
   static const String authRouter = '/auth';
-  
+
   // -------------------- PARENT --------------------
   static const String parentDashboard = '/parent/dashboard';
   static const String paymentPending = '/parent/payment-pending';
   static const String subscriptionExpired = '/parent/subscription-expired';
   static const String subscriptionRenewal = '/parent/subscription-renewal';
-  
+
   // -------------------- TEACHER --------------------
   static const String teacherDashboard = '/teacher/dashboard';
   static const String teacherAttendanceClasses = '/teacher/attendance/classes';
@@ -92,7 +94,7 @@ class AppRoutes {
   static const String teacherScheduleFull = '/teacher/schedule-full';
   static const String teacherReports = '/teacher/reports';
   static const String teacherMessages = '/teacher/messages';
-  
+
   // -------------------- ADMIN ÉCOLE --------------------
   static const String adminDashboard = '/admin/dashboard';
   static const String adminTeachers = '/admin/teachers';
@@ -106,211 +108,232 @@ class AppRoutes {
   static const String adminSendMessage = '/admin/send-message';
   static const String adminBulkImport = '/admin/bulk-import';
   static const String schoolReport = '/school-report'; // ✅ AJOUTÉ
-  
+
   // Routes pilotage
   static const String schedule = '/schedule';
   static const String homework = '/homework';
   static const String grades = '/grades';
-  
+
   // -------------------- ASSISTANT & PRINCIPAL --------------------
   static const String assistantDashboard = '/assistant/dashboard';
   static const String principalDashboard = '/principal/dashboard';
-  
+
   // -------------------- SUPER ADMIN --------------------
   static const String superAdminDashboard = '/super-admin/dashboard';
   static const String schoolManagement = '/super-admin/schools';
   static const String schoolDetail = '/super-admin/school-detail';
   static const String subscriptionTracking = '/super-admin/subscriptions';
   static const String superAdminImport = '/super-admin/import';
-  static const String subscriptionDashboard = '/super-admin/subscription-dashboard';
+  static const String subscriptionDashboard =
+      '/super-admin/subscription-dashboard';
   static const String roleManagement = '/super-admin/roles';
   static const String supportDashboard = '/super-admin/support-dashboard';
-  static const String parentSupportDetail = '/super-admin/parent-support-detail';
-  static const String schoolYearManagement = '/super-admin/school-year-management';
+  static const String parentSupportDetail =
+      '/super-admin/parent-support-detail';
+  static const String schoolYearManagement =
+      '/super-admin/school-year-management';
   static const String commercialDashboard = '/super-admin/commercial-dashboard';
   static const String roleUsersList = '/super-admin/role-users-list';
   static const String schoolTrimesters = '/super-admin/school-trimesters';
   static const String schoolTrimesterSetup = '/school-trimester-setup';
+  static const String analyticsDashboard = '/analytics-dashboard';
 
   // -------------------- ANCIENNES ROUTES (compatibilité) --------------------
   static const String classesStudents = '/classes_students';
 
   static Map<String, WidgetBuilder> get routes => {
-    // AUTH
-    authRouter: (context) => const AuthStateRouter(),
-    schoolLogin: (context) => const SchoolLoginPage(),
-    
-    // PARENT
-    parentDashboard: (context) => const ParentDashboard(),
-    paymentPending: (context) => const PaymentPendingPage(),
-    subscriptionExpired: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      final expiresAtRaw = args?['expiresAt'];
-      return SubscriptionExpiredPage(
-        parentId: args?['parentId'] ?? '',
-        schoolId: args?['schoolId'],
-        expiresAt: expiresAtRaw is String 
-            ? DateTime.tryParse(expiresAtRaw) 
-            : expiresAtRaw as DateTime?,
-        daysRemaining: args?['daysRemaining'],
-        amount: args?['amount'] ?? 1000,
-        currency: args?['currency'] ?? 'XOF',
-        paymentPhoneNumber: args?['paymentPhoneNumber'],
-      );
-    },
-    subscriptionRenewal: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      final endDateRaw = args?['currentEndDate'];
-      return SubscriptionRenewalPage(
-        parentId: args?['parentId'] ?? '',
-        schoolId: args?['schoolId'],
-        amount: args?['amount'] ?? 1000,
-        currency: args?['currency'] ?? 'XOF',
-        paymentPhoneNumber: args?['paymentPhoneNumber'],
-        currentStatus: args?['currentStatus'],
-        currentEndDate: endDateRaw is String 
-            ? DateTime.tryParse(endDateRaw) 
-            : endDateRaw as DateTime?,
-        daysRemaining: args?['daysRemaining'],
-      );
-    },
-    
-    // TEACHER
-    teacherDashboard: (context) => const TeacherDashboard(),
-    teacherScheduleFull: (context) => const TeacherScheduleFullPage(),
-    
-    teacherReports: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      return TeacherReportsPage(
-        teacherId: args?['teacherId'] ?? '',
-        schoolId: args?['schoolId'] ?? '',
-        subject: args?['subject'] ?? '',
-      );
-    },
-    
-    teacherAttendanceClasses: (context) {
-      final authState = context.read<auth.AuthBloc>().state;
-      final teacherId = authState is auth.Authenticated ? authState.userId : '';
-      final schoolId = authState is auth.Authenticated ? authState.schoolId : '';
-      
-      return BlocProvider(
-        create: (_) => _createAttendanceBloc(context)..add(
-          AttendanceLoadClassesRequested(
-            teacherId: teacherId,
-            schoolId: schoolId,
-          ),
-        ),
-        child: const AttendanceClassesPage(),
-      );
-    },
-    
-    teacherAttendance: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      return AttendancePage(
-        classId: args?['classId'] ?? '',
-        className: args?['className'] ?? 'Classe',
-        subjectId: args?['subjectId'],
-        subjectName: args?['subjectName'],
-      );
-    },
-    
-    teacherGradesClasses: (context) => const GradesClassesPage(),
-    teacherGradesEntry: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      return GradesEntryPage(
-        classId: args?['classId'] ?? '',
-        className: args?['className'] ?? '',
-      );
-    },
-    
-    teacherCommentsClasses: (context) => const CommentsClassesPage(),
-    teacherCommentsEntry: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      return CommentsEntryPage(
-        classId: args?['classId'] ?? '',
-        className: args?['className'] ?? '',
-      );
-    },
-    teacherMessages: (context) => const TeacherMessagesPage(),
-    
-    // ADMIN ÉCOLE
-    adminDashboard: (context) => const AdminDashboard(),
-    adminTeachers: (context) => const TeachersListPage(),
-    adminParents: (context) => const ParentsListPage(),
-    adminClassesStudents: (context) => const ClassesStudentsPage(),
-    classesStudents: (context) => const ClassesStudentsPage(),
-    adminGradesPending: (context) => const GradesPage(),
-    adminReports: (context) => const AdminDashboard(),
-    adminMessages: (context) => const AdminMessagesPage(),
-    adminTeacherTracking: (context) => const TeacherTrackingPage(),
-    adminSettings: (context) => const SettingsPage(),
-    adminSendMessage: (context) => const AdminSendMessagePage(),
-    adminBulkImport: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      return BulkImportPage(
-        schoolId: args?['schoolId'] ?? '',
-        schoolCode: args?['schoolCode'] ?? '',
-        schoolYear: args?['schoolYear'] ?? '2024-2025',
-      );
-    },
-    schoolReport: (context) => const SchoolReportPage(), // ✅ AJOUTÉ
-    
-    // Routes pilotage
-    schedule: (context) => const SchedulePage(),
-    homework: (context) => const HomeworkPage(),
-    grades: (context) => const GradesPage(),
-    
-    // ASSISTANT & PRINCIPAL
-    assistantDashboard: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      return AssistantDashboard(
-        countryCode: args?['countryCode'] ?? '+225',
-      );
-    },
-    
-    principalDashboard: (context) => const PrincipalDashboard(),
-    
-    // SUPER ADMIN
-    superAdminDashboard: (context) => const SuperAdminDashboardPage(),
-    schoolManagement: (context) => const SchoolManagementPage(),
-    schoolDetail: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      return SchoolDetailPage(school: args?['school'] ?? {});
-    },
-    subscriptionTracking: (context) => const SubscriptionDashboardPage(),
-    supportDashboard: (context) => const SupportDashboardPage(),
-    parentSupportDetail: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      return ParentSupportDetailPage(parentId: args?['parentId'] ?? '');
-    },
-    superAdminImport: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      return BulkImportPage(
-        schoolId: args?['schoolId'] ?? '',
-        schoolCode: args?['schoolCode'] ?? '',
-        schoolYear: args?['schoolYear'] ?? '2024-2025',
-      );
-    },
-    schoolTrimesters: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      return SchoolTrimestersPage(
-        schoolId: args?['schoolId'] as String? ?? '',
-        schoolName: args?['schoolName'] as String? ?? 'École',
-      );
-    },
-    schoolTrimesterSetup: (context) {
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-      return SchoolTrimesterSetupPage(
-        schoolId: args?['schoolId'] ?? '',
-        schoolName: args?['schoolName'] ?? '',
-      );
-    },
-    roleManagement: (context) => const RoleManagementPage(),
-    subscriptionDashboard: (context) => const SubscriptionDashboardPage(),
-    schoolYearManagement: (context) => const SchoolYearManagementPage(),
-    roleUsersList: (context) => const RoleUsersListPage(),
-    commercialDashboard: (context) => const CommercialDashboardPage(),
-  };
+        // AUTH
+        authRouter: (context) => const AuthStateRouter(),
+        schoolLogin: (context) => const SchoolLoginPage(),
+
+        // PARENT
+        parentDashboard: (context) => const ParentDashboard(),
+        paymentPending: (context) => const PaymentPendingPage(),
+        subscriptionExpired: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          final expiresAtRaw = args?['expiresAt'];
+          return SubscriptionExpiredPage(
+            parentId: args?['parentId'] ?? '',
+            schoolId: args?['schoolId'],
+            expiresAt: expiresAtRaw is String
+                ? DateTime.tryParse(expiresAtRaw)
+                : expiresAtRaw as DateTime?,
+            daysRemaining: args?['daysRemaining'],
+            amount: args?['amount'] ?? 1000,
+            currency: args?['currency'] ?? 'XOF',
+            paymentPhoneNumber: args?['paymentPhoneNumber'],
+          );
+        },
+        subscriptionRenewal: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          final endDateRaw = args?['currentEndDate'];
+          return SubscriptionRenewalPage(
+            parentId: args?['parentId'] ?? '',
+            schoolId: args?['schoolId'],
+            amount: args?['amount'] ?? 1000,
+            currency: args?['currency'] ?? 'XOF',
+            paymentPhoneNumber: args?['paymentPhoneNumber'],
+            currentStatus: args?['currentStatus'],
+            currentEndDate: endDateRaw is String
+                ? DateTime.tryParse(endDateRaw)
+                : endDateRaw as DateTime?,
+            daysRemaining: args?['daysRemaining'],
+          );
+        },
+
+        // TEACHER
+        teacherDashboard: (context) => const TeacherDashboard(),
+        teacherScheduleFull: (context) => const TeacherScheduleFullPage(),
+
+        teacherReports: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          return TeacherReportsPage(
+            teacherId: args?['teacherId'] ?? '',
+            schoolId: args?['schoolId'] ?? '',
+            subject: args?['subject'] ?? '',
+          );
+        },
+
+        teacherAttendanceClasses: (context) {
+          final authState = context.read<auth.AuthBloc>().state;
+          final teacherId =
+              authState is auth.Authenticated ? authState.userId : '';
+          final schoolId =
+              authState is auth.Authenticated ? authState.schoolId : '';
+
+          return BlocProvider(
+            create: (_) => _createAttendanceBloc(context)
+              ..add(
+                AttendanceLoadClassesRequested(
+                  teacherId: teacherId,
+                  schoolId: schoolId,
+                ),
+              ),
+            child: const AttendanceClassesPage(),
+          );
+        },
+
+        teacherAttendance: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          return AttendancePage(
+            classId: args?['classId'] ?? '',
+            className: args?['className'] ?? 'Classe',
+            subjectId: args?['subjectId'],
+            subjectName: args?['subjectName'],
+          );
+        },
+
+        teacherGradesClasses: (context) => const GradesClassesPage(),
+        teacherGradesEntry: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          return GradesEntryPage(
+            classId: args?['classId'] ?? '',
+            className: args?['className'] ?? '',
+          );
+        },
+
+        teacherCommentsClasses: (context) => const CommentsClassesPage(),
+        teacherCommentsEntry: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          return CommentsEntryPage(
+            classId: args?['classId'] ?? '',
+            className: args?['className'] ?? '',
+          );
+        },
+        teacherMessages: (context) => const TeacherMessagesPage(),
+
+        // ADMIN ÉCOLE
+        adminDashboard: (context) => const AdminDashboard(),
+        adminTeachers: (context) => const TeachersListPage(),
+        adminParents: (context) => const ParentsListPage(),
+        adminClassesStudents: (context) => const ClassesStudentsPage(),
+        classesStudents: (context) => const ClassesStudentsPage(),
+        adminGradesPending: (context) => const GradesPage(),
+        adminReports: (context) => const AdminDashboard(),
+        adminMessages: (context) => const AdminMessagesPage(),
+        adminTeacherTracking: (context) => const TeacherTrackingPage(),
+        adminSettings: (context) => const SettingsPage(),
+        adminSendMessage: (context) => const AdminSendMessagePage(),
+        adminBulkImport: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          return BulkImportPage(
+            schoolId: args?['schoolId'] ?? '',
+            schoolCode: args?['schoolCode'] ?? '',
+            schoolYear: args?['schoolYear'] ?? '2024-2025',
+          );
+        },
+        schoolReport: (context) => const SchoolReportPage(), // ✅ AJOUTÉ
+
+        // Routes pilotage
+        schedule: (context) => const SchedulePage(),
+        homework: (context) => const HomeworkPage(),
+        grades: (context) => const GradesPage(),
+
+        // ASSISTANT & PRINCIPAL
+        assistantDashboard: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          return AssistantDashboard(
+            countryCode: args?['countryCode'] ?? '+225',
+          );
+        },
+
+        principalDashboard: (context) => const PrincipalDashboard(),
+
+        // SUPER ADMIN
+        superAdminDashboard: (context) => const SuperAdminDashboardPage(),
+        schoolManagement: (context) => const SchoolManagementPage(),
+        schoolDetail: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          return SchoolDetailPage(school: args?['school'] ?? {});
+        },
+        subscriptionTracking: (context) => const SubscriptionDashboardPage(),
+        supportDashboard: (context) => const SupportDashboardPage(),
+        parentSupportDetail: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          return ParentSupportDetailPage(parentId: args?['parentId'] ?? '');
+        },
+        superAdminImport: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          return BulkImportPage(
+            schoolId: args?['schoolId'] ?? '',
+            schoolCode: args?['schoolCode'] ?? '',
+            schoolYear: args?['schoolYear'] ?? '2024-2025',
+          );
+        },
+        schoolTrimesters: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          return SchoolTrimestersPage(
+            schoolId: args?['schoolId'] as String? ?? '',
+            schoolName: args?['schoolName'] as String? ?? 'École',
+          );
+        },
+        schoolTrimesterSetup: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          return SchoolTrimesterSetupPage(
+            schoolId: args?['schoolId'] ?? '',
+            schoolName: args?['schoolName'] ?? '',
+          );
+        },
+        roleManagement: (context) => const RoleManagementPage(),
+        subscriptionDashboard: (context) => const SubscriptionDashboardPage(),
+        schoolYearManagement: (context) => const SchoolYearManagementPage(),
+        roleUsersList: (context) => const RoleUsersListPage(),
+        commercialDashboard: (context) => const CommercialDashboardPage(),
+        analyticsDashboard: (context) => const AnalyticsDashboardPage(),
+      };
 
   static AttendanceBloc _createAttendanceBloc(BuildContext context) {
     final supabase = Supabase.instance.client;
