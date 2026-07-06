@@ -7,6 +7,9 @@ import '../../../blocs/auth_bloc/auth_bloc.dart';
 import '/services/child_detail_service.dart';
 import '../parent_alerts_page.dart';
 import '../child_detail_page.dart';
+// ✅ AJOUT : Error feedback et exceptions
+import '/../../core/exceptions/app_exception.dart';
+import '../../../widgets/error_feedback_widget.dart';
 
 class AlertsSection extends StatefulWidget {
   const AlertsSection({super.key});
@@ -19,6 +22,8 @@ class _AlertsSectionState extends State<AlertsSection> {
   final _service = ChildDetailService();
   final _supabase = Supabase.instance.client;
   bool _isLoading = true;
+  // ✅ AJOUT : Gestion erreur
+  AppException? _error;
 
   List<Map<String, dynamic>> _absences = [];
   List<Map<String, dynamic>> _retards = [];
@@ -33,105 +38,125 @@ class _AlertsSectionState extends State<AlertsSection> {
   }
 
   Future<void> _loadData() async {
-    final state = context.read<AuthBloc>().state;
-    String? studentId;
+    // ✅ AJOUT : Reset erreur au chargement
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
 
-    if (state is ParentAuthenticated) {
-      studentId = state.studentId;
-    } else if (state is Authenticated) {
-      try {
-        final parentData = await _supabase
-            .from('parent_students')
-            .select('student_id')
-            .eq('parent_id', state.userId)
-            .single();
-        studentId = parentData['student_id'] as String?;
-      } catch (e) {
-        debugPrint('Erreur récupération studentId: $e');
+    try {
+      final state = context.read<AuthBloc>().state;
+      String? studentId;
+
+      if (state is ParentAuthenticated) {
+        studentId = state.studentId;
+      } else if (state is Authenticated) {
+        try {
+          final parentData = await _supabase
+              .from('parent_students')
+              .select('student_id')
+              .eq('parent_id', state.userId)
+              .single();
+          studentId = parentData['student_id'] as String?;
+        } catch (e) {
+          debugPrint('Erreur récupération studentId: $e');
+        }
       }
-    }
 
-    if (studentId == null || studentId.isEmpty) {
-      setState(() => _isLoading = false);
-      return;
-    }
+      if (studentId == null || studentId.isEmpty) {
+        setState(() => _isLoading = false);
+        return;
+      }
 
-    final now = DateTime.now();
-    final yesterday = now.subtract(const Duration(hours: 24));
+      final now = DateTime.now();
+      final yesterday = now.subtract(const Duration(hours: 24));
 
-    // ─── 1. ABSENCES & RETARDS ───
-    final allAlerts = await _service.getRecentAlerts(studentId);
-    _absences = allAlerts.where((a) {
-      final type = a['type'] as String?;
-      final date = _parseDate(a['date'] ?? a['time']);
-      return type == 'absence' && date != null && date.isAfter(yesterday);
-    }).toList();
-    _retards = allAlerts.where((a) {
-      final type = a['type'] as String?;
-      final date = _parseDate(a['date'] ?? a['time']);
-      return type == 'late' && date != null && date.isAfter(yesterday);
-    }).toList();
+      // ─── 1. ABSENCES & RETARDS ───
+      final allAlerts = await _service.getRecentAlerts(studentId);
+      _absences = allAlerts.where((a) {
+        final type = a['type'] as String?;
+        final date = _parseDate(a['date'] ?? a['time']);
+        return type == 'absence' && date != null && date.isAfter(yesterday);
+      }).toList();
+      _retards = allAlerts.where((a) {
+        final type = a['type'] as String?;
+        final date = _parseDate(a['date'] ?? a['time']);
+        return type == 'late' && date != null && date.isAfter(yesterday);
+      }).toList();
 
-    // ─── 2. NOTES ───
-    final grades = await _service.getGrades(studentId);
-    final recentGrades = grades.where((g) {
-      final date = _parseDate(g['date']);
-      return date != null && date.isAfter(yesterday);
-    }).toList();
-    _latestGrade = recentGrades.isNotEmpty ? recentGrades.first : null;
+      // ─── 2. NOTES ───
+      final grades = await _service.getGrades(studentId);
+      final recentGrades = grades.where((g) {
+        final date = _parseDate(g['date']);
+        return date != null && date.isAfter(yesterday);
+      }).toList();
+      _latestGrade = recentGrades.isNotEmpty ? recentGrades.first : null;
 
-    // ─── 3. MESSAGES 24h ───
-    try {
-      final msgList = await _supabase
-          .from('comments')
-          .select('''
-            id,
-            content,
-            created_at,
-            target_subject,
-            is_read,
-            app_users!fk_comments_teacher(first_name, last_name)
-          ''')
-          .eq('student_id', studentId)
-          .eq('recipient_type', 'parent')
-          .gte('created_at', yesterday.toIso8601String())
-          .order('created_at', ascending: false);
-      _messages = List<Map<String, dynamic>>.from(msgList);
-    } catch (e) {
-      debugPrint('Erreur récupération messages: $e');
-    }
-
-    // ─── 4. DEVOIRS ───
-    try {
-      final studentData = await _supabase
-          .from('students')
-          .select('class_id')
-          .eq('id', studentId)
-          .maybeSingle();
-      final classId = studentData?['class_id'] as String?;
-
-      if (classId != null) {
-        final hwList = await _supabase
-            .from('homeworks')
+      // ─── 3. MESSAGES 24h ───
+      try {
+        final msgList = await _supabase
+            .from('comments')
             .select('''
               id,
-              description,
-              due_date,
-              due_time,
+              content,
               created_at,
-              subjects(name),
-              app_users!teacher_id(first_name, last_name)
+              target_subject,
+              is_read,
+              app_users!fk_comments_teacher(first_name, last_name)
             ''')
-            .eq('class_id', classId)
+            .eq('student_id', studentId)
+            .eq('recipient_type', 'parent')
             .gte('created_at', yesterday.toIso8601String())
             .order('created_at', ascending: false);
-        _homeworks = List<Map<String, dynamic>>.from(hwList);
+        _messages = List<Map<String, dynamic>>.from(msgList);
+      } catch (e) {
+        debugPrint('Erreur récupération messages: $e');
       }
-    } catch (e) {
-      debugPrint('Erreur récupération devoirs: $e');
-    }
 
-    setState(() => _isLoading = false);
+      // ─── 4. DEVOIRS ───
+      try {
+        final studentData = await _supabase
+            .from('students')
+            .select('class_id')
+            .eq('id', studentId)
+            .maybeSingle();
+        final classId = studentData?['class_id'] as String?;
+
+        if (classId != null) {
+          final hwList = await _supabase
+              .from('homeworks')
+              .select('''
+                id,
+                description,
+                due_date,
+                due_time,
+                created_at,
+                subjects(name),
+                app_users!teacher_id(first_name, last_name)
+              ''')
+              .eq('class_id', classId)
+              .gte('created_at', yesterday.toIso8601String())
+              .order('created_at', ascending: false);
+          _homeworks = List<Map<String, dynamic>>.from(hwList);
+        }
+      } catch (e) {
+        debugPrint('Erreur récupération devoirs: $e');
+      }
+
+      setState(() => _isLoading = false);
+    } on AppException catch (e) {
+      // ✅ AJOUT : Capture AppException avec feedback
+      setState(() {
+        _error = e;
+        _isLoading = false;
+      });
+    } catch (e, stackTrace) {
+      // ✅ AJOUT : Capture erreur inconnue
+      setState(() {
+        _error = AppException.fromError(e, stackTrace);
+        _isLoading = false;
+      });
+    }
   }
 
   DateTime? _parseDate(dynamic value) {
@@ -148,7 +173,11 @@ class _AlertsSectionState extends State<AlertsSection> {
   }
 
   int get _totalAlerts =>
-      _absences.length + _retards.length + _homeworks.length + _messages.length + (_latestGrade != null ? 1 : 0);
+      _absences.length +
+      _retards.length +
+      _homeworks.length +
+      _messages.length +
+      (_latestGrade != null ? 1 : 0);
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +217,8 @@ class _AlertsSectionState extends State<AlertsSection> {
                     if (_totalAlerts > 0) ...[
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Colors.red, Colors.redAccent],
@@ -225,26 +255,44 @@ class _AlertsSectionState extends State<AlertsSection> {
               ],
             ),
             const SizedBox(height: 16),
+            // ✅ AJOUT : Gestion des 3 états (chargement / erreur / données)
             _isLoading
-                ? const Center(child: CircularProgressIndicator(color: AppTheme.violet))
-                : _buildUnifiedCard(),
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppTheme.violet))
+                : _error != null
+                    ? _buildErrorFeedback()
+                    : _buildUnifiedCard(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildUnifiedCard() {
-    if (_totalAlerts == 0) {
-      return _buildNoAlertCard();
-    }
-    return _buildAlertListCard();
+  // ✅ AJOUT : Widget de feedback d'erreur avec retry
+  Widget _buildErrorFeedback() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: ErrorFeedbackWidget(
+        error: _error,
+        onRetry: () {
+          setState(() => _isLoading = true);
+          _loadData();
+        },
+      ),
+    );
   }
 
   // ═══════════════════════════════════════════════════
-  // ÉTAT VIDE - DESIGN RASSURANT
+  // ÉTAT VIDE - DESIGN RASSURANT (INCHANGÉ)
   // ═══════════════════════════════════════════════════
   Widget _buildNoAlertCard() {
+    // ... (ton code existant inchangé)
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
@@ -314,9 +362,17 @@ class _AlertsSectionState extends State<AlertsSection> {
   }
 
   // ═══════════════════════════════════════════════════
-  // LISTE DES ALERTES - DESIGN PREMIUM
+  // LISTE DES ALERTES - DESIGN PREMIUM (INCHANGÉ)
   // ═══════════════════════════════════════════════════
+  Widget _buildUnifiedCard() {
+    if (_totalAlerts == 0) {
+      return _buildNoAlertCard();
+    }
+    return _buildAlertListCard();
+  }
+
   Widget _buildAlertListCard() {
+    // ... (ton code existant inchangé)
     final items = <Widget>[];
 
     // 1. ABSENCES
@@ -394,7 +450,8 @@ class _AlertsSectionState extends State<AlertsSection> {
 
     // 4. DEVOIRS
     for (final hw in _homeworks) {
-      final subject = (hw['subjects'] as Map<String, dynamic>?)?['name'] ?? 'Matière';
+      final subject =
+          (hw['subjects'] as Map<String, dynamic>?)?['name'] ?? 'Matière';
       final dueDate = hw['due_date'] as String?;
       final dueTime = hw['due_time'] as String?;
 
@@ -402,7 +459,8 @@ class _AlertsSectionState extends State<AlertsSection> {
       if (dueDate != null) {
         try {
           final dt = DateTime.parse(dueDate);
-          dueDateStr = '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}';
+          dueDateStr =
+              '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}';
         } catch (_) {
           dueDateStr = dueDate;
         }
@@ -414,7 +472,8 @@ class _AlertsSectionState extends State<AlertsSection> {
         bgColor: AppTheme.teal.withOpacity(0.08),
         title: 'Devoir',
         subtitle: subject,
-        detail: 'À rendre${dueDateStr.isNotEmpty ? ' le $dueDateStr' : ''}${dueTime != null ? ' à $dueTime' : ''}',
+        detail:
+            'À rendre${dueDateStr.isNotEmpty ? ' le $dueDateStr' : ''}${dueTime != null ? ' à $dueTime' : ''}',
         action: 'Voir',
         actionColor: AppTheme.teal,
         onTap: () => _navigateToMessages(context),
@@ -430,9 +489,12 @@ class _AlertsSectionState extends State<AlertsSection> {
       final noteSur20 = maxScore > 0 ? (score / maxScore) * 20 : 0.0;
 
       Color noteColor;
-      if (noteSur20 >= 14) noteColor = Colors.green;
-      else if (noteSur20 >= 10) noteColor = Colors.orange;
-      else noteColor = Colors.red;
+      if (noteSur20 >= 14)
+        noteColor = Colors.green;
+      else if (noteSur20 >= 10)
+        noteColor = Colors.orange;
+      else
+        noteColor = Colors.red;
 
       items.add(_buildAlertItem(
         icon: Icons.school,
@@ -486,9 +548,7 @@ class _AlertsSectionState extends State<AlertsSection> {
     );
   }
 
-  // ═══════════════════════════════════════════════════
-  // ITEM D'ALERTE PREMIUM
-  // ═══════════════════════════════════════════════════
+  // ... (reste du code existant inchangé : _buildAlertItem, _navigateToAlertsPage, etc.)
   Widget _buildAlertItem({
     required IconData icon,
     required Color color,
@@ -509,7 +569,6 @@ class _AlertsSectionState extends State<AlertsSection> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // ─── ICÔNE AVEC BADGE ───
             Stack(
               children: [
                 Container(
@@ -544,12 +603,10 @@ class _AlertsSectionState extends State<AlertsSection> {
               ],
             ),
             const SizedBox(width: 14),
-            // ─── CONTENU ───
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Ligne type + matière
                   Row(
                     children: [
                       Text(
@@ -575,7 +632,6 @@ class _AlertsSectionState extends State<AlertsSection> {
                     ],
                   ),
                   const SizedBox(height: 3),
-                  // Détail (date/heure/note)
                   Text(
                     detail,
                     style: TextStyle(
@@ -588,7 +644,6 @@ class _AlertsSectionState extends State<AlertsSection> {
               ),
             ),
             const SizedBox(width: 8),
-            // ─── BOUTON ACTION COMPACT ───
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(

@@ -2,16 +2,17 @@
 import 'package:educonnect/services/child_detail_service.dart';
 import 'package:flutter/material.dart';
 import '../../../config/theme.dart';
-import '../admin/widgets/period_selector.dart'; // ✅ AJOUTÉ
+import '../admin/widgets/period_selector.dart';
 import 'widgets/presence_stats_cards.dart';
 import 'widgets/presence_filter_bar.dart';
 import 'widgets/presence_table_widget.dart';
+// ✅ AJOUT : Import du widget empty state réutilisable
+import '../../widgets/empty_state_widget.dart';
 
 class ParentAttendancePage extends StatefulWidget {
   final String studentId;
   final String studentName;
   final bool isEmbedded;
-  // ✅ PARAMÈTRES PÉRIODES AJOUTÉS
   final List<Map<String, dynamic>> periods;
   final Map<String, dynamic>? selectedPeriod;
   final ValueChanged<Map<String, dynamic>?> onPeriodChanged;
@@ -21,9 +22,9 @@ class ParentAttendancePage extends StatefulWidget {
     required this.studentId,
     required this.studentName,
     this.isEmbedded = false,
-    this.periods = const [], // ✅ AJOUTÉ
-    this.selectedPeriod, // ✅ AJOUTÉ
-    required this.onPeriodChanged, // ✅ AJOUTÉ
+    this.periods = const [],
+    this.selectedPeriod,
+    required this.onPeriodChanged,
   });
 
   @override
@@ -36,10 +37,6 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
   List<Map<String, dynamic>> _allAttendance = [];
   List<Map<String, dynamic>> _filteredAttendance = [];
   List<String> _availableSubjects = [];
-  
-  // ✅ SUPPRIMÉ : _selectedPeriod String hardcodé
-  // ✅ SUPPRIMÉ : _selectedDate
-  
   String _selectedSubject = 'Tous';
 
   @override
@@ -50,7 +47,7 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    
+
     final attendance = await _service.getAttendance(widget.studentId);
     final subjects = attendance
         .map((a) => a['schedules']?['subjects']?['name'] as String?)
@@ -67,7 +64,6 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
     });
   }
 
-  // ✅ NOUVEAU : Filtrer par période réelle (start_date / end_date)
   void _applyPeriodFilter(Map<String, dynamic>? period) {
     if (period == null) {
       setState(() => _filteredAttendance = _allAttendance);
@@ -97,7 +93,7 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
 
   void _applySubjectFilter() {
     if (_selectedSubject == 'Tous') return;
-    
+
     setState(() {
       _filteredAttendance = _filteredAttendance.where((a) {
         final subject = a['schedules']?['subjects']?['name'] as String?;
@@ -106,7 +102,6 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
     });
   }
 
-  // ✅ MODIFIÉ : Utilise le PeriodSelector au lieu du filter bar hardcodé
   void _onPeriodChanged(Map<String, dynamic>? period) {
     widget.onPeriodChanged(period);
     _applyPeriodFilter(period);
@@ -114,7 +109,6 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
 
   void _onSubjectChanged(String subject) {
     setState(() => _selectedSubject = subject);
-    // Re-appliquer le filtre période + sujet
     _applyPeriodFilter(widget.selectedPeriod);
   }
 
@@ -160,7 +154,6 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
                 SliverToBoxAdapter(
                   child: PresenceStatsCards(attendance: _filteredAttendance),
                 ),
-                // ✅ REMPLACÉ : PresenceFilterBar par PeriodSelector
                 if (widget.periods.isNotEmpty)
                   SliverToBoxAdapter(
                     child: PeriodSelector(
@@ -169,23 +162,58 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
                       onPeriodChanged: _onPeriodChanged,
                     ),
                   ),
-                // ✅ FILTRE MATIÈRE CONSERVÉ (plus simple)
                 SliverToBoxAdapter(
                   child: _buildSubjectFilter(),
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.all(16),
-                  sliver: SliverToBoxAdapter(
-                    child: PresenceTableWidget(attendance: _filteredAttendance),
+                // ✅ AJOUT : Empty state quand aucune présence ne correspond aux filtres
+                if (_filteredAttendance.isEmpty)
+                  SliverPadding(
+                    padding: const EdgeInsets.all(16),
+                    sliver: SliverToBoxAdapter(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 40),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.grey.shade100),
+                        ),
+                        child: EmptyStateWidget(
+                          icon: Icons.calendar_today_outlined,
+                          iconColor: AppTheme.violet.withOpacity(0.5),
+                          title: 'Aucune présence trouvée',
+                          subtitle: _allAttendance.isEmpty
+                              ? 'Aucune donnée de présence n\'est enregistrée pour cet élève.'
+                              : 'Essayez de changer la période ou la matière sélectionnée.',
+                          actionLabel: _allAttendance.isEmpty
+                              ? null
+                              : 'Réinitialiser les filtres',
+                          onAction: _allAttendance.isEmpty
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _selectedSubject = 'Tous';
+                                    _filteredAttendance = _allAttendance;
+                                  });
+                                  widget.onPeriodChanged(null);
+                                },
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.all(16),
+                    sliver: SliverToBoxAdapter(
+                      child:
+                          PresenceTableWidget(attendance: _filteredAttendance),
+                    ),
                   ),
-                ),
                 const SliverPadding(padding: EdgeInsets.only(bottom: 30)),
               ],
             ),
           );
   }
 
-  // ✅ NOUVEAU : Filtre matière simplifié
   Widget _buildSubjectFilter() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),

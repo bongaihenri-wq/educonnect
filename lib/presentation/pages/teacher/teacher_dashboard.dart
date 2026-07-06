@@ -1,3 +1,4 @@
+// lib/presentation/pages/teacher/teacher_dashboard.dart
 import 'package:educonnect/config/routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -10,6 +11,7 @@ import 'widgets/stat_cards_row.dart';
 import 'widgets/quick_actions_grid.dart';
 import 'widgets/course_list_section.dart';
 import 'teacher_messages_page.dart';
+import '../../widgets/empty_state_widget.dart';
 
 class TeacherDashboard extends StatefulWidget {
   const TeacherDashboard({super.key});
@@ -47,12 +49,15 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   Future<void> _loadDashboardData() async {
     final authState = context.read<AuthBloc>().state;
     final teacherId = _extractUserId(authState);
-    
+
     if (teacherId.isNotEmpty) {
       try {
-        final data = await context.read<TeacherService>().getTeacherAssignments(teacherId);
+        final data = await context
+            .read<TeacherService>()
+            .getTeacherAssignments(teacherId);
         setState(() {
-          _assignedCourses = data.map((json) => CourseModel.fromJson(json)).toList();
+          _assignedCourses =
+              data.map((json) => CourseModel.fromJson(json)).toList();
           _isLoading = false;
         });
       } catch (e) {
@@ -79,7 +84,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         teacherId: teacherId,
         schoolId: schoolId,
       );
-      
+
       final parentMsgs = await TeacherService().getParentMessages(
         teacherId: teacherId,
         limit: 50,
@@ -96,10 +101,11 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     }
   }
 
-  List<Map<String, dynamic>> _filterRecentMessages(List<Map<String, dynamic>> messages) {
+  List<Map<String, dynamic>> _filterRecentMessages(
+      List<Map<String, dynamic>> messages) {
     final now = DateTime.now();
     final yesterday = now.subtract(const Duration(hours: 24));
-    
+
     return messages.where((msg) {
       final createdAt = DateTime.tryParse(msg['created_at'] as String? ?? '');
       return createdAt != null && createdAt.isAfter(yesterday);
@@ -111,8 +117,8 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     return BlocListener<AuthBloc, AuthState>(
       listenWhen: (previous, current) => current is Unauthenticated,
       listener: (context, state) {
-        // ✅ Redirection forcée vers le login quand déconnecté
-        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/login', (route) => false);
       },
       child: Scaffold(
         backgroundColor: AppTheme.bisLight,
@@ -147,13 +153,14 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                   teacherId: _extractUserId(context.read<AuthBloc>().state),
                   schoolId: _extractSchoolId(context.read<AuthBloc>().state),
                 ),
-                _isLoading 
-                  ? const SliverToBoxAdapter(child: Center(child: CircularProgressIndicator()))
-                  : CourseListSection(courses: _assignedCourses),
-                
-                // Messages section
+                _isLoading
+                    ? const SliverToBoxAdapter(
+                        child: Center(child: CircularProgressIndicator()))
+                    : CourseListSection(courses: _assignedCourses),
+
+                // ✅ CORRIGÉ : Section messages TOUJOURS affichée
                 _buildMessagesSection(),
-                
+
                 const LogoutButton(),
                 const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
               ],
@@ -171,12 +178,16 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
 
     final recentAdminMessages = _filterRecentMessages(_adminMessages);
     final recentParentMessages = _filterRecentMessages(_parentMessages);
-    final hasMessages = recentAdminMessages.isNotEmpty || recentParentMessages.isNotEmpty;
-    final totalUnread = recentAdminMessages.where((m) => !(m['is_read'] as bool? ?? true)).length +
-                       recentParentMessages.where((m) => !(m['is_read'] as bool? ?? true)).length;
+    final hasMessages =
+        recentAdminMessages.isNotEmpty || recentParentMessages.isNotEmpty;
+    final totalUnread = recentAdminMessages
+            .where((m) => !(m['is_read'] as bool? ?? true))
+            .length +
+        recentParentMessages
+            .where((m) => !(m['is_read'] as bool? ?? true))
+            .length;
 
-    if (!hasMessages) return const SliverToBoxAdapter(child: SizedBox.shrink());
-
+    // ✅ CORRIGÉ : On affiche TOUJOURS la section, même vide
     return SliverToBoxAdapter(
       child: Column(
         children: [
@@ -197,7 +208,8 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                 const Spacer(),
                 if (totalUnread > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.red,
                       borderRadius: BorderRadius.circular(12),
@@ -214,7 +226,34 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               ],
             ),
           ),
-          
+
+          // ✅ AJOUT : Empty state quand aucun message récent
+          if (!hasMessages) ...[
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey.shade100),
+              ),
+              child: EmptyStateWidget(
+                icon: Icons.mark_email_unread_outlined,
+                iconColor: Colors.grey,
+                title: 'Aucun message récent',
+                subtitle:
+                    'Aucun message des dernières 24h.\nTous vos messages sont dans l\'onglet Messages.',
+                actionLabel: 'Voir tous les messages',
+                onAction: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TeacherMessagesPage(),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
           if (recentAdminMessages.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
@@ -234,11 +273,11 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               ),
             ),
             ...recentAdminMessages.take(3).map((msg) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _buildAdminMessageCard(msg),
-            )),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildAdminMessageCard(msg),
+                )),
           ],
-          
+
           if (recentParentMessages.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
@@ -258,11 +297,12 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               ),
             ),
             ...recentParentMessages.take(3).map((msg) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _buildParentMessageCard(msg),
-            )),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildParentMessageCard(msg),
+                )),
           ],
-          
+
+          // ✅ Le bouton "Voir tous les messages" reste visible même quand vide
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
             child: InkWell(
@@ -274,7 +314,8 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               ),
               borderRadius: BorderRadius.circular(12),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                 decoration: BoxDecoration(
                   color: AppTheme.violet.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(12),
@@ -306,7 +347,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   Widget _buildAdminMessageCard(Map<String, dynamic> msg) {
     final isBroadcast = msg['is_broadcast'] == true;
     final isRead = msg['is_read'] == true;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -325,7 +366,9 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isBroadcast ? Colors.red.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
+                  color: isBroadcast
+                      ? Colors.red.withOpacity(0.1)
+                      : Colors.blue.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -342,7 +385,8 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                 Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                  decoration: const BoxDecoration(
+                      color: Colors.red, shape: BoxShape.circle),
                 ),
             ],
           ),
@@ -370,10 +414,10 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   Widget _buildParentMessageCard(Map<String, dynamic> msg) {
     final isRead = msg['is_read'] == true;
     final student = msg['students'] as Map<String, dynamic>?;
-    final studentName = student != null 
+    final studentName = student != null
         ? '${student['first_name']} ${student['last_name']}'
         : 'Élève';
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -381,7 +425,8 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         color: isRead ? Colors.white : AppTheme.violet.withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isRead ? Colors.grey.shade200 : AppTheme.violet.withOpacity(0.3),
+          color:
+              isRead ? Colors.grey.shade200 : AppTheme.violet.withOpacity(0.3),
         ),
       ),
       child: Column(
@@ -394,7 +439,8 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               Expanded(
                 child: Text(
                   msg['sender_name'] ?? 'Parent',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w600),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -402,7 +448,8 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                 Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                  decoration: const BoxDecoration(
+                      color: Colors.red, shape: BoxShape.circle),
                 ),
             ],
           ),
@@ -414,7 +461,8 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           const SizedBox(height: 4),
           Text(
             msg['content'] ?? '',
-            style: TextStyle(fontSize: 12, color: AppTheme.nightBlue.withOpacity(0.8)),
+            style: TextStyle(
+                fontSize: 12, color: AppTheme.nightBlue.withOpacity(0.8)),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),

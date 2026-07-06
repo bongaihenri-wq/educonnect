@@ -5,12 +5,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../blocs/auth_bloc/auth_bloc.dart' as auth;
 import '../../../config/routes.dart';
 import '../../../services/subscription_service.dart';
+// ✅ AJOUT : Import de la page Analytics
+import 'analytics_dashboard_page.dart';
 
 class SuperAdminDashboardPage extends StatefulWidget {
   const SuperAdminDashboardPage({super.key});
 
   @override
-  State<SuperAdminDashboardPage> createState() => _SuperAdminDashboardPageState();
+  State<SuperAdminDashboardPage> createState() =>
+      _SuperAdminDashboardPageState();
 }
 
 class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
@@ -57,7 +60,8 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                 icon: const Icon(Icons.logout),
                 onPressed: () {
                   context.read<auth.AuthBloc>().add(auth.LogoutRequested());
-                  Navigator.pushReplacementNamed(context, AppRoutes.schoolLogin);
+                  Navigator.pushReplacementNamed(
+                      context, AppRoutes.schoolLogin);
                 },
               ),
             ],
@@ -77,9 +81,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                   _buildActionsGrid(context),
                   const SizedBox(height: 40),
                 ],
-                
               ),
-              
             ),
           ),
         );
@@ -97,7 +99,8 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
             const CircleAvatar(
               radius: 30,
               backgroundColor: Colors.white,
-              child: Icon(Icons.admin_panel_settings, color: Color(0xFF6B4EFF), size: 30),
+              child: Icon(Icons.admin_panel_settings,
+                  color: Color(0xFF6B4EFF), size: 30),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -153,12 +156,18 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
         }
 
         final stats = snapshot.data ?? [];
-        final totalSchools = stats.isNotEmpty ? stats[0]['total_schools'] ?? 0 : 0;
-        final totalStudents = stats.isNotEmpty ? stats[0]['total_students'] ?? 0 : 0;
-        final totalTeachers = stats.isNotEmpty ? stats[0]['total_teachers'] ?? 0 : 0;
-        final totalParents = stats.isNotEmpty ? stats[0]['total_parents'] ?? 0 : 0;
-        final activeSubscriptions = stats.isNotEmpty ? stats[0]['active_subscriptions'] ?? 0 : 0;
-        final totalRevenue = stats.isNotEmpty ? stats[0]['total_revenue'] ?? 0 : 0;
+        final totalSchools =
+            stats.isNotEmpty ? stats[0]['total_schools'] ?? 0 : 0;
+        final totalStudents =
+            stats.isNotEmpty ? stats[0]['total_students'] ?? 0 : 0;
+        final totalTeachers =
+            stats.isNotEmpty ? stats[0]['total_teachers'] ?? 0 : 0;
+        final totalParents =
+            stats.isNotEmpty ? stats[0]['total_parents'] ?? 0 : 0;
+        final activeSubscriptions =
+            stats.isNotEmpty ? stats[0]['active_subscriptions'] ?? 0 : 0;
+        final totalRevenue =
+            stats.isNotEmpty ? stats[0]['total_revenue'] ?? 0 : 0;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -222,17 +231,20 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
 
   Future<List<Map<String, dynamic>>> _fetchGlobalStats() async {
     try {
-      final response = await Supabase.instance.client.rpc('get_super_admin_stats');
+      final response =
+          await Supabase.instance.client.rpc('get_super_admin_stats');
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      return [{
-        'total_schools': 0,
-        'total_students': 0,
-        'total_teachers': 0,
-        'total_parents': 0,
-        'active_subscriptions': 0,
-        'total_revenue': 0,
-      }];
+      return [
+        {
+          'total_schools': 0,
+          'total_students': 0,
+          'total_teachers': 0,
+          'total_parents': 0,
+          'active_subscriptions': 0,
+          'total_revenue': 0,
+        }
+      ];
     }
   }
 
@@ -249,7 +261,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
         label: 'Créer École + Importer',
         color: Colors.deepPurple,
         onTap: () => Navigator.pushNamed(
-          context, 
+          context,
           AppRoutes.schoolManagement,
           arguments: {'openImport': true},
         ),
@@ -258,34 +270,46 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
         icon: Icons.monetization_on,
         label: '💰 Suivi Abonnements',
         color: Colors.green,
-        onTap: () => Navigator.pushNamed(context, AppRoutes.subscriptionDashboard),
+        onTap: () =>
+            Navigator.pushNamed(context, AppRoutes.subscriptionDashboard),
       ),
-      // ✅ AJOUTÉ : Support Client (P0)
+      // ✅ Support Client
       _AdminAction(
         icon: Icons.support_agent,
         label: 'Support Client',
         color: Colors.orange,
         onTap: () => Navigator.pushNamed(context, AppRoutes.supportDashboard),
       ),
-      // ✅ AJOUTÉ : Gestion Années Scolaires (P1)
+      // ✅ Gestion Années Scolaires
       _AdminAction(
         icon: Icons.calendar_month,
         label: 'Années Scolaires',
         color: const Color(0xFF6C63FF),
-        onTap: () => Navigator.pushNamed(context, AppRoutes.schoolYearManagement),
+        onTap: () =>
+            Navigator.pushNamed(context, AppRoutes.schoolYearManagement),
       ),
+      // ✅ CORRIGÉ : Bouton Rapports → Analytics Dashboard
       _AdminAction(
-        icon: Icons.bar_chart,
+        icon: Icons.analytics, // ✅ Icône analytics plus appropriée
         label: 'Rapports',
         color: Colors.purple,
-        onTap: () {},
+        onTap: () {
+          // ✅ Navigation vers Analytics Dashboard
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AnalyticsDashboardPage(),
+            ),
+          );
+        },
       ),
       _AdminAction(
-       icon: Icons.trending_up,
-       label: 'Commercial',
-       color: Colors.teal,
-      onTap: () => Navigator.pushNamed(context, AppRoutes.commercialDashboard),
-),
+        icon: Icons.trending_up,
+        label: 'Commercial',
+        color: Colors.teal,
+        onTap: () =>
+            Navigator.pushNamed(context, AppRoutes.commercialDashboard),
+      ),
       _AdminAction(
         icon: Icons.manage_accounts,
         label: 'Gestion des Rôles',
@@ -297,7 +321,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
         label: 'Trimestres Écoles',
         color: Colors.pink,
         onTap: () => Navigator.pushNamed(context, AppRoutes.schoolManagement),
-  ),
+      ),
     ];
 
     return Column(

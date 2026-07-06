@@ -1,4 +1,4 @@
-// lib/app.dart - VERSION CORRIGÉE AVEC NAVIGATION DÉCLARATIVE
+// lib/app.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -13,11 +13,56 @@ import 'data/repositories/class_repository.dart';
 import 'data/repositories/student_repository.dart';
 import 'data/repositories/course_repository.dart';
 import 'services/teacher_service.dart';
+import 'core/analytics/analytics_event.dart';
+import 'core/analytics/analytics_tracker.dart';
 
-class EduConnectApp extends StatelessWidget {
+class EduConnectApp extends StatefulWidget {
   const EduConnectApp({super.key});
 
-  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
+  @override
+  State<EduConnectApp> createState() => _EduConnectAppState();
+}
+
+class _EduConnectAppState extends State<EduConnectApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    analytics.flushImmediately();
+    analytics.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // ✅ NE PAS tracker app_resumed comme app_launched
+        // analytics.track(AnalyticsEvents.appResumed);
+        break;
+      case AppLifecycleState.paused:
+        analytics.track(AnalyticsEvents.appPaused);
+        analytics.flushImmediately();
+        break;
+      case AppLifecycleState.detached:
+        analytics.track(AnalyticsEvents.appTerminated);
+        analytics.flushImmediately();
+        break;
+      default:
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +78,6 @@ class EduConnectApp extends StatelessWidget {
       ],
       child: MultiBlocProvider(
         providers: [
-          // ✅ CORRIGÉ : Ajout de AppStarted au démarrage
           BlocProvider(
             create: (_) => AuthBloc(supabase)..add(const AppStarted()),
           ),
@@ -48,7 +92,7 @@ class EduConnectApp extends StatelessWidget {
           ),
         ],
         child: MaterialApp(
-          navigatorKey: navigatorKey,
+          navigatorKey: EduConnectApp.navigatorKey,
           title: 'EduConnect',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
@@ -80,7 +124,8 @@ class EduConnectApp extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
               ),
             ),
             cardTheme: CardThemeData(
@@ -105,7 +150,8 @@ class EduConnectApp extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: AppTheme.violet, width: 2),
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
           ),
           localizationsDelegates: const [
@@ -116,12 +162,69 @@ class EduConnectApp extends StatelessWidget {
           supportedLocales: const [
             Locale('fr', 'FR'),
           ],
-          // ✅ SUPPRIMÉ : initialRoute (remplacé par home)
-          // ✅ SUPPRIMÉ : BlocListener de navigation dans builder
-          home: const AuthStateRouter(), // ✅ AJOUTÉ : Navigation déclarative
+          home: const AuthStateRouter(),
           routes: AppRoutes.routes,
+          navigatorObservers: [
+            _AnalyticsNavigatorObserver(),
+          ],
         ),
       ),
     );
+  }
+}
+
+// ✅ CORRIGÉ : Observer utilise _getScreenName() partout
+class _AnalyticsNavigatorObserver extends NavigatorObserver {
+  String _getScreenName(Route route) {
+    // 1. Utiliser settings.name si disponible (route nommée)
+    if (route.settings.name != null && route.settings.name!.isNotEmpty) {
+      return route.settings.name!;
+    }
+
+    // 2. Ignorer les overlays (popup, menu, dialog)
+    final type = route.runtimeType.toString();
+    if (type.contains('Popup') ||
+        type.contains('Dialog') ||
+        type.contains('Modal') ||
+        type.contains('BottomSheet')) {
+      return '_overlay'; // Marqueur pour ignorer
+    }
+
+    // 3. Fallback : type de la route
+    return type;
+  }
+
+  @override
+  void didPush(Route route, Route? previousRoute) {
+    super.didPush(route, previousRoute);
+    // ✅ CORRIGÉ : Utilise _getScreenName() au lieu de l'ancienne logique
+    final screenName = _getScreenName(route);
+    if (screenName != '_overlay') {
+      analytics.trackScreen(screenName);
+    }
+  }
+
+  @override
+  void didReplace({Route? newRoute, Route? oldRoute}) {
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
+    if (newRoute != null) {
+      // ✅ CORRIGÉ : Utilise _getScreenName()
+      final screenName = _getScreenName(newRoute);
+      if (screenName != '_overlay') {
+        analytics.trackScreen(screenName);
+      }
+    }
+  }
+
+  @override
+  void didPop(Route route, Route? previousRoute) {
+    super.didPop(route, previousRoute);
+    if (previousRoute != null) {
+      // ✅ CORRIGÉ : Utilise _getScreenName()
+      final screenName = _getScreenName(previousRoute);
+      if (screenName != '_overlay') {
+        analytics.trackScreen(screenName);
+      }
+    }
   }
 }

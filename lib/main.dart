@@ -12,6 +12,9 @@ import 'data/repositories/attendance_repository.dart';
 import 'data/repositories/class_repository.dart';
 import 'data/repositories/student_repository.dart';
 import 'data/repositories/course_repository.dart';
+// ✅ AJOUT : Analytics (ordre important : event avant tracker)
+import 'core/analytics/analytics_event.dart';
+import 'core/analytics/analytics_tracker.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,11 +45,14 @@ void main() async {
   await logger.initialize(supabase);
   Bloc.observer = AppBlocObserver();
 
+  // ✅ AJOUT : Initialiser analytics (sans user pour l'instant, mis à jour après login)
+  analytics.initialize();
+
   runApp(
     MultiRepositoryProvider(
       providers: [
         RepositoryProvider<TeacherService>(
-          create: (context) => TeacherService(supabase: supabase), // ✅ CORRIGÉ
+          create: (context) => TeacherService(supabase: supabase),
         ),
         RepositoryProvider<AttendanceRepository>(
           create: (context) => AttendanceRepository(supabase),
