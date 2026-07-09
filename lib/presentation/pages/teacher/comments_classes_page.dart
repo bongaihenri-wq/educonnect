@@ -18,7 +18,8 @@ class CommentsClassesPage extends StatefulWidget {
   State<CommentsClassesPage> createState() => _CommentsClassesPageState();
 }
 
-class _CommentsClassesPageState extends State<CommentsClassesPage> with SingleTickerProviderStateMixin {
+class _CommentsClassesPageState extends State<CommentsClassesPage>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   final int _currentDay = DateTime.now().weekday;
@@ -31,24 +32,26 @@ class _CommentsClassesPageState extends State<CommentsClassesPage> with SingleTi
   }
 
   void _initAnimation() {
-    _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
-    _fadeAnimation = CurvedAnimation(parent: _animationController, curve: Curves.easeOut);
+    _animationController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600));
+    _fadeAnimation =
+        CurvedAnimation(parent: _animationController, curve: Curves.easeOut);
   }
 
   void _loadClasses() {
     final authState = context.read<AuthBloc>().state;
     String teacherId = '';
     String schoolId = '';
-    
+
     if (authState is Authenticated) {
       teacherId = authState.userId;
       schoolId = authState.schoolId;
     }
-    
+
     context.read<AttendanceBloc>().add(AttendanceLoadClassesRequested(
-      teacherId: teacherId,
-      schoolId: schoolId,
-    ));
+          teacherId: teacherId,
+          schoolId: schoolId,
+        ));
     _animationController.forward();
   }
 
@@ -70,7 +73,8 @@ class _CommentsClassesPageState extends State<CommentsClassesPage> with SingleTi
               SnackBar(
                 content: Text(state.error!),
                 backgroundColor: Colors.red,
-                action: SnackBarAction(label: 'Réessayer', onPressed: _loadClasses),
+                action:
+                    SnackBarAction(label: 'Réessayer', onPressed: _loadClasses),
               ),
             );
           }
@@ -85,12 +89,13 @@ class _CommentsClassesPageState extends State<CommentsClassesPage> with SingleTi
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text('Aucune classe trouvée'),
-                  ElevatedButton(onPressed: _loadClasses, child: const Text('Réessayer')),
+                  ElevatedButton(
+                      onPressed: _loadClasses, child: const Text('Réessayer')),
                 ],
               ),
             );
           }
-          
+
           return FadeTransition(
             opacity: _fadeAnimation,
             child: _buildScheduleList(state.teacherSchedule),
@@ -105,9 +110,17 @@ class _CommentsClassesPageState extends State<CommentsClassesPage> with SingleTi
       backgroundColor: Colors.white,
       elevation: 0,
       centerTitle: true,
-      title: const Text('Commentaires', style: TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold)),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+      title: const Text('Commentaires',
+          style:
+              TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold)),
       actions: [
-        IconButton(icon: const Icon(Icons.refresh, color: Color(0xFF3B82F6)), onPressed: _loadClasses),
+        IconButton(
+            icon: const Icon(Icons.refresh, color: Color(0xFF3B82F6)),
+            onPressed: _loadClasses),
       ],
     );
   }
@@ -123,12 +136,14 @@ class _CommentsClassesPageState extends State<CommentsClassesPage> with SingleTi
           final entry = grouped.entries.elementAt(index);
           final dayName = entry.key;
           final items = entry.value;
-          final isToday = dayName.toLowerCase() == _getDayName(_currentDay).toLowerCase();
+          final isToday =
+              dayName.toLowerCase() == _getDayName(_currentDay).toLowerCase();
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              DaySectionHeader(dayName: entry.key, isToday: isToday, isFirst: index == 0),
+              DaySectionHeader(
+                  dayName: entry.key, isToday: isToday, isFirst: index == 0),
               ...items.map((item) => _CommentScheduleCard(schedule: item)),
             ],
           );
@@ -137,7 +152,8 @@ class _CommentsClassesPageState extends State<CommentsClassesPage> with SingleTi
     );
   }
 
-  Map<String, List<TeacherClassScheduleModel>> _groupAndSortByDay(List<TeacherClassScheduleModel> schedule) {
+  Map<String, List<TeacherClassScheduleModel>> _groupAndSortByDay(
+      List<TeacherClassScheduleModel> schedule) {
     final grouped = <String, List<TeacherClassScheduleModel>>{};
     for (final item in schedule) {
       grouped.putIfAbsent(item.dayName, () => []).add(item);
@@ -145,7 +161,16 @@ class _CommentsClassesPageState extends State<CommentsClassesPage> with SingleTi
     return grouped;
   }
 
-  String _getDayName(int day) => ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'][day];
+  String _getDayName(int day) => [
+        '',
+        'Lundi',
+        'Mardi',
+        'Mercredi',
+        'Jeudi',
+        'Vendredi',
+        'Samedi',
+        'Dimanche'
+      ][day];
 }
 
 class _CommentScheduleCard extends StatelessWidget {
@@ -178,7 +203,8 @@ class _CommentScheduleCard extends StatelessWidget {
 
   Widget _buildTimeBadge() {
     return Container(
-      width: 55, height: 55,
+      width: 55,
+      height: 55,
       decoration: BoxDecoration(
         color: const Color(0xFF7C3AED).withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
@@ -193,17 +219,20 @@ class _CommentScheduleCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(schedule.className, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        Text(schedule.subjectName, style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+        Text(schedule.className,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        Text(schedule.subjectName,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
         const SizedBox(height: 4),
-        Text('${schedule.startTime} - ${schedule.endTime}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        Text('${schedule.startTime} - ${schedule.endTime}',
+            style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
     );
   }
 
   void _navigateToComments(BuildContext context) {
     final state = context.read<AttendanceBloc>().state;
-    
+
     final classModel = state.classes.firstWhere(
       (c) => c.id == schedule.classId,
       orElse: () => ClassModel(
@@ -213,7 +242,7 @@ class _CommentScheduleCard extends StatelessWidget {
         schoolId: state.schoolId,
       ),
     );
-    
+
     final currentDay = DateTime.now().weekday;
     final courseModel = CourseModel(
       id: schedule.subjectId ?? '',
@@ -226,15 +255,15 @@ class _CommentScheduleCard extends StatelessWidget {
       schoolId: state.schoolId,
       subjectId: schedule.subjectId,
     );
-    
+
     context.read<AttendanceBloc>().add(AttendanceClassSelected(
-      classModel,
-      schoolId: state.schoolId,
-      currentCourse: courseModel,
-    ));
-    
+          classModel,
+          schoolId: state.schoolId,
+          currentCourse: courseModel,
+        ));
+
     final attendanceBloc = context.read<AttendanceBloc>();
-    
+
     Navigator.push(
       context,
       MaterialPageRoute(

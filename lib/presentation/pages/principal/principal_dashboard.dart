@@ -1,4 +1,5 @@
 // lib/presentation/pages/principal/principal_dashboard.dart
+import 'package:educonnect/presentation/pages/principal/class_detail/principal_class_detail_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,7 +7,6 @@ import 'package:intl/intl.dart';
 import '../../../../config/routes.dart';
 import '../../../../config/theme.dart';
 import '../../blocs/auth_bloc/auth_bloc.dart' as auth;
-import 'principal_class_detail_page.dart';
 import 'widgets/student_detail_sheet.dart';
 
 class PrincipalDashboard extends StatefulWidget {
@@ -52,13 +52,21 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
         final classId = cls['class_id'] as String?;
         final schoolId = cls['school_id'] as String?;
         if (classId != null && schoolId != null) {
-          final studentsResult = await _supabase.from('students').select('id, gender').eq('class_id', classId);
+          final studentsResult = await _supabase
+              .from('students')
+              .select('id, gender')
+              .eq('class_id', classId);
           final students = List<Map<String, dynamic>>.from(studentsResult);
           cls['student_count'] = students.length;
-          cls['boys_count'] = students.where((s) => (s['gender'] ?? '').toString().toLowerCase() == 'm').length;
-          cls['girls_count'] = students.where((s) => (s['gender'] ?? '').toString().toLowerCase() == 'f').length;
+          cls['boys_count'] = students
+              .where((s) => (s['gender'] ?? '').toString().toLowerCase() == 'm')
+              .length;
+          cls['girls_count'] = students
+              .where((s) => (s['gender'] ?? '').toString().toLowerCase() == 'f')
+              .length;
 
-          final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+          final thirtyDaysAgo =
+              DateTime.now().subtract(const Duration(days: 30));
           final dateStr = DateFormat('yyyy-MM-dd').format(thirtyDaysAgo);
           final attResult = await _supabase
               .from('attendance')
@@ -67,14 +75,21 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
               .gte('date', dateStr);
 
           final allAtt = List<Map<String, dynamic>>.from(attResult);
-          final studentIds = students.map((s) => s['id'] as String?).whereType<String>().toList();
-          final classAtt = allAtt.where((a) => studentIds.contains(a['student_id'])).toList();
+          final studentIds = students
+              .map((s) => s['id'] as String?)
+              .whereType<String>()
+              .toList();
+          final classAtt = allAtt
+              .where((a) => studentIds.contains(a['student_id']))
+              .toList();
 
           int present = 0, absent = 0, retard = 0;
           for (final a in classAtt) {
             final st = (a['status'] as String? ?? '').toLowerCase();
-            if (st == 'present') present++;
-            else if (st == 'absent') absent++;
+            if (st == 'present')
+              present++;
+            else if (st == 'absent')
+              absent++;
             else if (st == 'retard') retard++;
           }
           final total = classAtt.length;
@@ -89,7 +104,13 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
           cls['student_count'] = 0;
           cls['boys_count'] = 0;
           cls['girls_count'] = 0;
-          cls['attendance_stats'] = {'present': 0, 'absent': 0, 'retard': 0, 'total': 0, 'rate': 0.0};
+          cls['attendance_stats'] = {
+            'present': 0,
+            'absent': 0,
+            'retard': 0,
+            'total': 0,
+            'rate': 0.0
+          };
         }
       }
 
@@ -121,7 +142,8 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PrincipalClassDetailPage(classId: classId, className: className, schoolId: schoolId),
+        builder: (_) => PrincipalClassDetailPage(
+            classId: classId, className: className, schoolId: schoolId),
       ),
     );
   }
@@ -131,13 +153,17 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
     return Scaffold(
       backgroundColor: AppTheme.bisLight,
       appBar: AppBar(
-        title: const Text('Classes & Élèves', maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: const Text('Classes & Élèves',
+            maxLines: 1, overflow: TextOverflow.ellipsis),
         backgroundColor: AppTheme.violet,
         foregroundColor: Colors.white,
         // PAS DE leading (bouton retour) — c'est la page racine du principal
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadClasses),
-          IconButton(icon: const Icon(Icons.logout), tooltip: 'Déconnexion', onPressed: _logout),
+          IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Déconnexion',
+              onPressed: _logout),
           const SizedBox(width: 8),
         ],
       ),
@@ -153,11 +179,13 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: _myClasses.map((cls) => _ClassCard(
-                            cls: cls,
-                            onOpenDetail: () => _openClassDetail(cls),
-                            onRefresh: _loadClasses,
-                          )).toList(),
+                          children: _myClasses
+                              .map((cls) => _ClassCard(
+                                    cls: cls,
+                                    onOpenDetail: () => _openClassDetail(cls),
+                                    onRefresh: _loadClasses,
+                                  ))
+                              .toList(),
                         ),
                       ),
                     ),
@@ -173,7 +201,8 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
           const SizedBox(height: 16),
           Text('Erreur: $_error', textAlign: TextAlign.center),
           const SizedBox(height: 16),
-          ElevatedButton(onPressed: _loadClasses, child: const Text('Réessayer')),
+          ElevatedButton(
+              onPressed: _loadClasses, child: const Text('Réessayer')),
         ],
       ),
     );
@@ -186,9 +215,14 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
         children: [
           Icon(Icons.school_outlined, size: 64, color: Colors.grey[400]),
           const SizedBox(height: 16),
-          Text('Aucune classe assignée', style: TextStyle(fontSize: 18, color: Colors.grey[600], fontWeight: FontWeight.w600)),
+          Text('Aucune classe assignée',
+              style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          Text('Contactez l\'administrateur', style: TextStyle(fontSize: 14, color: Colors.grey[500])),
+          Text('Contactez l\'administrateur',
+              style: TextStyle(fontSize: 14, color: Colors.grey[500])),
         ],
       ),
     );
@@ -200,7 +234,8 @@ class _ClassCard extends StatefulWidget {
   final Map<String, dynamic> cls;
   final VoidCallback onOpenDetail;
   final VoidCallback onRefresh;
-  const _ClassCard({required this.cls, required this.onOpenDetail, required this.onRefresh});
+  const _ClassCard(
+      {required this.cls, required this.onOpenDetail, required this.onRefresh});
 
   @override
   State<_ClassCard> createState() => _ClassCardState();
@@ -239,7 +274,8 @@ class _ClassCardState extends State<_ClassCard> {
   void _toggle() {
     setState(() {
       _expanded = !_expanded;
-      if (_expanded && _students.isEmpty && _studentsError == null) _loadStudents();
+      if (_expanded && _students.isEmpty && _studentsError == null)
+        _loadStudents();
     });
   }
 
@@ -270,18 +306,27 @@ class _ClassCardState extends State<_ClassCard> {
         title: const Text('Retirer de la classe'),
         content: const Text('Voulez-vous retirer cet élève de cette classe ?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Retirer', style: TextStyle(color: Colors.red))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child:
+                  const Text('Retirer', style: TextStyle(color: Colors.red))),
         ],
       ),
     );
     if (confirm != true) return;
     try {
-      await Supabase.instance.client.from('students').update({'class_id': null}).eq('id', studentId);
+      await Supabase.instance.client
+          .from('students')
+          .update({'class_id': null}).eq('id', studentId);
       widget.onRefresh();
       if (_expanded) _loadStudents();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erreur: $e')));
     }
   }
 
@@ -322,20 +367,27 @@ class _ClassCardState extends State<_ClassCard> {
                       Expanded(
                         child: Text(
                           name,
-                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.nightBlue),
+                          style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.nightBlue),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF3E8FF),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
                           '${rate.toStringAsFixed(0)}% présence',
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.violet),
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.violet),
                         ),
                       ),
                     ],
@@ -343,54 +395,92 @@ class _ClassCardState extends State<_ClassCard> {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Text('$count élève${count > 1 ? 's' : ''}', style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280))),
+                      Text('$count élève${count > 1 ? 's' : ''}',
+                          style: const TextStyle(
+                              fontSize: 14, color: Color(0xFF6B7280))),
                       if (boys > 0) ...[
-                        const Text(' • ', style: TextStyle(fontSize: 14, color: Color(0xFF6B7280))),
-                        const Icon(Icons.male, size: 16, color: Color(0xFF60A5FA)),
-                        Text('$boys', style: const TextStyle(fontSize: 14, color: Color(0xFF374151))),
+                        const Text(' • ',
+                            style: TextStyle(
+                                fontSize: 14, color: Color(0xFF6B7280))),
+                        const Icon(Icons.male,
+                            size: 16, color: Color(0xFF60A5FA)),
+                        Text('$boys',
+                            style: const TextStyle(
+                                fontSize: 14, color: Color(0xFF374151))),
                       ],
                       if (girls > 0) ...[
-                        const Text(' • ', style: TextStyle(fontSize: 14, color: Color(0xFF6B7280))),
-                        const Icon(Icons.female, size: 16, color: Color(0xFFF472B6)),
-                        Text('$girls', style: const TextStyle(fontSize: 14, color: Color(0xFF374151))),
+                        const Text(' • ',
+                            style: TextStyle(
+                                fontSize: 14, color: Color(0xFF6B7280))),
+                        const Icon(Icons.female,
+                            size: 16, color: Color(0xFFF472B6)),
+                        Text('$girls',
+                            style: const TextStyle(
+                                fontSize: 14, color: Color(0xFF374151))),
                       ],
                     ],
                   ),
                   if (level.isNotEmpty) ...[
                     const SizedBox(height: 2),
-                    Text('Niveau: $level', style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+                    Text('Niveau: $level',
+                        style: const TextStyle(
+                            fontSize: 13, color: Color(0xFF6B7280))),
                   ],
                   const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Assiduité classe', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      const Text('Assiduité classe',
+                          style: TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w600)),
                       Row(
                         children: [
-                          _LegendDot(color: Colors.green, label: '${rate.toStringAsFixed(0)}%'),
+                          _LegendDot(
+                              color: Colors.green,
+                              label: '${rate.toStringAsFixed(0)}%'),
                           const SizedBox(width: 8),
-                          _LegendDot(color: Colors.red, label: '${absentPct.toStringAsFixed(0)}%'),
+                          _LegendDot(
+                              color: Colors.red,
+                              label: '${absentPct.toStringAsFixed(0)}%'),
                           const SizedBox(width: 8),
-                          _LegendDot(color: Colors.orange, label: '${retardPct.toStringAsFixed(0)}%'),
+                          _LegendDot(
+                              color: Colors.orange,
+                              label: '${retardPct.toStringAsFixed(0)}%'),
                         ],
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  _AttendanceBar(present: present, absent: absent, retard: retard, total: total, rate: rate),
+                  _AttendanceBar(
+                      present: present,
+                      absent: absent,
+                      retard: retard,
+                      total: total,
+                      rate: rate),
                   const SizedBox(height: 12),
                   Center(
                     child: InkWell(
                       onTap: _toggle,
                       borderRadius: BorderRadius.circular(8),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(_expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, size: 18, color: const Color(0xFF6B7280)),
+                            Icon(
+                                _expanded
+                                    ? Icons.keyboard_arrow_up
+                                    : Icons.keyboard_arrow_down,
+                                size: 18,
+                                color: const Color(0xFF6B7280)),
                             const SizedBox(width: 4),
-                            Text(_expanded ? 'Masquer les élèves' : 'Voir les élèves', style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+                            Text(
+                                _expanded
+                                    ? 'Masquer les élèves'
+                                    : 'Voir les élèves',
+                                style: const TextStyle(
+                                    fontSize: 13, color: Color(0xFF6B7280))),
                           ],
                         ),
                       ),
@@ -410,13 +500,21 @@ class _ClassCardState extends State<_ClassCard> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Élèves ($count)', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.nightBlue)),
+                      Text('Élèves ($count)',
+                          style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.nightBlue)),
                       InkWell(
                         onTap: () {/* TODO ajouter élève */},
                         child: const Row(
                           children: [
                             Icon(Icons.add, size: 18, color: AppTheme.violet),
-                            Text('Ajouter', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.violet)),
+                            Text('Ajouter',
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.violet)),
                           ],
                         ),
                       ),
@@ -424,11 +522,16 @@ class _ClassCardState extends State<_ClassCard> {
                   ),
                   const SizedBox(height: 12),
                   if (_loadingStudents)
-                    const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator(strokeWidth: 2)))
+                    const Center(
+                        child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: CircularProgressIndicator(strokeWidth: 2)))
                   else if (_studentsError != null)
-                    Text('Erreur: $_studentsError', style: const TextStyle(color: Colors.red, fontSize: 12))
+                    Text('Erreur: $_studentsError',
+                        style: const TextStyle(color: Colors.red, fontSize: 12))
                   else if (_students.isEmpty)
-                    const Text('Aucun élève', style: TextStyle(color: Colors.grey))
+                    const Text('Aucun élève',
+                        style: TextStyle(color: Colors.grey))
                   else
                     ..._students.map((s) => _StudentTile(
                           student: s,
@@ -449,14 +552,16 @@ class _StudentTile extends StatelessWidget {
   final Map<String, dynamic> student;
   final VoidCallback onView;
   final VoidCallback onRemove;
-  const _StudentTile({required this.student, required this.onView, required this.onRemove});
+  const _StudentTile(
+      {required this.student, required this.onView, required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
     final firstName = student['first_name'] as String? ?? '';
     final lastName = student['last_name'] as String? ?? '';
     final matricule = student['matricule'] as String? ?? '—';
-    final gender = (student['gender'] as String? ?? '').toString().toLowerCase();
+    final gender =
+        (student['gender'] as String? ?? '').toString().toLowerCase();
     final isFemale = gender == 'f';
 
     return Padding(
@@ -467,11 +572,16 @@ class _StudentTile extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: isFemale ? const Color(0xFFFCE7F3) : const Color(0xFFDBEAFE),
+              color:
+                  isFemale ? const Color(0xFFFCE7F3) : const Color(0xFFDBEAFE),
               shape: BoxShape.circle,
             ),
             child: Center(
-              child: Icon(isFemale ? Icons.female : Icons.male, color: isFemale ? const Color(0xFFEC4899) : const Color(0xFF3B82F6), size: 20),
+              child: Icon(isFemale ? Icons.female : Icons.male,
+                  color: isFemale
+                      ? const Color(0xFFEC4899)
+                      : const Color(0xFF3B82F6),
+                  size: 20),
             ),
           ),
           const SizedBox(width: 12),
@@ -481,22 +591,31 @@ class _StudentTile extends StatelessWidget {
               children: [
                 Text(
                   lastName.toUpperCase(),
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.nightBlue),
+                  style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.nightBlue),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   firstName,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppTheme.nightBlue),
+                  style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.nightBlue),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                Text('Matricule: $matricule', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                Text('Matricule: $matricule',
+                    style: const TextStyle(
+                        fontSize: 12, color: Color(0xFF6B7280))),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.visibility, size: 20, color: Color(0xFF9CA3AF)),
+            icon: const Icon(Icons.visibility,
+                size: 20, color: Color(0xFF9CA3AF)),
             onPressed: onView,
             visualDensity: VisualDensity.compact,
           ),
@@ -521,7 +640,11 @@ class _LegendDot extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+        Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+                color: color, borderRadius: BorderRadius.circular(2))),
         const SizedBox(width: 4),
         Text(label, style: const TextStyle(fontSize: 12)),
       ],
@@ -532,15 +655,24 @@ class _LegendDot extends StatelessWidget {
 class _AttendanceBar extends StatelessWidget {
   final int present, absent, retard, total;
   final double rate;
-  const _AttendanceBar({required this.present, required this.absent, required this.retard, required this.total, required this.rate});
+  const _AttendanceBar(
+      {required this.present,
+      required this.absent,
+      required this.retard,
+      required this.total,
+      required this.rate});
 
   @override
   Widget build(BuildContext context) {
     if (total == 0) {
       return Container(
         height: 24,
-        decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(12)),
-        child: const Center(child: Text('Aucune donnée', style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)))),
+        decoration: BoxDecoration(
+            color: const Color(0xFFE5E7EB),
+            borderRadius: BorderRadius.circular(12)),
+        child: const Center(
+            child: Text('Aucune donnée',
+                style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)))),
       );
     }
     return ClipRRect(
@@ -556,12 +688,17 @@ class _AttendanceBar extends StatelessWidget {
                   color: Colors.green,
                   child: Center(
                     child: Text('${rate.toStringAsFixed(0)}%',
-                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold)),
                   ),
                 ),
               ),
-            if (absent > 0) Expanded(flex: absent, child: Container(color: Colors.red)),
-            if (retard > 0) Expanded(flex: retard, child: Container(color: Colors.orange)),
+            if (absent > 0)
+              Expanded(flex: absent, child: Container(color: Colors.red)),
+            if (retard > 0)
+              Expanded(flex: retard, child: Container(color: Colors.orange)),
           ],
         ),
       ),

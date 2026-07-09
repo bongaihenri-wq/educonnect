@@ -23,6 +23,7 @@ class ReportDataTable extends StatefulWidget {
   final VoidCallback onLoadMore;
   final List<ReportColumn> columns;
   final List<Widget> Function(Map<String, dynamic>) rowBuilder;
+  final int? totalCount;
 
   const ReportDataTable({
     super.key,
@@ -32,6 +33,7 @@ class ReportDataTable extends StatefulWidget {
     required this.onLoadMore,
     required this.columns,
     required this.rowBuilder,
+    this.totalCount,
   });
 
   @override
@@ -65,7 +67,8 @@ class _ReportDataTableState extends State<ReportDataTable> {
       return const Center(child: Text('Aucune donnée'));
     }
 
-    final totalWidth = widget.columns.fold<double>(0, (sum, c) => sum + c.width) + 24;
+    final totalWidth =
+        widget.columns.fold<double>(0, (sum, c) => sum + c.width) + 24;
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -93,13 +96,18 @@ class _ReportDataTableState extends State<ReportDataTable> {
   }
 
   Widget _buildCounter() {
+    final displayedCount = widget.data.length;
+    final total = widget.totalCount;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            '${widget.data.length} enregistrement${widget.data.length > 1 ? 's' : ''}',
+            total != null
+                ? '$displayedCount / $total enregistrement${total > 1 ? 's' : ''}'
+                : '$displayedCount enregistrement${displayedCount > 1 ? 's' : ''}',
             style: TextStyle(
               fontSize: 12,
               color: Colors.grey[600],
@@ -107,7 +115,7 @@ class _ReportDataTableState extends State<ReportDataTable> {
             ),
           ),
           Text(
-            'Glissez ↔ pour voir plus',
+            'Glissez ↔',
             style: TextStyle(
               fontSize: 11,
               color: Colors.grey[400],
@@ -163,7 +171,8 @@ class _ReportDataTableState extends State<ReportDataTable> {
         child: SizedBox(
           width: totalWidth,
           child: ListView.builder(
-            itemCount: widget.data.length + (widget.hasMore || widget.isLoadingMore ? 1 : 0),
+            itemCount: widget.data.length +
+                (widget.hasMore || widget.isLoadingMore ? 1 : 0),
             itemBuilder: (context, index) {
               if (index == widget.data.length) {
                 if (widget.isLoadingMore) {

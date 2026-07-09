@@ -11,65 +11,90 @@ class SubscriptionStatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ DEBUG : Afficher les clés reçues dans la console
-    print('📊 STATS REÇUES DANS WIDGET: $stats');
-    print('📊 CLÉS DISPONIBLES: ${stats.keys.toList()}');
+    print('📊 STATS REÇUES: $stats');
+    print('📊 CLÉS: ${stats.keys.toList()}');
 
-    // ✅ Données réelles avec fallback sur les clés possibles
-    // (car la fonction RPC peut retourner des noms différents)
-    final totalParents = _getStatValue(
-        ['total_parents', 'totalParents', 'parents_count', 'count']);
-    final monthlyRevenue = _getStatValue(
-        ['monthly_revenue', 'monthlyRevenue', 'revenue', 'total_revenue']);
-    final pendingPayments = _getStatValue(
-        ['pending_payments', 'pendingPayments', 'pending_count', 'en_attente']);
+    final totalParents = _getStatValue([
+      'total_parents',
+      'totalParents',
+      'parents_count',
+      'count',
+      'active_parents',
+      'total_active_parents'
+    ]);
+    final monthlyRevenue = _getStatValue([
+      'monthly_revenue',
+      'monthlyRevenue',
+      'revenue',
+      'total_revenue',
+      'total_amount_paid',
+      'total_paid'
+    ]);
+    final pendingPayments = _getStatValue([
+      'pending_payments',
+      'pendingPayments',
+      'pending_count',
+      'en_attente',
+      'payments_pending',
+      'count_pending'
+    ]);
     final expiredCount = _getStatValue([
       'expired_subscriptions',
       'expiredSubscriptions',
       'expired_count',
-      'expirés'
+      'expirés',
+      'subscriptions_expired',
+      'count_expired'
     ]);
 
     print(
-        '📊 VALEURS EXTRAITES: parents=$totalParents, revenue=$monthlyRevenue, pending=$pendingPayments, expired=$expiredCount');
+        '📊 VALEURS: parents=$totalParents, revenue=$monthlyRevenue, pending=$pendingPayments, expired=$expiredCount');
 
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      childAspectRatio: 2.2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
+    // ✅ CORRIGÉ : Wrap au lieu de GridView → pas de dépassement
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
       children: [
-        _StatItem(
-          icon: Icons.people,
-          color: const Color(0xFF6B4EFF),
-          label: 'Parents',
-          value: totalParents.toString(),
+        SizedBox(
+          width: (MediaQuery.of(context).size.width - 44) / 2,
+          child: _StatItem(
+            icon: Icons.people,
+            color: const Color(0xFF6B4EFF),
+            label: 'Parents',
+            value: totalParents.toString(),
+          ),
         ),
-        _StatItem(
-          icon: Icons.attach_money,
-          color: const Color(0xFF00C853),
-          label: 'Revenus',
-          value: '${_formatNumber(monthlyRevenue)} XOF',
+        SizedBox(
+          width: (MediaQuery.of(context).size.width - 44) / 2,
+          child: _StatItem(
+            icon: Icons.attach_money,
+            color: const Color(0xFF00C853),
+            label: 'Revenus',
+            value: '${_formatNumber(monthlyRevenue)} XOF',
+          ),
         ),
-        _StatItem(
-          icon: Icons.pending_actions,
-          color: const Color(0xFFFF6D00),
-          label: 'En attente',
-          value: pendingPayments.toString(),
+        SizedBox(
+          width: (MediaQuery.of(context).size.width - 44) / 2,
+          child: _StatItem(
+            icon: Icons.pending_actions,
+            color: const Color(0xFFFF6D00),
+            label: 'En attente',
+            value: pendingPayments.toString(),
+          ),
         ),
-        _StatItem(
-          icon: Icons.error_outline,
-          color: const Color(0xFFFF1744),
-          label: 'Expirés',
-          value: expiredCount.toString(),
+        SizedBox(
+          width: (MediaQuery.of(context).size.width - 44) / 2,
+          child: _StatItem(
+            icon: Icons.error_outline,
+            color: const Color(0xFFFF1744),
+            label: 'Expirés',
+            value: expiredCount.toString(),
+          ),
         ),
       ],
     );
   }
 
-  // ✅ Helper : Cherche la valeur dans plusieurs clés possibles
   dynamic _getStatValue(List<String> possibleKeys) {
     for (final key in possibleKeys) {
       if (stats.containsKey(key) && stats[key] != null) {
@@ -104,36 +129,38 @@ class _StatItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: color.withOpacity(0.08),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(width: 12),
+          Icon(icon, color: color, size: 26),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   value,
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: color,
                   ),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w500,
                     color: color.withOpacity(0.8),
                   ),

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../../../../config/theme.dart';
+import '../../../../services/period_service.dart';
+import '../../admin/widgets/period_selector.dart';
 
 class StudentDetailSheet extends StatefulWidget {
   final String studentId;
@@ -30,6 +32,29 @@ class StudentDetailSheet extends StatefulWidget {
 
 class _StudentDetailSheetState extends State<StudentDetailSheet> {
   int _selectedTab = 0;
+  List<Map<String, dynamic>> _periods = [];
+  bool _loadingPeriods = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPeriods();
+  }
+
+  Future<void> _loadPeriods() async {
+    try {
+      final service = PeriodService();
+      final periods = await service.getAllPeriods(widget.schoolId);
+      if (mounted) {
+        setState(() {
+          _periods = periods;
+          _loadingPeriods = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _loadingPeriods = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -125,9 +150,19 @@ class _StudentDetailSheetState extends State<StudentDetailSheet> {
           const Divider(height: 1),
           // Content
           Expanded(
-            child: _selectedTab == 0
-                ? _AttendanceTab(studentId: widget.studentId, schoolId: widget.schoolId)
-                : _GradesTab(studentId: widget.studentId, schoolId: widget.schoolId),
+            child: _loadingPeriods
+                ? const Center(child: CircularProgressIndicator())
+                : _selectedTab == 0
+                    ? _AttendanceTab(
+                        studentId: widget.studentId,
+                        schoolId: widget.schoolId,
+                        periods: _periods,
+                      )
+                    : _GradesTab(
+                        studentId: widget.studentId,
+                        schoolId: widget.schoolId,
+                        periods: _periods,
+                      ),
           ),
           // Bouton Fermer
           Padding(
@@ -140,7 +175,8 @@ class _StudentDetailSheetState extends State<StudentDetailSheet> {
                   backgroundColor: AppTheme.violet,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 child: const Text('Fermer', style: TextStyle(fontSize: 16)),
               ),
@@ -156,7 +192,8 @@ class _TabButton extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _TabButton({required this.label, required this.selected, required this.onTap});
+  const _TabButton(
+      {required this.label, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -186,90 +223,67 @@ class _TabButton extends StatelessWidget {
   }
 }
 
-// ==================== ASSIDUITÉ AVEC TRIMESTRES CONFIGURABLES ====================
+// ═══════════════════════════════════════════════════════════════
+// ATTENDANCE TAB AVEC PERIOD SELECTOR
+// ═══════════════════════════════════════════════════════════════
 class _AttendanceTab extends StatefulWidget {
   final String studentId;
   final String schoolId;
-  const _AttendanceTab({required this.studentId, required this.schoolId});
+  final List<Map<String, dynamic>> periods;
+
+  const _AttendanceTab({
+    required this.studentId,
+    required this.schoolId,
+    required this.periods,
+  });
 
   @override
   State<_AttendanceTab> createState() => _AttendanceTabState();
 }
 
 class _AttendanceTabState extends State<_AttendanceTab> {
+  final _periodService = PeriodService();
   bool _loading = true;
-  bool _loadingTrimesters = true;
+  Map<String, dynamic>? _selectedPeriod;
   Map<String, dynamic> _stats = {};
   String? _error;
-  String _period = '30 jours';
-  List<Map<String, dynamic>> _trimesters = [];
 
   @override
   void initState() {
     super.initState();
-    _loadTrimesters();
-  }
-
-  Future<void> _loadTrimesters() async {
-    setState(() => _loadingTrimesters = true);
-    try {
-      final result = await Supabase.instance.client
-          .from('school_trimesters')
-          .select('name, start_date, end_date')
-          .eq('school_id', widget.schoolId)
-          .order('start_date');
-
-      if (mounted) {
-        setState(() {
-          _trimesters = List<Map<String, dynamic>>.from(result);
-          _loadingTrimesters = false;
-          // Si des trimestres existent, on prend le premier par défaut
-          if (_trimesters.isNotEmpty && _period == '30 jours') {
-            _period = _trimesters.first['name'] as String? ?? 'T1';
-          }
-        });
-        _load();
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _loadingTrimesters = false;
-          _error = e.toString();
-        });
-      }
+    if (widget.periods.isNotEmpty) {
+      _selectedPeriod = widget.periods.firstWhere(
+        (p) => p['is_active'] == true,
+        orElse: () => widget.periods.last,
+      );
     }
-  }
-
-  ({String start, String? end}) _getPeriodDates(String period) {
-    // Chercher dans les trimestres configurés
-    for (final t in _trimesters) {
-      if (t['name'] == period) {
-        final sd = t['start_date'] as String?;
-        final ed = t['end_date'] as String?;
-        if (sd != null && ed != null) {
-          return (start: sd, end: ed);
-        }
-      }
-    }
-
-    // Fallback : 30 derniers jours
-    final thirty = DateTime.now().subtract(const Duration(days: 30));
-    return (start: DateFormat('yyyy-MM-dd').format(thirty), end: null);
+    _load();
   }
 
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final dates = _getPeriodDates(_period);
+      DateTime? startDate;
+      DateTime? endDate;
+
+      if (_selectedPeriod != null &&
+          !_periodService.isDynamicPeriod(_selectedPeriod!)) {
+        final sd = _selectedPeriod!['start_date'] as String?;
+        final ed = _selectedPeriod!['end_date'] as String?;
+        if (sd != null) startDate = DateTime.tryParse(sd);
+        if (ed != null) endDate = DateTime.tryParse(ed);
+      }
 
       var query = Supabase.instance.client
           .from('attendance')
           .select('status')
-          .eq('student_id', widget.studentId)
-          .gte('date', dates.start);
+          .eq('student_id', widget.studentId);
 
-      if (dates.end != null) {
-        query = query.lte('date', dates.end!);
+      if (startDate != null) {
+        query = query.gte('date', DateFormat('yyyy-MM-dd').format(startDate));
+      }
+      if (endDate != null) {
+        query = query.lte('date', DateFormat('yyyy-MM-dd').format(endDate));
       }
 
       final result = await query;
@@ -278,8 +292,10 @@ class _AttendanceTabState extends State<_AttendanceTab> {
       int present = 0, absent = 0, retard = 0;
       for (final i in items) {
         final st = (i['status'] as String? ?? '').toLowerCase();
-        if (st == 'present') present++;
-        else if (st == 'absent') absent++;
+        if (st == 'present')
+          present++;
+        else if (st == 'absent')
+          absent++;
         else if (st == 'retard') retard++;
       }
       final total = items.length;
@@ -309,20 +325,18 @@ class _AttendanceTabState extends State<_AttendanceTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loadingTrimesters) {
-      return const Center(child: CircularProgressIndicator());
+    if (widget.periods.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Aucune période définie.\nContactez l\'administrateur.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
     }
-
-    if (_error != null && _trimesters.isEmpty) {
-      return Center(child: Text('Erreur: $_error', style: const TextStyle(color: Colors.red)));
-    }
-
-    // Construire la liste des options de période
-    final periodOptions = [
-      '30 jours',
-      ..._trimesters.map((t) => t['name'] as String).whereType<String>(),
-      'Année',
-    ];
 
     if (_loading) return const Center(child: CircularProgressIndicator());
 
@@ -341,49 +355,43 @@ class _AttendanceTabState extends State<_AttendanceTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Sélecteur de période dynamique
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: periodOptions.map((pName) {
-              final sel = _period == pName;
-              return ChoiceChip(
-                label: Text(pName),
-                selected: sel,
-                onSelected: (_) {
-                  setState(() => _period = pName);
-                  _load();
-                },
-                selectedColor: AppTheme.violet,
-                labelStyle: TextStyle(
-                  color: sel ? Colors.white : const Color(0xFF374151),
-                  fontWeight: sel ? FontWeight.bold : FontWeight.normal,
-                ),
-                backgroundColor: const Color(0xFFE5E7EB),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              );
-            }).toList(),
+          // PeriodSelector
+          PeriodSelector(
+            periods: widget.periods,
+            selectedPeriod: _selectedPeriod,
+            onPeriodChanged: (period) {
+              setState(() => _selectedPeriod = period);
+              _load();
+            },
           ),
           const SizedBox(height: 20),
           const Text(
             'Assiduité',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppTheme.nightBlue),
+            style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.nightBlue),
           ),
           const SizedBox(height: 16),
-          const Text('Répartition', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+          const Text('Répartition',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              _LegendDot(color: Colors.green, label: '${pPct.toStringAsFixed(0)}%'),
+              _LegendDot(
+                  color: Colors.green, label: '${pPct.toStringAsFixed(0)}%'),
               const SizedBox(width: 12),
-              _LegendDot(color: Colors.red, label: '${aPct.toStringAsFixed(0)}%'),
+              _LegendDot(
+                  color: Colors.red, label: '${aPct.toStringAsFixed(0)}%'),
               const SizedBox(width: 12),
-              _LegendDot(color: Colors.orange, label: '${rPct.toStringAsFixed(0)}%'),
+              _LegendDot(
+                  color: Colors.orange, label: '${rPct.toStringAsFixed(0)}%'),
             ],
           ),
           const SizedBox(height: 8),
-          _AttendanceBar(present: p, absent: a, retard: r, total: t, rate: rate),
+          _AttendanceBar(
+              present: p, absent: a, retard: r, total: t, rate: rate),
           const SizedBox(height: 20),
           Row(
             children: [
@@ -409,7 +417,10 @@ class _AttendanceTabState extends State<_AttendanceTab> {
                 const SizedBox(width: 8),
                 Text(
                   'Taux: ${rate.toStringAsFixed(1)}%',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.violet),
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.violet),
                 ),
               ],
             ),
@@ -421,75 +432,84 @@ class _AttendanceTabState extends State<_AttendanceTab> {
               style: const TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
             ),
           ),
-          if (_trimesters.isEmpty) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEF3C7),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.orange, size: 18),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Aucun trimestre configuré. Contactez l\'administrateur.',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF92400E)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     );
   }
 }
 
-// ==================== NOTES AVEC TRIMESTRE ====================
+// ═══════════════════════════════════════════════════════════════
+// GRADES TAB AVEC PERIOD SELECTOR
+// ═══════════════════════════════════════════════════════════════
 class _GradesTab extends StatefulWidget {
   final String studentId;
   final String schoolId;
-  const _GradesTab({required this.studentId, required this.schoolId});
+  final List<Map<String, dynamic>> periods;
+
+  const _GradesTab({
+    required this.studentId,
+    required this.schoolId,
+    required this.periods,
+  });
 
   @override
   State<_GradesTab> createState() => _GradesTabState();
 }
 
 class _GradesTabState extends State<_GradesTab> {
+  final _periodService = PeriodService();
   bool _loading = true;
+  Map<String, dynamic>? _selectedPeriod;
   List<Map<String, dynamic>> _subjects = [];
   double _average = 0.0;
   String? _error;
-  String _period = 'T1';
 
   @override
   void initState() {
     super.initState();
+    if (widget.periods.isNotEmpty) {
+      _selectedPeriod = widget.periods.firstWhere(
+        (p) => p['is_active'] == true,
+        orElse: () => widget.periods.last,
+      );
+    }
     _load();
   }
 
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final result = await Supabase.instance.client
+      DateTime? startDate;
+      DateTime? endDate;
+
+      if (_selectedPeriod != null &&
+          !_periodService.isDynamicPeriod(_selectedPeriod!)) {
+        final sd = _selectedPeriod!['start_date'] as String?;
+        final ed = _selectedPeriod!['end_date'] as String?;
+        if (sd != null) startDate = DateTime.tryParse(sd);
+        if (ed != null) endDate = DateTime.tryParse(ed);
+      }
+
+      var query = Supabase.instance.client
           .from('grades')
-          .select('score, max_score, coefficient, subjects(name, code), trimester')
+          .select('score, max_score, coefficient, subjects(name, code), date')
           .eq('student_id', widget.studentId)
           .eq('school_id', widget.schoolId);
 
-      final all = List<Map<String, dynamic>>.from(result);
-      final filtered = _period == 'Année'
-          ? all
-          : all.where((g) => g['trimester'] == _period).toList();
+      if (startDate != null) {
+        query = query.gte('date', DateFormat('yyyy-MM-dd').format(startDate));
+      }
+      if (endDate != null) {
+        query = query.lte('date', DateFormat('yyyy-MM-dd').format(endDate));
+      }
 
+      final result = await query;
+
+      final all = List<Map<String, dynamic>>.from(result);
       double tw = 0;
       int tc = 0;
       final map = <String, Map<String, dynamic>>{};
-      for (final g in filtered) {
+      for (final g in all) {
         final score = (g['score'] as num).toDouble();
         final max = (g['max_score'] as num?)?.toDouble() ?? 20.0;
         final coef = (g['coefficient'] as num?)?.toInt() ?? 1;
@@ -499,14 +519,17 @@ class _GradesTabState extends State<_GradesTab> {
 
         final name = g['subjects']?['name'] as String? ?? 'Inconnu';
         final code = g['subjects']?['code'] as String? ?? name;
-        map.putIfAbsent(name, () => {'name': name, 'code': code, 'scores': <double>[]});
+        map.putIfAbsent(
+            name, () => {'name': name, 'code': code, 'scores': <double>[]});
         (map[name]!['scores'] as List<double>).add(norm);
       }
 
       final list = <Map<String, dynamic>>[];
       for (final e in map.entries) {
         final sc = e.value['scores'] as List<double>;
-        final avg = sc.isNotEmpty ? (sc.reduce((a, b) => a + b) / sc.length).toDouble() : 0.0;
+        final avg = sc.isNotEmpty
+            ? (sc.reduce((a, b) => a + b) / sc.length).toDouble()
+            : 0.0;
         e.value['avg'] = avg;
         e.value['count'] = sc.length;
         list.add(e.value);
@@ -529,38 +552,42 @@ class _GradesTabState extends State<_GradesTab> {
     }
   }
 
-  Color _color(double g) => g >= 14 ? Colors.green : g >= 10 ? Colors.orange : Colors.red;
+  Color _color(double g) => g >= 14
+      ? Colors.green
+      : g >= 10
+          ? Colors.orange
+          : Colors.red;
 
   @override
   Widget build(BuildContext context) {
+    if (widget.periods.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Aucune période définie.\nContactez l\'administrateur.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
     if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) return Center(child: Text('Erreur: $_error'));
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 8,
-            children: ['T1', 'T2', 'T3', 'Année'].map((p) {
-              final sel = _period == p;
-              return ChoiceChip(
-                label: Text(p),
-                selected: sel,
-                onSelected: (_) {
-                  setState(() => _period = p);
-                  _load();
-                },
-                selectedColor: AppTheme.violet,
-                labelStyle: TextStyle(
-                  color: sel ? Colors.white : const Color(0xFF374151),
-                  fontWeight: sel ? FontWeight.bold : FontWeight.normal,
-                ),
-                backgroundColor: const Color(0xFFE5E7EB),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              );
-            }).toList(),
+          // PeriodSelector
+          PeriodSelector(
+            periods: widget.periods,
+            selectedPeriod: _selectedPeriod,
+            onPeriodChanged: (period) {
+              setState(() => _selectedPeriod = period);
+              _load();
+            },
           ),
           const SizedBox(height: 20),
           Center(
@@ -573,13 +600,18 @@ class _GradesTabState extends State<_GradesTab> {
               ),
               child: Column(
                 children: [
-                  const Text('Moyenne Générale', style: TextStyle(fontSize: 14, color: Color(0xFF6B7280))),
+                  const Text('Moyenne Générale',
+                      style: TextStyle(fontSize: 14, color: Color(0xFF6B7280))),
                   const SizedBox(height: 8),
                   Text(
                     _average.toStringAsFixed(2),
-                    style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: _color(_average)),
+                    style: TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                        color: _color(_average)),
                   ),
-                  const Text('/20', style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF))),
+                  const Text('/20',
+                      style: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF))),
                 ],
               ),
             ),
@@ -591,7 +623,10 @@ class _GradesTabState extends State<_GradesTab> {
               const SizedBox(width: 6),
               const Text(
                 'Notes par Matière',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.nightBlue),
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.nightBlue),
               ),
             ],
           ),
@@ -614,14 +649,18 @@ class _GradesTabState extends State<_GradesTab> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           Text(avg.toStringAsFixed(1),
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: color)),
                           const SizedBox(height: 4),
                           Container(
                             width: double.infinity,
                             height: h,
                             decoration: BoxDecoration(
                               color: color,
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                              borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(6)),
                             ),
                           ),
                           const SizedBox(height: 6),
@@ -630,7 +669,9 @@ class _GradesTabState extends State<_GradesTab> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.center),
-                          Text('(${g['count']})', style: const TextStyle(fontSize: 9, color: Color(0xFF9CA3AF))),
+                          Text('(${g['count']})',
+                              style: const TextStyle(
+                                  fontSize: 9, color: Color(0xFF9CA3AF))),
                         ],
                       ),
                     ),
@@ -655,7 +696,6 @@ class _GradesTabState extends State<_GradesTab> {
   }
 }
 
-// ==================== WIDGETS COMMUNS ====================
 class _LegendDot extends StatelessWidget {
   final Color color;
   final String label;
@@ -667,10 +707,10 @@ class _LegendDot extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
-        ),
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+                color: color, borderRadius: BorderRadius.circular(2))),
         const SizedBox(width: 4),
         Text(label, style: const TextStyle(fontSize: 12)),
       ],
@@ -681,15 +721,24 @@ class _LegendDot extends StatelessWidget {
 class _AttendanceBar extends StatelessWidget {
   final int present, absent, retard, total;
   final double rate;
-  const _AttendanceBar({required this.present, required this.absent, required this.retard, required this.total, required this.rate});
+  const _AttendanceBar(
+      {required this.present,
+      required this.absent,
+      required this.retard,
+      required this.total,
+      required this.rate});
 
   @override
   Widget build(BuildContext context) {
     if (total == 0) {
       return Container(
         height: 24,
-        decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(12)),
-        child: const Center(child: Text('Aucune donnée', style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)))),
+        decoration: BoxDecoration(
+            color: const Color(0xFFE5E7EB),
+            borderRadius: BorderRadius.circular(12)),
+        child: const Center(
+            child: Text('Aucune donnée',
+                style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)))),
       );
     }
     return ClipRRect(
@@ -705,12 +754,17 @@ class _AttendanceBar extends StatelessWidget {
                   color: Colors.green,
                   child: Center(
                     child: Text('${rate.toStringAsFixed(0)}%',
-                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold)),
                   ),
                 ),
               ),
-            if (absent > 0) Expanded(flex: absent, child: Container(color: Colors.red)),
-            if (retard > 0) Expanded(flex: retard, child: Container(color: Colors.orange)),
+            if (absent > 0)
+              Expanded(flex: absent, child: Container(color: Colors.red)),
+            if (retard > 0)
+              Expanded(flex: retard, child: Container(color: Colors.orange)),
           ],
         ),
       ),
@@ -722,24 +776,32 @@ class _StatCard extends StatelessWidget {
   final String label;
   final int value;
   final Color color;
-  const _StatCard({required this.label, required this.value, required this.color});
+  const _StatCard(
+      {required this.label, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {
     Color bg;
-    if (color == Colors.green) bg = const Color(0xFFDCFCE7);
-    else if (color == Colors.red) bg = const Color(0xFFFEE2E2);
-    else bg = const Color(0xFFFEF3C7);
+    if (color == Colors.green)
+      bg = const Color(0xFFDCFCE7);
+    else if (color == Colors.red)
+      bg = const Color(0xFFFEE2E2);
+    else
+      bg = const Color(0xFFFEF3C7);
 
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
+        decoration:
+            BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
         child: Column(
           children: [
-            Text('$value', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
+            Text('$value',
+                style: TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.bold, color: color)),
             const SizedBox(height: 4),
-            Text(label, style: TextStyle(fontSize: 12, color: color.withAlpha(204))),
+            Text(label,
+                style: TextStyle(fontSize: 12, color: color.withAlpha(204))),
           ],
         ),
       ),

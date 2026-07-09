@@ -5,7 +5,8 @@ import 'package:educonnect/config/theme.dart';
 class UnifiedMessageItem extends StatelessWidget {
   final Map<String, dynamic> message;
   final String parentName;
-  final Function(String messageId, String? teacherId, String content, String type) onReply;
+  final Function(
+      String messageId, String? teacherId, String content, String type) onReply;
   final Function(String messageId, String type) onMarkRead;
 
   const UnifiedMessageItem({
@@ -82,12 +83,12 @@ class UnifiedMessageItem extends StatelessWidget {
   String get _senderLabel {
     switch (_senderType) {
       case 'admin':
-        return 'Administration';
+        return 'Admin';
       case 'parent':
         return 'Vous';
       case 'teacher':
       default:
-        return 'Enseignant';
+        return 'Prof';
     }
   }
 
@@ -102,7 +103,8 @@ class UnifiedMessageItem extends StatelessWidget {
 
     return Dismissible(
       key: Key(_messageId),
-      direction: _isReceived ? DismissDirection.endToStart : DismissDirection.none,
+      direction:
+          _isReceived ? DismissDirection.endToStart : DismissDirection.none,
       onDismissed: (_) {
         onMarkRead(_messageId, _messageType);
       },
@@ -118,7 +120,9 @@ class UnifiedMessageItem extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(
-            color: _isUnread ? _senderColor.withOpacity(0.3) : Colors.grey.shade200,
+            color: _isUnread
+                ? _senderColor.withOpacity(0.3)
+                : Colors.grey.shade200,
             width: _isUnread ? 1.5 : 1,
           ),
         ),
@@ -133,6 +137,7 @@ class UnifiedMessageItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     CircleAvatar(
                       radius: 20,
@@ -140,7 +145,6 @@ class UnifiedMessageItem extends StatelessWidget {
                       child: Icon(_senderIcon, color: _senderColor, size: 20),
                     ),
                     const SizedBox(width: 12),
-                    
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -150,71 +154,39 @@ class UnifiedMessageItem extends StatelessWidget {
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
-                              color: _isUnread ? Colors.black87 : Colors.grey.shade700,
+                              color: _isUnread
+                                  ? Colors.black87
+                                  : Colors.grey.shade700,
                             ),
                           ),
                           const SizedBox(height: 2),
-                          Row(
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: _senderColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  _senderLabel,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: _senderColor,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
+                              _buildBadge(
+                                text: _senderLabel,
+                                color: _senderColor,
                               ),
-                              if (isBroadcast) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.purple.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text(
-                                    'Broadcast',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.purple,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
+                              if (isBroadcast)
+                                _buildBadge(
+                                  text: 'Broadcast',
+                                  color: Colors.purple,
                                 ),
-                              ],
-                              if (priority != null && priority != 'normal') ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: priority == 'high'
-                                        ? Colors.red.withOpacity(0.1)
-                                        : Colors.orange.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    priority == 'high' ? 'Urgent' : 'Important',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: priority == 'high' ? Colors.red : Colors.orange,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
+                              if (priority != null && priority != 'normal')
+                                _buildBadge(
+                                  text: priority == 'high'
+                                      ? 'Urgent'
+                                      : 'Important',
+                                  color: priority == 'high'
+                                      ? Colors.red
+                                      : Colors.orange,
                                 ),
-                              ],
                             ],
                           ),
                         ],
                       ),
                     ),
-                    
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
@@ -240,12 +212,11 @@ class UnifiedMessageItem extends StatelessWidget {
                     ),
                   ],
                 ),
-                
                 const SizedBox(height: 12),
-                
                 if (targetSubject != null && targetSubject.isNotEmpty) ...[
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(4),
@@ -261,7 +232,6 @@ class UnifiedMessageItem extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                 ],
-                
                 Text(
                   _content,
                   style: TextStyle(
@@ -270,7 +240,6 @@ class UnifiedMessageItem extends StatelessWidget {
                     height: 1.4,
                   ),
                 ),
-                
                 if (parentReply != null && parentReply.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Container(
@@ -312,39 +281,44 @@ class UnifiedMessageItem extends StatelessWidget {
                     ),
                   ),
                 ],
-                
                 const SizedBox(height: 12),
-                
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     if (_isUnread && _isReceived) ...[
                       TextButton.icon(
                         onPressed: () => onMarkRead(_messageId, _messageType),
-                        icon: Icon(Icons.check_circle_outline, size: 16, color: _senderColor),
+                        icon: Icon(Icons.check_circle_outline,
+                            size: 16, color: _senderColor),
                         label: Text(
                           'Marquer lu',
                           style: TextStyle(fontSize: 12, color: _senderColor),
                         ),
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                       ),
                       const SizedBox(width: 8),
                     ],
-                    
-                    if (_isReceived && _senderType == 'teacher' && _messageType == 'comment') ...[
+                    if (_isReceived &&
+                        _senderType == 'teacher' &&
+                        _messageType == 'comment') ...[
                       TextButton.icon(
-                        onPressed: () => onReply(_messageId, _teacherId, _content, _messageType),
-                        icon: Icon(Icons.reply, size: 16, color: AppTheme.violet),
+                        onPressed: () => onReply(
+                            _messageId, _teacherId, _content, _messageType),
+                        icon:
+                            Icon(Icons.reply, size: 16, color: AppTheme.violet),
                         label: const Text(
                           'Répondre',
-                          style: TextStyle(fontSize: 12, color: AppTheme.violet),
+                          style:
+                              TextStyle(fontSize: 12, color: AppTheme.violet),
                         ),
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
@@ -360,14 +334,34 @@ class UnifiedMessageItem extends StatelessWidget {
     );
   }
 
+  Widget _buildBadge({required String text, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10,
+          color: color,
+          fontWeight: FontWeight.w500,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
   String _formatDate(String? dateString) {
     if (dateString == null) return '';
-    
+
     try {
       final date = DateTime.parse(dateString);
       final now = DateTime.now();
       final diff = now.difference(date);
-      
+
       if (diff.inDays == 0) {
         if (diff.inHours == 0) {
           return 'Il y a ${diff.inMinutes} min';

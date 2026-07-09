@@ -23,19 +23,25 @@ class AttendanceTab extends StatelessWidget {
         List<Map<String, dynamic>> data = [];
         bool hasMore = false;
         bool isLoadingMore = false;
+        int? totalCount;
 
         if (state is SchoolReportLoaded) {
           data = state.attendanceData;
           hasMore = state.hasMoreAttendance;
+          totalCount = state.totalAttendanceCount;
         } else if (state is SchoolReportLoadingMore) {
           data = state.attendanceData;
           isLoadingMore = state.isLoadingAttendance;
+          totalCount = state.totalAttendanceCount;
         } else if (state is SchoolReportExporting) {
           data = state.attendanceData;
+          totalCount = state.totalAttendanceCount;
         } else if (state is SchoolReportExportSuccess) {
           data = state.attendanceData;
+          totalCount = state.totalAttendanceCount;
         } else if (state is SchoolReportExportError) {
           data = state.attendanceData;
+          totalCount = state.totalAttendanceCount;
         } else if (state is SchoolReportLoading) {
           return const Center(child: CircularProgressIndicator());
         } else if (state is SchoolReportError) {
@@ -49,6 +55,7 @@ class AttendanceTab extends StatelessWidget {
           hasMore: hasMore,
           isLoadingMore: isLoadingMore,
           onLoadMore: onLoadMore,
+          totalCount: totalCount,
           columns: const [
             ReportColumn(key: 'date', label: 'Date', width: 55),
             ReportColumn(key: 'cours', label: 'Cours', width: 80),
@@ -56,7 +63,11 @@ class AttendanceTab extends StatelessWidget {
             ReportColumn(key: 'classe', label: 'Classe', width: 70),
             ReportColumn(key: 'eleve', label: 'Élève', width: 100),
             ReportColumn(key: 'enseignant', label: 'Enseignant', width: 100),
-            ReportColumn(key: 'statut', label: 'Statut', width: 60, align: TextAlign.center),
+            ReportColumn(
+                key: 'statut',
+                label: 'Statut',
+                width: 60,
+                align: TextAlign.center),
           ],
           rowBuilder: (item) => _buildAttendanceRow(item),
         );
@@ -73,7 +84,8 @@ class AttendanceTab extends StatelessWidget {
     final startTime = _formatTime(schedule?['start_time']);
     final endTime = _formatTime(schedule?['end_time']);
     final classe = schedule?['classes'];
-    final className = classe != null ? '${classe['level']} ${classe['name']}' : '-';
+    final className =
+        classe != null ? '${classe['level']} ${classe['name']}' : '-';
 
     final student = item['students'] as Map<String, dynamic>?;
     final studentName = student != null
@@ -86,12 +98,17 @@ class AttendanceTab extends StatelessWidget {
         : '-';
 
     return [
-      Text(date != null ? '${date.day}/${date.month}' : '-', style: _cellStyle(11)),
-      Text(subject, style: _cellStyle(11), maxLines: 1, overflow: TextOverflow.ellipsis),
+      Text(date != null ? '${date.day}/${date.month}' : '-',
+          style: _cellStyle(11)),
+      Text(subject,
+          style: _cellStyle(11), maxLines: 1, overflow: TextOverflow.ellipsis),
       Text('$startTime-$endTime', style: _cellStyle(10)),
-      Text(className, style: _cellStyle(10), maxLines: 1, overflow: TextOverflow.ellipsis),
-      Text(studentName, style: _cellStyle(11), maxLines: 2, overflow: TextOverflow.ellipsis),
-      Text(teacherName, style: _cellStyle(11), maxLines: 2, overflow: TextOverflow.ellipsis),
+      Text(className,
+          style: _cellStyle(10), maxLines: 1, overflow: TextOverflow.ellipsis),
+      Text(studentName,
+          style: _cellStyle(11), maxLines: 2, overflow: TextOverflow.ellipsis),
+      Text(teacherName,
+          style: _cellStyle(11), maxLines: 2, overflow: TextOverflow.ellipsis),
       SizedBox(
         width: 60,
         child: StatusBadge(status: status),

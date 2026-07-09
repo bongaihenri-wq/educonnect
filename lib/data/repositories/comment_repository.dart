@@ -13,7 +13,11 @@ class CommentRepository {
   // ============================================================
   Future<List<String>> _getAdminUserIds(String schoolId) async {
     try {
-      final roleRes = await _supabase.from('roles').select('id').eq('code', 'admin').maybeSingle();
+      final roleRes = await _supabase
+          .from('roles')
+          .select('id')
+          .eq('code', 'admin')
+          .maybeSingle();
       final adminRoleId = roleRes?['id'] as String?;
       if (adminRoleId == null) return [];
 
@@ -61,7 +65,7 @@ class CommentRepository {
       // Parents
       if (recipients.contains('parent')) {
         List<dynamic> parentsResponse;
-        
+
         if (studentId != null) {
           parentsResponse = await _supabase
               .from('students')
@@ -109,7 +113,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // SAUVEGARDE COMMENTAIRE INDIVIDUEL
+  // SAUVEGARDE COMMENTAIRE INDIVIDUEL (Teacher → Parent/Admin)
   // ============================================================
   Future<void> saveComment({
     required String studentId,
@@ -181,7 +185,8 @@ class CommentRepository {
         expiresAt: expiresAt,
       );
 
-      debugPrint('✅ Commentaire sauvegardé - ID: $commentId, senderRole: $senderRole');
+      debugPrint(
+          '✅ Commentaire sauvegardé - ID: $commentId, senderRole: $senderRole');
     } catch (e) {
       debugPrint('❌ Erreur commentaire: $e');
       throw Exception('Erreur sauvegarde commentaire: $e');
@@ -257,7 +262,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // BROADCAST
+  // BROADCAST (Teacher → Classe)
   // ============================================================
   Future<void> saveBroadcastComment({
     required String classId,
@@ -324,7 +329,8 @@ class CommentRepository {
         expiresAt: expiresAt,
       );
 
-      debugPrint('✅ Broadcast envoyé - ID: $commentId, senderRole: $senderRole');
+      debugPrint(
+          '✅ Broadcast envoyé - ID: $commentId, senderRole: $senderRole');
     } catch (e) {
       debugPrint('❌ Erreur broadcast: $e');
       throw Exception('Erreur envoi broadcast: $e');
@@ -360,7 +366,8 @@ class CommentRepository {
           notifications.add({
             'user_id': student['parent_id'],
             'title': 'Message classe: ${className ?? 'Votre classe'}',
-            'content': '${student['first_name']} ${student['last_name']} - $content',
+            'content':
+                '${student['first_name']} ${student['last_name']} - $content',
             'type': 'general',
             'is_read': false,
             'created_at': now,
@@ -398,7 +405,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // RÉCUPÉRATIONS
+  // RÉCUPÉRATIONS COMMENTS (pour teacher/parent individuel)
   // ============================================================
   Future<List<CommentModel>> getStudentActiveComments(
     String studentId, {
@@ -406,7 +413,7 @@ class CommentRepository {
     int limit = 50,
   }) async {
     final now = DateTime.now().toIso8601String();
-    
+
     var query = _supabase
         .from('comments')
         .select()
@@ -419,9 +426,8 @@ class CommentRepository {
       query = query.eq('school_id', schoolId);
     }
 
-    final response = await query
-        .order('created_at', ascending: false)
-        .limit(limit);
+    final response =
+        await query.order('created_at', ascending: false).limit(limit);
 
     return (response as List)
         .map((json) => CommentModel.fromJson(json))
@@ -434,7 +440,7 @@ class CommentRepository {
     int limit = 100,
   }) async {
     final now = DateTime.now().toIso8601String();
-    
+
     var query = _supabase
         .from('comments')
         .select()
@@ -447,9 +453,8 @@ class CommentRepository {
       query = query.eq('school_id', schoolId);
     }
 
-    final response = await query
-        .order('created_at', ascending: false)
-        .limit(limit);
+    final response =
+        await query.order('created_at', ascending: false).limit(limit);
 
     return (response as List)
         .map((json) => CommentModel.fromJson(json))
@@ -471,9 +476,8 @@ class CommentRepository {
       query = query.eq('school_id', schoolId);
     }
 
-    final response = await query
-        .order('created_at', ascending: false)
-        .limit(limit);
+    final response =
+        await query.order('created_at', ascending: false).limit(limit);
 
     return (response as List)
         .map((json) => CommentModel.fromJson(json))
@@ -481,62 +485,7 @@ class CommentRepository {
   }
 
   // ============================================================
-  // Récupérer messages ENSEIGNANT
-  // ============================================================
-  Future<Map<String, List<Map<String, dynamic>>>> getTeacherMessages({
-    required String teacherId,
-    required String schoolId,
-    int limit = 50,
-  }) async {
-    try {
-      final sentResponse = await _supabase
-          .from('comments')
-          .select('''
-            *,
-            students(first_name, last_name, class_id, classes(name, level)),
-            message_recipients(
-              recipient_id,
-              recipient_role,
-              read_at,
-              recipient:recipient_id(first_name, last_name)
-            )
-          ''')
-          .eq('sender_id', teacherId)
-          .eq('school_id', schoolId)
-          .eq('is_deleted', false)
-          .order('created_at', ascending: false)
-          .limit(limit);
-
-      final receivedResponse = await _supabase
-          .from('comments')
-          .select('''
-            *,
-            sender:sender_id(first_name, last_name, role),
-            students(first_name, last_name, class_id, classes(name, level)),
-            message_recipients!inner(
-              recipient_id,
-              recipient_role,
-              read_at
-            )
-          ''')
-          .eq('school_id', schoolId)
-          .eq('is_deleted', false)
-          .eq('message_recipients.recipient_id', teacherId)
-          .order('created_at', ascending: false)
-          .limit(limit);
-
-      return {
-        'sent': List<Map<String, dynamic>>.from(sentResponse as List),
-        'received': List<Map<String, dynamic>>.from(receivedResponse as List),
-      };
-    } catch (e) {
-      debugPrint('❌ Erreur getTeacherMessages: $e');
-      return {'sent': [], 'received': []};
-    }
-  }
-
-  // ============================================================
-  // ✅ CORRIGÉ : Récupérer TOUS les messages — SANS relation FK admin_messages
+  // 1. ADMIN : TOUS les messages (comments + admin_messages)
   // ============================================================
   Future<Map<String, List<Map<String, dynamic>>>> getAllMessages({
     required String schoolId,
@@ -545,10 +494,8 @@ class CommentRepository {
     int limit = 100,
   }) async {
     try {
-      // 1. Récupérer comments
-      var query = _supabase
-          .from('comments')
-          .select('''
+      // 1a. Récupérer comments (teacher + parent)
+      var query = _supabase.from('comments').select('''
             *,
             sender:sender_id(first_name, last_name, role),
             students(first_name, last_name, class_id, classes(name, level)),
@@ -558,9 +505,7 @@ class CommentRepository {
               read_at,
               recipient:recipient_id(first_name, last_name)
             )
-          ''')
-          .eq('school_id', schoolId)
-          .eq('is_deleted', false);
+          ''').eq('school_id', schoolId).eq('is_deleted', false);
 
       if (classId != null && classId.isNotEmpty) {
         query = query.eq('class_id', classId);
@@ -569,14 +514,13 @@ class CommentRepository {
         query = query.eq('sender_type', senderType);
       }
 
-      final commentsResponse = await query
-          .order('created_at', ascending: false)
-          .limit(limit);
+      final commentsResponse =
+          await query.order('created_at', ascending: false).limit(limit);
 
-      // 2. ✅ CORRIGÉ : Récupérer admin_messages SANS relation FK
+      // 1b. Récupérer admin_messages
       var adminQuery = _supabase
           .from('admin_messages')
-          .select()  // ✅ Pas de relation FK, colonnes brutes uniquement
+          .select()
           .eq('school_id', schoolId)
           .eq('is_active', true);
 
@@ -584,11 +528,10 @@ class CommentRepository {
         adminQuery = adminQuery.eq('target_class_id', classId);
       }
 
-      final adminResponse = await adminQuery
-          .order('created_at', ascending: false)
-          .limit(limit);
+      final adminResponse =
+          await adminQuery.order('created_at', ascending: false).limit(limit);
 
-      // 3. ✅ CORRIGÉ : Normaliser admin_messages SANS target_class
+      // 1c. Normaliser admin_messages
       final normalizedAdmin = (adminResponse as List).map((msg) {
         return {
           'id': msg['id'],
@@ -597,11 +540,16 @@ class CommentRepository {
           'sender_role': 'admin',
           'sender_type': 'admin',
           'sender_name': msg['sender_name'] ?? 'Administration',
-          'sender': {'first_name': 'Admin', 'last_name': 'istration', 'role': 'admin'},
+          'sender': {
+            'first_name': 'Admin',
+            'last_name': 'istration',
+            'role': 'admin'
+          },
           'created_at': msg['created_at'],
-          'is_broadcast': msg['recipient_type']?.toString().contains('all') ?? false,
+          'is_broadcast':
+              msg['recipient_type']?.toString().contains('all') ?? false,
           'is_read': msg['is_read'] ?? true,
-          'class_id': msg['target_class_id'],  // ✅ Valeur brute, pas de relation
+          'class_id': msg['target_class_id'],
           'students': null,
           'message_recipients': [],
           'priority': msg['priority'],
@@ -611,19 +559,24 @@ class CommentRepository {
         };
       }).toList();
 
-      // 4. Combiner
-      final allComments = List<Map<String, dynamic>>.from(commentsResponse as List);
+      // 1d. Combiner et trier
+      final allComments =
+          List<Map<String, dynamic>>.from(commentsResponse as List);
       final allMessages = [...allComments, ...normalizedAdmin];
-      
+
       allMessages.sort((a, b) {
         final dateA = DateTime.parse(a['created_at'] as String);
         final dateB = DateTime.parse(b['created_at'] as String);
         return dateB.compareTo(dateA);
       });
 
-      final parentMessages = allMessages.where((m) => m['sender_type'] == 'parent').toList();
-      final teacherMessages = allMessages.where((m) => m['sender_type'] == 'teacher').toList();
-      final adminMessages = allMessages.where((m) => m['sender_type'] == 'admin').toList();
+      // 1e. Filtrer par type pour les onglets
+      final parentMessages =
+          allMessages.where((m) => m['sender_type'] == 'parent').toList();
+      final teacherMessages =
+          allMessages.where((m) => m['sender_type'] == 'teacher').toList();
+      final adminMessages =
+          allMessages.where((m) => m['sender_type'] == 'admin').toList();
 
       return {
         'all': allMessages,
@@ -643,6 +596,224 @@ class CommentRepository {
   }
 
   // ============================================================
+  // 2. TEACHER : Ses messages + reçus (parent → teacher, admin → teacher)
+  // ============================================================
+  Future<Map<String, List<Map<String, dynamic>>>> getTeacherMessages({
+    required String teacherId,
+    required String schoolId,
+    int limit = 50,
+  }) async {
+    try {
+      // 2a. Messages ENVOYÉS par le teacher
+      final sentResponse = await _supabase
+          .from('comments')
+          .select('''
+            *,
+            students(first_name, last_name, class_id, classes(name, level)),
+            message_recipients(
+              recipient_id,
+              recipient_role,
+              read_at,
+              recipient:recipient_id(first_name, last_name)
+            )
+          ''')
+          .eq('sender_id', teacherId)
+          .eq('school_id', schoolId)
+          .eq('is_deleted', false)
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      // 2b. Messages REÇUS par le teacher (via message_recipients)
+      final receivedResponse = await _supabase
+          .from('comments')
+          .select('''
+            *,
+            sender:sender_id(first_name, last_name, role),
+            students(first_name, last_name, class_id, classes(name, level)),
+            message_recipients!inner(
+              recipient_id,
+              recipient_role,
+              read_at
+            )
+          ''')
+          .eq('school_id', schoolId)
+          .eq('is_deleted', false)
+          .eq('message_recipients.recipient_id', teacherId)
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      // 2c. Admin messages reçus par le teacher
+      final adminReceived = await _supabase
+          .from('admin_messages')
+          .select()
+          .eq('school_id', schoolId)
+          .eq('is_active', true)
+          .or('recipient_type.eq.all_teachers,target_teacher_id.eq.$teacherId')
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      // 2d. Normaliser admin messages reçus
+      final normalizedAdminReceived = (adminReceived as List).map((msg) {
+        return {
+          'id': msg['id'],
+          'content': '${msg['title'] ?? ''}\n${msg['content'] ?? ''}',
+          'sender_id': null,
+          'sender_role': 'admin',
+          'sender_type': 'admin',
+          'sender_name': msg['sender_name'] ?? 'Administration',
+          'sender': {
+            'first_name': 'Admin',
+            'last_name': 'istration',
+            'role': 'admin'
+          },
+          'created_at': msg['created_at'],
+          'is_broadcast': true,
+          'is_read': msg['is_read'] ?? true,
+          'class_id': msg['target_class_id'],
+          'students': null,
+          'message_recipients': [],
+          'priority': msg['priority'],
+          'is_admin_message': true,
+        };
+      }).toList();
+
+      // 2e. Combiner
+      final allSent = List<Map<String, dynamic>>.from(sentResponse as List);
+      final allReceived =
+          List<Map<String, dynamic>>.from(receivedResponse as List);
+      final allAdminReceived = normalizedAdminReceived.toList();
+
+      final allMessages = [...allSent, ...allReceived, ...allAdminReceived];
+
+      allMessages.sort((a, b) {
+        final dateA = DateTime.parse(a['created_at'] as String);
+        final dateB = DateTime.parse(b['created_at'] as String);
+        return dateB.compareTo(dateA);
+      });
+
+      return {
+        'sent': allSent,
+        'received': [...allReceived, ...allAdminReceived],
+        'all': allMessages,
+      };
+    } catch (e) {
+      debugPrint('❌ Erreur getTeacherMessages: $e');
+      return {'sent': [], 'received': [], 'all': []};
+    }
+  }
+
+  // ============================================================
+  // 3. PARENT : Ses messages + reçus (teacher → parent, admin → parent)
+  // ============================================================
+  Future<List<Map<String, dynamic>>> getParentMessages({
+    required String studentId,
+    required String schoolId,
+    String? classId,
+    int limit = 50,
+  }) async {
+    try {
+      // 3a. Messages REÇUS par le parent (via message_recipients)
+      var receivedQuery = _supabase
+          .from('comments')
+          .select('''
+            *,
+            sender:sender_id(first_name, last_name, role),
+            students(first_name, last_name, class_id, classes(name, level)),
+            message_recipients!inner(
+              recipient_id,
+              recipient_role,
+              read_at
+            )
+          ''')
+          .eq('school_id', schoolId)
+          .eq('is_deleted', false)
+          .eq('message_recipients.recipient_id',
+              studentId); // parent_id lié à student
+
+      if (classId != null && classId.isNotEmpty) {
+        receivedQuery = receivedQuery.eq('class_id', classId);
+      }
+
+      final receivedResponse = await receivedQuery
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      // 3b. Messages ENVOYÉS par le parent (reply)
+      final sentResponse = await _supabase
+          .from('comments')
+          .select('''
+            *,
+            sender:sender_id(first_name, last_name, role),
+            students(first_name, last_name, class_id, classes(name, level)),
+            message_recipients(
+              recipient_id,
+              recipient_role,
+              read_at
+            )
+          ''')
+          .eq('school_id', schoolId)
+          .eq('sender_type', 'parent')
+          .eq('is_deleted', false)
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      // 3c. Admin messages reçus par le parent
+      final adminReceived = await _supabase
+          .from('admin_messages')
+          .select()
+          .eq('school_id', schoolId)
+          .eq('is_active', true)
+          .or('recipient_type.eq.all_parents,target_parent_id.eq.$studentId')
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      // 3d. Normaliser admin messages
+      final normalizedAdmin = (adminReceived as List).map((msg) {
+        return {
+          'id': msg['id'],
+          'content': '${msg['title'] ?? ''}\n${msg['content'] ?? ''}',
+          'sender_id': null,
+          'sender_role': 'admin',
+          'sender_type': 'admin',
+          'sender_name': msg['sender_name'] ?? 'Administration',
+          'sender': {
+            'first_name': 'Admin',
+            'last_name': 'istration',
+            'role': 'admin'
+          },
+          'created_at': msg['created_at'],
+          'is_broadcast': true,
+          'is_read': msg['is_read'] ?? true,
+          'class_id': msg['target_class_id'],
+          'students': null,
+          'message_recipients': [],
+          'priority': msg['priority'],
+          'is_admin_message': true,
+        };
+      }).toList();
+
+      // 3e. Combiner
+      final allReceived =
+          List<Map<String, dynamic>>.from(receivedResponse as List);
+      final allSent = List<Map<String, dynamic>>.from(sentResponse as List);
+      final allAdmin = normalizedAdmin.toList();
+
+      final allMessages = [...allReceived, ...allSent, ...allAdmin];
+
+      allMessages.sort((a, b) {
+        final dateA = DateTime.parse(a['created_at'] as String);
+        final dateB = DateTime.parse(b['created_at'] as String);
+        return dateB.compareTo(dateA);
+      });
+
+      return allMessages;
+    } catch (e) {
+      debugPrint('❌ Erreur getParentMessages: $e');
+      return [];
+    }
+  }
+
+  // ============================================================
   // Soft delete (comments OU admin_messages)
   // ============================================================
   Future<void> softDeleteMessage({
@@ -651,8 +822,10 @@ class CommentRepository {
     String? sourceTable,
   }) async {
     try {
-      final table = sourceTable ?? (messageId.startsWith('adm_') ? 'admin_messages' : 'comments');
-      final cleanId = messageId.startsWith('adm_') ? messageId.substring(4) : messageId;
+      final table = sourceTable ??
+          (messageId.startsWith('adm_') ? 'admin_messages' : 'comments');
+      final cleanId =
+          messageId.startsWith('adm_') ? messageId.substring(4) : messageId;
 
       if (table == 'admin_messages') {
         await _supabase.from('admin_messages').update({
@@ -668,7 +841,8 @@ class CommentRepository {
         }).eq('id', cleanId);
       }
 
-      debugPrint('✅ Message $messageId soft-deleted dans $table par $deletedBy');
+      debugPrint(
+          '✅ Message $messageId soft-deleted dans $table par $deletedBy');
     } catch (e) {
       debugPrint('❌ Erreur soft delete: $e');
       throw Exception('Erreur suppression message: $e');
@@ -690,7 +864,7 @@ class CommentRepository {
           })
           .eq('comment_id', commentId)
           .eq('recipient_id', recipientId);
-      
+
       debugPrint('✅ Message $commentId marqué comme lu pour $recipientId');
     } catch (e) {
       debugPrint('❌ Erreur markAsRead: $e');
@@ -708,7 +882,8 @@ class CommentRepository {
           .eq('comment_id', commentId);
 
       final total = (recipients as List).length;
-      final read = (recipients as List).where((r) => r['read_at'] != null).length;
+      final read =
+          (recipients as List).where((r) => r['read_at'] != null).length;
 
       return {
         'total': total,
@@ -737,7 +912,7 @@ class CommentRepository {
       final response = await _supabase.rpc('archive_expired_comments', params: {
         'p_now': DateTime.now().toIso8601String(),
       });
-      
+
       final count = response as int? ?? 0;
       debugPrint('✅ $count commentaires archivés');
       return count;
@@ -752,18 +927,15 @@ class CommentRepository {
     String? schoolId,
     int limit = 100,
   }) async {
-    var query = _supabase
-        .from('comments_archive')
-        .select()
-        .eq('student_id', studentId);
+    var query =
+        _supabase.from('comments_archive').select().eq('student_id', studentId);
 
     if (schoolId != null && schoolId.isNotEmpty) {
       query = query.eq('school_id', schoolId);
     }
 
-    final response = await query
-        .order('archived_at', ascending: false)
-        .limit(limit);
+    final response =
+        await query.order('archived_at', ascending: false).limit(limit);
 
     return (response as List)
         .map((json) => CommentModel.fromJson(json))

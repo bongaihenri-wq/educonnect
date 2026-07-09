@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../blocs/auth_bloc/auth_bloc.dart' as auth;
 import '../../../config/routes.dart';
 import '../../../services/subscription_service.dart';
-// ✅ AJOUT : Import de la page Analytics
 import 'analytics_dashboard_page.dart';
 
 class SuperAdminDashboardPage extends StatefulWidget {
@@ -139,7 +138,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
   }
 
   Widget _buildGlobalStats() {
-    return FutureBuilder<List<Map<String, dynamic>>>(
+    return FutureBuilder<Map<String, dynamic>>(
       future: _fetchGlobalStats(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -155,19 +154,13 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
           );
         }
 
-        final stats = snapshot.data ?? [];
-        final totalSchools =
-            stats.isNotEmpty ? stats[0]['total_schools'] ?? 0 : 0;
-        final totalStudents =
-            stats.isNotEmpty ? stats[0]['total_students'] ?? 0 : 0;
-        final totalTeachers =
-            stats.isNotEmpty ? stats[0]['total_teachers'] ?? 0 : 0;
-        final totalParents =
-            stats.isNotEmpty ? stats[0]['total_parents'] ?? 0 : 0;
-        final activeSubscriptions =
-            stats.isNotEmpty ? stats[0]['active_subscriptions'] ?? 0 : 0;
-        final totalRevenue =
-            stats.isNotEmpty ? stats[0]['total_revenue'] ?? 0 : 0;
+        final stats = snapshot.data ?? {};
+        final totalSchools = stats['total_schools'] ?? 0;
+        final totalStudents = stats['total_students'] ?? 0;
+        final totalTeachers = stats['total_teachers'] ?? 0;
+        final totalParents = stats['total_parents'] ?? 0;
+        final totalPayments = stats['total_payments'] ?? 0;
+        final totalRevenue = stats['total_revenue'] ?? 0;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -177,49 +170,63 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              childAspectRatio: 2.5,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
               children: [
-                _StatCard(
-                  icon: Icons.school,
-                  label: 'Écoles',
-                  value: totalSchools.toString(),
-                  color: Colors.blue,
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 44) / 2,
+                  child: _StatCard(
+                    icon: Icons.school,
+                    label: 'Écoles',
+                    value: totalSchools.toString(),
+                    color: Colors.blue,
+                  ),
                 ),
-                _StatCard(
-                  icon: Icons.people,
-                  label: 'Élèves',
-                  value: totalStudents.toString(),
-                  color: Colors.green,
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 44) / 2,
+                  child: _StatCard(
+                    icon: Icons.people,
+                    label: 'Élèves',
+                    value: totalStudents.toString(),
+                    color: Colors.green,
+                  ),
                 ),
-                _StatCard(
-                  icon: Icons.person_outline,
-                  label: 'Enseignants',
-                  value: totalTeachers.toString(),
-                  color: Colors.orange,
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 44) / 2,
+                  child: _StatCard(
+                    icon: Icons.person_outline,
+                    label: 'Enseignants',
+                    value: totalTeachers.toString(),
+                    color: Colors.orange,
+                  ),
                 ),
-                _StatCard(
-                  icon: Icons.family_restroom,
-                  label: 'Parents',
-                  value: totalParents.toString(),
-                  color: Colors.purple,
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 44) / 2,
+                  child: _StatCard(
+                    icon: Icons.family_restroom,
+                    label: 'Parents',
+                    value: totalParents.toString(),
+                    color: Colors.purple,
+                  ),
                 ),
-                _StatCard(
-                  icon: Icons.payment,
-                  label: 'Paiements',
-                  value: activeSubscriptions.toString(),
-                  color: Colors.teal,
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 44) / 2,
+                  child: _StatCard(
+                    icon: Icons.payment,
+                    label: 'Paiements',
+                    value: totalPayments.toString(),
+                    color: Colors.teal,
+                  ),
                 ),
-                _StatCard(
-                  icon: Icons.attach_money,
-                  label: 'Revenus',
-                  value: '${totalRevenue.toStringAsFixed(0)} XOF',
-                  color: Colors.indigo,
+                SizedBox(
+                  width: (MediaQuery.of(context).size.width - 44) / 2,
+                  child: _StatCard(
+                    icon: Icons.attach_money,
+                    label: 'Revenus',
+                    value: '${_formatNumber(totalRevenue)} XOF',
+                    color: Colors.indigo,
+                  ),
                 ),
               ],
             ),
@@ -229,23 +236,64 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
     );
   }
 
-  Future<List<Map<String, dynamic>>> _fetchGlobalStats() async {
+  Future<Map<String, dynamic>> _fetchGlobalStats() async {
     try {
-      final response =
-          await Supabase.instance.client.rpc('get_super_admin_stats');
-      return List<Map<String, dynamic>>.from(response);
+      final supabase = Supabase.instance.client;
+
+      final schoolsResponse = await supabase.from('schools').select('id');
+      final totalSchools = (schoolsResponse as List).length;
+
+      final studentsResponse = await supabase.from('students').select('id');
+      final totalStudents = (studentsResponse as List).length;
+
+      final teachersResponse =
+          await supabase.from('app_users').select('id').eq('role', 'teacher');
+      final totalTeachers = (teachersResponse as List).length;
+
+      final parentsResponse =
+          await supabase.from('app_users').select('id').eq('role', 'parent');
+      final totalParents = (parentsResponse as List).length;
+
+      final paymentsResponse = await supabase
+          .from('payment_transactions')
+          .select('id')
+          .eq('status', 'verified');
+      final totalPayments = (paymentsResponse as List).length;
+
+      final revenueResponse = await supabase
+          .from('payment_transactions')
+          .select('amount')
+          .eq('status', 'verified');
+      final totalRevenue = (revenueResponse as List).fold<int>(
+          0, (sum, item) => sum + ((item['amount'] as num?)?.toInt() ?? 0));
+
+      return {
+        'total_schools': totalSchools,
+        'total_students': totalStudents,
+        'total_teachers': totalTeachers,
+        'total_parents': totalParents,
+        'total_payments': totalPayments,
+        'total_revenue': totalRevenue,
+      };
     } catch (e) {
-      return [
-        {
-          'total_schools': 0,
-          'total_students': 0,
-          'total_teachers': 0,
-          'total_parents': 0,
-          'active_subscriptions': 0,
-          'total_revenue': 0,
-        }
-      ];
+      print('❌ Erreur _fetchGlobalStats: $e');
+      return {
+        'total_schools': 0,
+        'total_students': 0,
+        'total_teachers': 0,
+        'total_parents': 0,
+        'total_payments': 0,
+        'total_revenue': 0,
+      };
     }
+  }
+
+  String _formatNumber(dynamic n) {
+    if (n == null) return '0';
+    return n.toString().replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (m) => '${m[1]} ',
+        );
   }
 
   Widget _buildActionsGrid(BuildContext context) {
@@ -273,14 +321,12 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
         onTap: () =>
             Navigator.pushNamed(context, AppRoutes.subscriptionDashboard),
       ),
-      // ✅ Support Client
       _AdminAction(
         icon: Icons.support_agent,
         label: 'Support Client',
         color: Colors.orange,
         onTap: () => Navigator.pushNamed(context, AppRoutes.supportDashboard),
       ),
-      // ✅ Gestion Années Scolaires
       _AdminAction(
         icon: Icons.calendar_month,
         label: 'Années Scolaires',
@@ -288,13 +334,11 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
         onTap: () =>
             Navigator.pushNamed(context, AppRoutes.schoolYearManagement),
       ),
-      // ✅ CORRIGÉ : Bouton Rapports → Analytics Dashboard
       _AdminAction(
-        icon: Icons.analytics, // ✅ Icône analytics plus appropriée
+        icon: Icons.analytics,
         label: 'Rapports',
         color: Colors.purple,
         onTap: () {
-          // ✅ Navigation vers Analytics Dashboard
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -345,8 +389,6 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
     );
   }
 }
-
-// ==================== WIDGETS ====================
 
 class _StatCard extends StatelessWidget {
   final IconData icon;

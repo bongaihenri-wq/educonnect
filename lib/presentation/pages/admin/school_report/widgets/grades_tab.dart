@@ -23,19 +23,25 @@ class GradesTab extends StatelessWidget {
         List<Map<String, dynamic>> data = [];
         bool hasMore = false;
         bool isLoadingMore = false;
+        int? totalCount;
 
         if (state is SchoolReportLoaded) {
           data = state.gradesData;
           hasMore = state.hasMoreGrades;
+          totalCount = state.totalGradesCount;
         } else if (state is SchoolReportLoadingMore) {
           data = state.gradesData;
           isLoadingMore = state.isLoadingGrades;
+          totalCount = state.totalGradesCount;
         } else if (state is SchoolReportExporting) {
           data = state.gradesData;
+          totalCount = state.totalGradesCount;
         } else if (state is SchoolReportExportSuccess) {
           data = state.gradesData;
+          totalCount = state.totalGradesCount;
         } else if (state is SchoolReportExportError) {
           data = state.gradesData;
+          totalCount = state.totalGradesCount;
         } else if (state is SchoolReportLoading) {
           return const Center(child: CircularProgressIndicator());
         } else if (state is SchoolReportError) {
@@ -49,13 +55,16 @@ class GradesTab extends StatelessWidget {
           hasMore: hasMore,
           isLoadingMore: isLoadingMore,
           onLoadMore: onLoadMore,
+          totalCount: totalCount,
           columns: const [
             ReportColumn(key: 'date', label: 'Date', width: 55),
             ReportColumn(key: 'classe', label: 'Classe', width: 70),
             ReportColumn(key: 'eleve', label: 'Élève', width: 100),
             ReportColumn(key: 'matiere', label: 'Matière', width: 80),
-            ReportColumn(key: 'coef', label: 'Coef', width: 50, align: TextAlign.center),
-            ReportColumn(key: 'note', label: 'Note', width: 70, align: TextAlign.center),
+            ReportColumn(
+                key: 'coef', label: 'Coef', width: 50, align: TextAlign.center),
+            ReportColumn(
+                key: 'note', label: 'Note', width: 70, align: TextAlign.center),
           ],
           rowBuilder: (item) => _buildGradeRow(item),
         );
@@ -71,7 +80,8 @@ class GradesTab extends StatelessWidget {
         ? '${student['last_name'] ?? ''} ${student['first_name'] ?? ''}'.trim()
         : '-';
     final classe = item['classes'];
-    final className = classe != null ? '${classe['level']} ${classe['name']}' : '-';
+    final className =
+        classe != null ? '${classe['level']} ${classe['name']}' : '-';
     final subject = item['subjects']?['name'] ?? '-';
     final coef = (item['coefficient'] as num?)?.toInt() ?? 1;
     final score = (item['score'] as num?)?.toDouble() ?? 0;
@@ -79,14 +89,18 @@ class GradesTab extends StatelessWidget {
     final noteSur20 = maxScore > 0 ? (score / maxScore) * 20 : 0;
 
     return [
-      Text(date != null ? '${date.day}/${date.month}' : '-', style: _cellStyle(11)),
-      Text(className, style: _cellStyle(10), maxLines: 1, overflow: TextOverflow.ellipsis),
-      Text(studentName, style: _cellStyle(11), maxLines: 2, overflow: TextOverflow.ellipsis),
-      Text(subject, style: _cellStyle(11), maxLines: 1, overflow: TextOverflow.ellipsis),
+      Text(date != null ? '${date.day}/${date.month}' : '-',
+          style: _cellStyle(11)),
+      Text(className,
+          style: _cellStyle(10), maxLines: 1, overflow: TextOverflow.ellipsis),
+      Text(studentName,
+          style: _cellStyle(11), maxLines: 2, overflow: TextOverflow.ellipsis),
+      Text(subject,
+          style: _cellStyle(11), maxLines: 1, overflow: TextOverflow.ellipsis),
       Text('$coef', style: _cellStyle(11), textAlign: TextAlign.center),
       SizedBox(
         width: 70,
-        child: GradeBadge(noteSur20: noteSur20.toDouble()), // ✅ CORRIGÉ ICI
+        child: GradeBadge(noteSur20: noteSur20.toDouble()),
       ),
     ];
   }

@@ -32,7 +32,6 @@ import '../presentation/pages/admin/admin_dashboard.dart';
 import '../presentation/pages/admin/schedule_page.dart';
 import '../presentation/pages/admin/homework_page.dart';
 import '../presentation/pages/admin/grades_page.dart';
-import '../presentation/pages/admin/messages_page.dart';
 import '../presentation/pages/admin/teacher_tracking_page.dart';
 import '../presentation/pages/admin/settings_page.dart';
 import '../presentation/pages/admin/teachers_list_page.dart';
@@ -256,10 +255,10 @@ class AppRoutes {
         classesStudents: (context) => const ClassesStudentsPage(),
         adminGradesPending: (context) => const GradesPage(),
         adminReports: (context) => const AdminDashboard(),
-        adminMessages: (context) => const AdminMessagesPage(),
         adminTeacherTracking: (context) => const TeacherTrackingPage(),
         adminSettings: (context) => const SettingsPage(),
         adminSendMessage: (context) => const AdminSendMessagePage(),
+        adminMessages: (context) => const AdminMessagesPage(),
         adminBulkImport: (context) {
           final args = ModalRoute.of(context)?.settings.arguments
               as Map<String, dynamic>?;

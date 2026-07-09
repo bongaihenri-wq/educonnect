@@ -50,7 +50,7 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
       return date.isAfter(sevenDaysAgo) && status == 'late';
     }).toList();
 
-    // 3. Commentaires sur 1 semaine — AVEC expéditeur et destinataire
+    // 3. Commentaires sur 1 semaine
     List<dynamic> commentsResponse = [];
     try {
       commentsResponse = await _supabase
@@ -98,32 +98,40 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
           children: [
             Icon(Icons.notifications_active, color: AppTheme.violet),
             const SizedBox(width: 10),
-            Text(
-              'Alertes - ${widget.studentName}',
-              style: TextStyle(
-                color: AppTheme.nightBlue,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+            Expanded(
+              child: Text(
+                'Alertes - ${widget.studentName}',
+                style: TextStyle(
+                  color: AppTheme.nightBlue,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+                maxLines: 2, // ← AJOUTÉ: 2 lignes max
+                overflow: TextOverflow.ellipsis, // ← AJOUTÉ
               ),
             ),
           ],
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.violet))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppTheme.violet))
           : SafeArea(
               child: CustomScrollView(
                 slivers: [
                   // ─── ABSENCES ────────────────────
-                  _buildSectionTitle('Absences (7 derniers jours)', Icons.cancel, Colors.red),
+                  _buildSectionTitle(
+                      'Absences (7 derniers jours)', Icons.cancel, Colors.red),
                   _buildAttendanceList(_weekAbsences, 'absent'),
 
                   // ─── RETARDS ─────────────────────
-                  _buildSectionTitle('Retards (7 derniers jours)', Icons.access_time, Colors.orange),
+                  _buildSectionTitle('Retards (7 derniers jours)',
+                      Icons.access_time, Colors.orange),
                   _buildAttendanceList(_weekRetards, 'late'),
 
                   // ─── COMMENTAIRES ────────────────
-                  _buildSectionTitle('Commentaires (7 derniers jours)', Icons.chat, AppTheme.violet),
+                  _buildSectionTitle('Commentaires (7 derniers jours)',
+                      Icons.chat, AppTheme.violet),
                   _buildCommentsList(),
 
                   const SliverPadding(padding: EdgeInsets.only(bottom: 30)),
@@ -141,12 +149,16 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
           children: [
             Icon(icon, color: color, size: 20),
             const SizedBox(width: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.nightBlue,
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.nightBlue,
+                ),
+                maxLines: 2, // ← AJOUTÉ
+                overflow: TextOverflow.ellipsis, // ← AJOUTÉ
               ),
             ),
           ],
@@ -170,9 +182,13 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
               children: [
                 Icon(Icons.check_circle, color: Colors.grey.shade400),
                 const SizedBox(width: 12),
-                Text(
-                  'Aucun ${status == 'absent' ? 'absence' : 'retard'} cette semaine',
-                  style: TextStyle(color: Colors.grey.shade500),
+                Expanded(
+                  child: Text(
+                    'Aucun ${status == 'absent' ? 'absence' : 'retard'} cette semaine',
+                    style: TextStyle(color: Colors.grey.shade500),
+                    maxLines: 2, // ← AJOUTÉ
+                    overflow: TextOverflow.ellipsis, // ← AJOUTÉ
+                  ),
                 ),
               ],
             ),
@@ -218,6 +234,8 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                             fontWeight: FontWeight.w600,
                             color: AppTheme.nightBlue,
                           ),
+                          maxLines: 2, // ← AJOUTÉ
+                          overflow: TextOverflow.ellipsis, // ← AJOUTÉ
                         ),
                         Text(
                           '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} à $time',
@@ -225,12 +243,15 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                             fontSize: 12,
                             color: Colors.grey.shade500,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: color.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
@@ -242,6 +263,8 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                         fontWeight: FontWeight.w600,
                         fontSize: 12,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
@@ -269,9 +292,13 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
               children: [
                 Icon(Icons.check_circle, color: Colors.grey.shade400),
                 const SizedBox(width: 12),
-                Text(
-                  'Aucun commentaire cette semaine',
-                  style: TextStyle(color: Colors.grey.shade500),
+                Expanded(
+                  child: Text(
+                    'Aucun commentaire cette semaine',
+                    style: TextStyle(color: Colors.grey.shade500),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
@@ -287,11 +314,12 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
           final date = DateTime.parse(comment['created_at'] as String);
           final content = comment['content'] as String? ?? '';
           final senderType = comment['sender_type'] as String? ?? 'teacher';
-          final recipientType = comment['recipient_type'] as String? ?? 'parent';
+          final recipientType =
+              comment['recipient_type'] as String? ?? 'parent';
           final targetSubject = comment['target_subject'] as String?;
           final isRead = comment['is_read'] as bool? ?? true;
 
-          // ✅ Récupération nom expéditeur
+          // Récupération nom expéditeur
           final teacherData = comment['app_users'] as Map<String, dynamic>?;
           String senderName;
           if (teacherData != null) {
@@ -313,7 +341,9 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                 color: AppTheme.violet.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isRead ? AppTheme.violet.withOpacity(0.2) : AppTheme.violet.withOpacity(0.5),
+                  color: isRead
+                      ? AppTheme.violet.withOpacity(0.2)
+                      : AppTheme.violet.withOpacity(0.5),
                   width: isRead ? 1 : 2,
                 ),
               ),
@@ -322,6 +352,7 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                 children: [
                   // ─── EN-TÊTE : EXPÉDITEUR + DESTINATAIRE ───
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
                         padding: const EdgeInsets.all(6),
@@ -329,14 +360,18 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                           color: AppTheme.violet.withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(Icons.chat, color: AppTheme.violet, size: 14),
+                        child:
+                            Icon(Icons.chat, color: AppTheme.violet, size: 14),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
+                            // ← CORRIGÉ: Wrap au lieu de Row pour éviter overflow
+                            Wrap(
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 8,
                               children: [
                                 Text(
                                   'De : $senderName',
@@ -346,15 +381,19 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                                     color: AppTheme.nightBlue,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 4, vertical: 1),
                                   decoration: BoxDecoration(
                                     color: AppTheme.violet.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
-                                    senderType == 'teacher' ? 'Prof' : (senderType == 'admin' ? 'Admin' : 'Parent'),
+                                    senderType == 'teacher'
+                                        ? 'Prof'
+                                        : (senderType == 'admin'
+                                            ? 'Admin'
+                                            : 'Parent'),
                                     style: TextStyle(
                                       fontSize: 9,
                                       color: AppTheme.violet,
@@ -370,6 +409,8 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                                 fontSize: 11,
                                 color: Colors.grey.shade600,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
@@ -386,7 +427,7 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  
+
                   // ─── CONTENU ───
                   Text(
                     content,
@@ -395,11 +436,15 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                       color: AppTheme.nightBlue,
                       fontSize: 13,
                     ),
+                    maxLines: 3, // ← AJOUTÉ: 3 lignes max
+                    overflow: TextOverflow.ellipsis, // ← AJOUTÉ
                   ),
-                  
+
                   // ─── MÉTA : MATIÈRE + DATE ───
                   const SizedBox(height: 6),
-                  Row(
+                  Wrap(
+                    spacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       if (targetSubject != null) ...[
                         Icon(Icons.book, size: 10, color: AppTheme.violet),
@@ -411,10 +456,12 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                             color: AppTheme.violet,
                             fontWeight: FontWeight.w500,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(width: 12),
                       ],
-                      Icon(Icons.access_time, size: 10, color: Colors.grey.shade500),
+                      Icon(Icons.access_time,
+                          size: 10, color: Colors.grey.shade500),
                       const SizedBox(width: 4),
                       Text(
                         '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} à ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}',
@@ -422,6 +469,8 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                           fontSize: 10,
                           color: Colors.grey.shade500,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
