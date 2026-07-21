@@ -1,4 +1,5 @@
 // lib/presentation/pages/assistant/assistant_dashboard.dart
+import 'package:educonnect/presentation/pages/super_admin/subscriptions/payment_numbers_management_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -51,7 +52,8 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
       if (parentIds.isNotEmpty) {
         final subsResult = await _supabase
             .from('parent_subscriptions')
-            .select('parent_id, status, trial_ends_at, current_period_end, plan_type')
+            .select(
+                'parent_id, status, trial_ends_at, current_period_end, plan_type')
             .limit(1000);
 
         final now = DateTime.now();
@@ -61,14 +63,22 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
 
           final status = s['status'] as String?;
           final planType = s['plan_type'] as String?;
-          final trialEnd = s['trial_ends_at'] != null ? DateTime.tryParse(s['trial_ends_at'].toString()) : null;
-          final periodEnd = s['current_period_end'] != null ? DateTime.tryParse(s['current_period_end'].toString()) : null;
+          final trialEnd = s['trial_ends_at'] != null
+              ? DateTime.tryParse(s['trial_ends_at'].toString())
+              : null;
+          final periodEnd = s['current_period_end'] != null
+              ? DateTime.tryParse(s['current_period_end'].toString())
+              : null;
 
           if (status == 'expired' || status == 'pending') {
             blocked++;
-          } else if (planType == 'trial' && trialEnd != null && trialEnd.isBefore(now)) {
+          } else if (planType == 'trial' &&
+              trialEnd != null &&
+              trialEnd.isBefore(now)) {
             blocked++;
-          } else if (planType == 'monthly' && periodEnd != null && periodEnd.isBefore(now)) {
+          } else if (planType == 'monthly' &&
+              periodEnd != null &&
+              periodEnd.isBefore(now)) {
             blocked++;
           }
         }
@@ -86,7 +96,8 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
 
       setState(() {
         _blockedCount = blocked;
-        _pendingPaymentsCount = List<Map<String, dynamic>>.from(pendingResult).length;
+        _pendingPaymentsCount =
+            List<Map<String, dynamic>>.from(pendingResult).length;
         _schoolsCount = List<Map<String, dynamic>>.from(schoolsResult).length;
         _isLoading = false;
       });
@@ -97,13 +108,20 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
 
   String get _countryName {
     switch (widget.countryCode) {
-      case '+225': return '🇨🇮 Côte d\'Ivoire';
-      case '+237': return '🇨🇲 Cameroun';
-      case '+221': return '🇸🇳 Sénégal';
-      case '+233': return '🇬🇭 Ghana';
-      case '+226': return '🇧🇫 Burkina Faso';
-      case '+241': return '🇬🇦 Gabon';
-      default: return widget.countryCode;
+      case '+225':
+        return '🇨🇮 Côte d\'Ivoire';
+      case '+237':
+        return '🇨🇲 Cameroun';
+      case '+221':
+        return '🇸🇳 Sénégal';
+      case '+233':
+        return '🇬🇭 Ghana';
+      case '+226':
+        return '🇧🇫 Burkina Faso';
+      case '+241':
+        return '🇬🇦 Gabon';
+      default:
+        return widget.countryCode;
     }
   }
 
@@ -142,7 +160,8 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
             constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
             onPressed: _logout,
           ),
-          const SizedBox(width: 8), // ✅ Marge droite pour éviter le chevauchement
+          const SizedBox(
+              width: 8), // ✅ Marge droite pour éviter le chevauchement
         ],
       ),
       body: _isLoading
@@ -150,7 +169,8 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
           : RefreshIndicator(
               onRefresh: _loadStats,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), // ✅ Padding bottom 100
+                padding: const EdgeInsets.fromLTRB(
+                    16, 16, 16, 100), // ✅ Padding bottom 100
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -193,8 +213,10 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
                             spacing: 12,
                             runSpacing: 8,
                             children: [
-                              _buildHeaderChip('$_schoolsCount écoles', Icons.school),
-                              _buildHeaderChip('$_blockedCount bloqués', Icons.block),
+                              _buildHeaderChip(
+                                  '$_schoolsCount écoles', Icons.school),
+                              _buildHeaderChip(
+                                  '$_blockedCount bloqués', Icons.block),
                             ],
                           ),
                         ],
@@ -205,19 +227,28 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
                       children: [
                         Expanded(
                           child: _buildKpiCard(
-                            'Bloqués', '$_blockedCount', Icons.block, Colors.red,
+                            'Bloqués',
+                            '$_blockedCount',
+                            Icons.block,
+                            Colors.red,
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: _buildKpiCard(
-                            'Paiements', '$_pendingPaymentsCount', Icons.hourglass_top, Colors.orange,
+                            'Paiements',
+                            '$_pendingPaymentsCount',
+                            Icons.hourglass_top,
+                            Colors.orange,
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: _buildKpiCard(
-                            'Écoles', '$_schoolsCount', Icons.school, const Color(0xFF6C63FF),
+                            'Écoles',
+                            '$_schoolsCount',
+                            Icons.school,
+                            const Color(0xFF6C63FF),
                           ),
                         ),
                       ],
@@ -235,13 +266,15 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
                     _buildModuleCard(
                       icon: Icons.support_agent,
                       title: 'Support Client',
-                      subtitle: 'Parents bloqués, fiches détaillées, actions rapides',
+                      subtitle:
+                          'Parents bloqués, fiches détaillées, actions rapides',
                       color: Colors.red,
                       badge: _blockedCount > 0 ? '$_blockedCount' : null,
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => SupportDashboardPage(countryCode: widget.countryCode),
+                          builder: (context) => SupportDashboardPage(
+                              countryCode: widget.countryCode),
                         ),
                       ),
                     ),
@@ -249,12 +282,14 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
                     _buildModuleCard(
                       icon: Icons.trending_up,
                       title: 'Commercial',
-                      subtitle: 'Stats, relances, écoles prospects, parents à contacter',
+                      subtitle:
+                          'Stats, relances, écoles prospects, parents à contacter',
                       color: const Color(0xFF6C63FF),
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => CommercialDashboardPage(countryCode: widget.countryCode),
+                          builder: (context) => CommercialDashboardPage(
+                              countryCode: widget.countryCode),
                         ),
                       ),
                     ),
@@ -262,17 +297,36 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
                     _buildModuleCard(
                       icon: Icons.payment,
                       title: 'Abonnements',
-                      subtitle: 'Validation paiements, relances, stats abonnements',
+                      subtitle:
+                          'Validation paiements, relances, stats abonnements',
                       color: Colors.green,
-                      badge: _pendingPaymentsCount > 0 ? '$_pendingPaymentsCount' : null,
+                      badge: _pendingPaymentsCount > 0
+                          ? '$_pendingPaymentsCount'
+                          : null,
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const SubscriptionDashboardPage(),
+                          builder: (context) =>
+                              const SubscriptionDashboardPage(),
                         ),
                       ),
                     ),
                     const SizedBox(height: 40),
+                    _buildModuleCard(
+                      icon: Icons.settings_phone,
+                      title: 'Numéros de paiement',
+                      subtitle:
+                          'Gérer les numéros de dépôt par pays et opérateur',
+                      color: const Color(0xFF6B4EFF),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const PaymentNumbersManagementPage(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                   ],
                 ),
               ),
@@ -294,7 +348,8 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
           const SizedBox(width: 6),
           Text(
             text,
-            style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500),
+            style: const TextStyle(
+                fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -317,7 +372,9 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
           const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
-            child: Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+            child: Text(value,
+                style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.bold, color: color)),
           ),
           const SizedBox(height: 2),
           FittedBox(
@@ -393,7 +450,8 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
                       if (badge != null) ...[
                         const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: color.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(10),
@@ -413,7 +471,8 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.3),
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey[600], height: 1.3),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),

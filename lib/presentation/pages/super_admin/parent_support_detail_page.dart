@@ -10,7 +10,8 @@ class ParentSupportDetailPage extends StatefulWidget {
   const ParentSupportDetailPage({super.key, required this.parentId});
 
   @override
-  State<ParentSupportDetailPage> createState() => _ParentSupportDetailPageState();
+  State<ParentSupportDetailPage> createState() =>
+      _ParentSupportDetailPageState();
 }
 
 class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
@@ -42,7 +43,8 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
       // 1. Données de base du parent
       final parent = await _supabase
           .from('app_users')
-          .select('id, first_name, last_name, phone, email, created_at, school_id')
+          .select(
+              'id, first_name, last_name, phone, email, created_at, school_id')
           .eq('id', widget.parentId)
           .maybeSingle();
 
@@ -56,7 +58,8 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
       try {
         final subResult = await _supabase
             .from('parent_subscriptions')
-            .select('*, plan_type, status, trial_ends_at, current_period_end, amount, currency')
+            .select(
+                '*, plan_type, status, trial_ends_at, current_period_end, amount, currency')
             .eq('parent_id', widget.parentId)
             .maybeSingle();
         subscription = subResult;
@@ -96,7 +99,8 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
       try {
         final paymentsResult = await _supabase
             .from('payment_transactions')
-            .select('id, external_ref, amount, currency, status, created_at, screenshot_url, depositor_phone')
+            .select(
+                'id, external_ref, amount, currency, status, created_at, screenshot_url, depositor_phone')
             .eq('parent_id', widget.parentId)
             .order('created_at', ascending: false);
         payments = List<Map<String, dynamic>>.from(paymentsResult);
@@ -166,7 +170,8 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
             children: [
               Icon(Icons.error_outline, color: Colors.red, size: 48),
               SizedBox(height: 16),
-              Text('Parent introuvable', style: TextStyle(fontSize: 18, color: Colors.grey)),
+              Text('Parent introuvable',
+                  style: TextStyle(fontSize: 18, color: Colors.grey)),
             ],
           ),
         ),
@@ -174,14 +179,17 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
     }
 
     final user = _parentData!;
-    final subscription = (user['parent_subscriptions'] as List?)?.isNotEmpty == true
+    final subscription = (user['parent_subscriptions'] as List?)?.isNotEmpty ==
+            true
         ? (user['parent_subscriptions'] as List).first as Map<String, dynamic>
         : null;
     final students = user['parent_students'] as List? ?? [];
     final firstName = user['first_name'] ?? '';
     final lastName = user['last_name'] ?? '';
     final phone = user['phone'] ?? '—';
-    final createdAt = user['created_at'] != null ? DateTime.tryParse(user['created_at'].toString()) : null;
+    final createdAt = user['created_at'] != null
+        ? DateTime.tryParse(user['created_at'].toString())
+        : null;
 
     // Statut abonnement — calcul depuis trial_ends_at / current_period_end
     final rawStatus = subscription?['status'] as String? ?? 'no_subscription';
@@ -202,21 +210,29 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
       if (daysRemaining < 0) daysRemaining = 0;
     }
 
-    final isExpired = rawStatus == 'expired' || (daysRemaining != null && daysRemaining <= 0);
-    final isExpiringSoon = !isExpired && daysRemaining != null && daysRemaining > 0 && daysRemaining <= 3;
-    final isActive = !isExpired && !isExpiringSoon && (rawStatus == 'active' || rawStatus == 'trial');
+    final isExpired =
+        rawStatus == 'expired' || (daysRemaining != null && daysRemaining <= 0);
+    final isExpiringSoon = !isExpired &&
+        daysRemaining != null &&
+        daysRemaining > 0 &&
+        daysRemaining <= 3;
+    final isActive = !isExpired &&
+        !isExpiringSoon &&
+        (rawStatus == 'active' || rawStatus == 'trial');
 
     Color statusColor;
     String statusLabel;
     if (isExpired) {
       statusColor = Colors.red;
-      statusLabel = 'Expiré${daysRemaining != null && daysRemaining < 0 ? ' depuis ${daysRemaining.abs()}j' : ''}';
+      statusLabel =
+          'Expiré${daysRemaining != null && daysRemaining < 0 ? ' depuis ${daysRemaining.abs()}j' : ''}';
     } else if (isExpiringSoon) {
       statusColor = Colors.orange;
       statusLabel = '$daysRemaining j restants';
     } else if (isActive) {
       statusColor = Colors.green;
-      statusLabel = daysRemaining != null ? '$daysRemaining j restants' : 'Actif';
+      statusLabel =
+          daysRemaining != null ? '$daysRemaining j restants' : 'Actif';
     } else {
       statusColor = Colors.blue;
       statusLabel = 'Essai gratuit';
@@ -245,7 +261,8 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
             const SizedBox(height: 20),
 
             // ✅ CARTE ABONNEMENT + ACTIONS
-            _buildSubscriptionCard(subscription, statusColor, statusLabel, rawStatus, planType, trialEnd, periodEnd),
+            _buildSubscriptionCard(subscription, statusColor, statusLabel,
+                rawStatus, planType, trialEnd, periodEnd),
             const SizedBox(height: 20),
 
             // ✅ ENFANT(S)
@@ -269,7 +286,8 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
     );
   }
 
-  Widget _buildHeader(String firstName, String lastName, String phone, DateTime? createdAt) {
+  Widget _buildHeader(
+      String firstName, String lastName, String phone, DateTime? createdAt) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -292,7 +310,10 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
             child: Center(
               child: Text(
                 '${firstName.isNotEmpty ? firstName[0] : ''}${lastName.isNotEmpty ? lastName[0] : ''}',
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF6C63FF)),
+                style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF6C63FF)),
               ),
             ),
           ),
@@ -303,28 +324,37 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
               children: [
                 Text(
                   '$firstName $lastName',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
                 ),
                 const SizedBox(height: 4),
                 Row(
                   children: [
                     const Icon(Icons.phone, color: Colors.white70, size: 14),
                     const SizedBox(width: 6),
-                    Text(phone, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                    Text(phone,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 14)),
                   ],
                 ),
                 if (createdAt != null) ...[
                   const SizedBox(height: 2),
                   Text(
                     'Inscrit le ${DateFormat('dd/MM/yyyy').format(createdAt)}',
-                    style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12),
+                    style: TextStyle(
+                        color: Colors.white.withOpacity(0.6), fontSize: 12),
                   ),
                 ],
                 if (_schoolName != null) ...[
                   const SizedBox(height: 2),
                   Text(
                     'École: $_schoolName',
-                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500),
                   ),
                 ],
               ],
@@ -371,7 +401,8 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
@@ -380,14 +411,21 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      rawStatus == 'expired' ? Icons.error_outline : rawStatus == 'trial' ? Icons.access_time : Icons.check_circle,
+                      rawStatus == 'expired'
+                          ? Icons.error_outline
+                          : rawStatus == 'trial'
+                              ? Icons.access_time
+                              : Icons.check_circle,
                       color: color,
                       size: 16,
                     ),
                     const SizedBox(width: 6),
                     Text(
                       label,
-                      style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13),
+                      style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13),
                     ),
                   ],
                 ),
@@ -403,7 +441,10 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
           const SizedBox(height: 12),
           Text(
             '$amount $currency/mois',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2D3142)),
+            style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2D3142)),
           ),
           const SizedBox(height: 16),
           // ✅ ACTIONS RAPIDES
@@ -442,7 +483,11 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
     );
   }
 
-  Widget _buildActionChip({required IconData icon, required String label, required Color color, required VoidCallback onTap}) {
+  Widget _buildActionChip(
+      {required IconData icon,
+      required String label,
+      required Color color,
+      required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
@@ -458,7 +503,9 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
           children: [
             Icon(icon, color: color, size: 16),
             const SizedBox(width: 6),
-            Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12)),
+            Text(label,
+                style: TextStyle(
+                    color: color, fontWeight: FontWeight.w600, fontSize: 12)),
           ],
         ),
       ),
@@ -499,19 +546,26 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
           final student = s['students'] as Map?;
           final className = student?['classes']?['name'] ?? 'Classe inconnue';
           final matricule = student?['matricule'] ?? '—';
-          final name = student != null ? '${student['first_name'] ?? ''} ${student['last_name'] ?? ''}' : '—';
+          final name = student != null
+              ? '${student['first_name'] ?? ''} ${student['last_name'] ?? ''}'
+              : '—';
 
           return ListTile(
             leading: CircleAvatar(
               backgroundColor: const Color(0xFF6C63FF).withOpacity(0.15),
               child: Text(
                 name.isNotEmpty ? '${name[0]}' : '?',
-                style: const TextStyle(color: Color(0xFF6C63FF), fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: Color(0xFF6C63FF), fontWeight: FontWeight.bold),
               ),
             ),
-            title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-            subtitle: Text('Matricule: $matricule • $className', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+            title: Text(name,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+            subtitle: Text('Matricule: $matricule • $className',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+            trailing: const Icon(Icons.arrow_forward_ios,
+                size: 16, color: Colors.grey),
           );
         }).toList(),
       ),
@@ -522,12 +576,15 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
     return _buildSectionCard(
       title: 'Historique des paiements (${_payments.length})',
       child: _payments.isEmpty
-          ? Text('Aucun paiement', style: TextStyle(color: Colors.grey[600], fontSize: 13))
+          ? Text('Aucun paiement',
+              style: TextStyle(color: Colors.grey[600], fontSize: 13))
           : Column(
               children: _payments.map((p) {
                 final status = p['status'] as String? ?? 'pending';
-                final isValidated = status == 'validated';
-                final date = p['created_at'] != null ? DateTime.tryParse(p['created_at'].toString()) : null;
+                final isValidated = status == 'verified';
+                final date = p['created_at'] != null
+                    ? DateTime.tryParse(p['created_at'].toString())
+                    : null;
                 return ListTile(
                   dense: true,
                   leading: Icon(
@@ -537,16 +594,20 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
                   ),
                   title: Text(
                     '${p['amount'] ?? 0} ${p['currency'] ?? 'XOF'}',
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 13),
                   ),
                   subtitle: Text(
                     'Réf: ${p['external_ref'] ?? '—'}${date != null ? ' • ${DateFormat('dd/MM/yy HH:mm').format(date)}' : ''}',
                     style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                   ),
                   trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: isValidated ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                      color: isValidated
+                          ? Colors.green.withOpacity(0.1)
+                          : Colors.orange.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -595,27 +656,39 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
     return _buildSectionCard(
       title: 'Log des actions (${_adminLogs.length})',
       child: _adminLogs.isEmpty
-          ? Text('Aucune action', style: TextStyle(color: Colors.grey[600], fontSize: 13))
+          ? Text('Aucune action',
+              style: TextStyle(color: Colors.grey[600], fontSize: 13))
           : Column(
               children: _adminLogs.map((log) {
                 final action = log['action'] as String? ?? '—';
-                final date = log['created_at'] != null ? DateTime.tryParse(log['created_at'].toString()) : null;
+                final date = log['created_at'] != null
+                    ? DateTime.tryParse(log['created_at'].toString())
+                    : null;
                 final reason = log['reason'] as String? ?? '';
 
                 Color actionColor;
-                if (action.contains('force')) actionColor = Colors.orange;
-                else if (action.contains('send')) actionColor = Colors.blue;
-                else if (action.contains('delete')) actionColor = Colors.red;
-                else actionColor = Colors.grey;
+                if (action.contains('force'))
+                  actionColor = Colors.orange;
+                else if (action.contains('send'))
+                  actionColor = Colors.blue;
+                else if (action.contains('delete'))
+                  actionColor = Colors.red;
+                else
+                  actionColor = Colors.grey;
 
                 return ListTile(
                   dense: true,
                   leading: Container(
                     width: 8,
                     height: 8,
-                    decoration: BoxDecoration(color: actionColor, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                        color: actionColor, shape: BoxShape.circle),
                   ),
-                  title: Text(action, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: actionColor)),
+                  title: Text(action,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          color: actionColor)),
                   subtitle: Text(
                     '${reason.isNotEmpty ? reason : 'Aucun motif'}${date != null ? ' • ${DateFormat('dd/MM HH:mm').format(date)}' : ''}',
                     style: TextStyle(fontSize: 11, color: Colors.grey[600]),
@@ -640,7 +713,10 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF2D3142)),
+            style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2D3142)),
           ),
           const Divider(height: 20),
           child,
@@ -680,14 +756,16 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
             onPressed: () async {
               if (_reasonController.text.trim().length < 10) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Motif trop court (min 10 caractères)')),
+                  const SnackBar(
+                      content: Text('Motif trop court (min 10 caractères)')),
                 );
                 return;
               }
               Navigator.pop(context);
               await _forceStatus(newStatus, _reasonController.text.trim());
             },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6C63FF)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6C63FF)),
             child: const Text('Confirmer'),
           ),
         ],
@@ -697,10 +775,14 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
 
   String _statusLabel(String status) {
     switch (status) {
-      case 'active': return 'Actif';
-      case 'trial': return 'Trial';
-      case 'expired': return 'Expiré';
-      default: return status;
+      case 'active':
+        return 'Actif';
+      case 'trial':
+        return 'Trial';
+      case 'expired':
+        return 'Expiré';
+      default:
+        return status;
     }
   }
 
@@ -715,12 +797,16 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
 
       if (result != null && result['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('✅ Statut changé en ${_statusLabel(newStatus)}'), backgroundColor: Colors.green),
+          SnackBar(
+              content: Text('✅ Statut changé en ${_statusLabel(newStatus)}'),
+              backgroundColor: Colors.green),
         );
         _loadData();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ ${result?['message'] ?? 'Erreur'}'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('❌ ${result?['message'] ?? 'Erreur'}'),
+              backgroundColor: Colors.red),
         );
       }
     } catch (e) {
@@ -731,7 +817,8 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
   }
 
   void _showSmsDialog() {
-    final message = 'Bonjour, votre abonnement EduConnect nécessite une action. Contactez le support au +225...';
+    final message =
+        'Bonjour, votre abonnement EduConnect nécessite une action. Contactez le support au +225...';
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -745,7 +832,9 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler')),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
@@ -753,7 +842,8 @@ class _ParentSupportDetailPageState extends State<ParentSupportDetailPage> {
                 const SnackBar(content: Text('📱 SMS envoyé (placeholder)')),
               );
             },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF25D366)),
             child: const Text('Envoyer'),
           ),
         ],

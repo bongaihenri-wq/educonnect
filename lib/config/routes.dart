@@ -2,6 +2,7 @@
 import 'package:educonnect/presentation/blocs/attendance/attendance_page.dart'
     show AttendancePage;
 import 'package:educonnect/presentation/pages/super_admin/analytics_dashboard_page.dart';
+import 'package:educonnect/presentation/pages/super_admin/subscriptions/payment_numbers_management_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -136,6 +137,7 @@ class AppRoutes {
   static const String schoolTrimesters = '/super-admin/school-trimesters';
   static const String schoolTrimesterSetup = '/school-trimester-setup';
   static const String analyticsDashboard = '/analytics-dashboard';
+  static const String paymentNumbersManagement = '/super-admin/payment-numbers';
 
   // -------------------- ANCIENNES ROUTES (compatibilité) --------------------
   static const String classesStudents = '/classes_students';
@@ -332,6 +334,8 @@ class AppRoutes {
         roleUsersList: (context) => const RoleUsersListPage(),
         commercialDashboard: (context) => const CommercialDashboardPage(),
         analyticsDashboard: (context) => const AnalyticsDashboardPage(),
+        paymentNumbersManagement: (context) =>
+            const PaymentNumbersManagementPage(),
       };
 
   static AttendanceBloc _createAttendanceBloc(BuildContext context) {

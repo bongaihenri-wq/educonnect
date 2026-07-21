@@ -1,17 +1,14 @@
-// lib/presentation/pages/parent/subscription_renewal_page.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
+import '../../../../services/payment_number_service.dart';
 import '../../blocs/auth_bloc/auth_bloc.dart';
 
 class SubscriptionRenewalPage extends StatefulWidget {
   final String parentId;
   final String? schoolId;
-  final int amount;
-  final String currency;
-  final String? paymentPhoneNumber;
   final String? currentStatus;
   final DateTime? currentEndDate;
   final int? daysRemaining;
@@ -20,16 +17,17 @@ class SubscriptionRenewalPage extends StatefulWidget {
     super.key,
     required this.parentId,
     this.schoolId,
-    required this.amount,
-    required this.currency,
-    this.paymentPhoneNumber,
     this.currentStatus,
     this.currentEndDate,
     this.daysRemaining,
+    required int amount,
+    required String currency,
+    String? paymentPhoneNumber,
   });
 
   @override
-  State<SubscriptionRenewalPage> createState() => _SubscriptionRenewalPageState();
+  State<SubscriptionRenewalPage> createState() =>
+      _SubscriptionRenewalPageState();
 }
 
 class _SubscriptionRenewalPageState extends State<SubscriptionRenewalPage> {
@@ -38,13 +36,65 @@ class _SubscriptionRenewalPageState extends State<SubscriptionRenewalPage> {
   final _customMonthsController = TextEditingController();
   File? _screenshotFile;
   bool _isUploading = false;
+  bool _isLoadingInfo = true;
   final _picker = ImagePicker();
 
   int _selectedMonths = 1;
   bool _isCustom = false;
   final List<int> _presetMonths = [1, 3, 6, 9];
 
-  int get _totalAmount => _selectedMonths * widget.amount;
+  // 🔴 DYNAMIQUE : chargé depuis Supabase
+  int _monthlyAmount = 1000;
+  String _currency = 'XOF';
+  String? _paymentPhoneNumber;
+  List<Map<String, dynamic>> _paymentNumbers = [];
+  Map<String, dynamic>? _selectedNumber;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPaymentInfo();
+  }
+
+  Future<void> _loadPaymentInfo() async {
+    try {
+      final service = PaymentNumberService(Supabase.instance.client);
+      final info = await service.getParentPaymentInfo(widget.parentId);
+
+      if (info != null) {
+        setState(() {
+          _monthlyAmount = info['monthly_amount'] ?? 1000;
+          _currency = info['currency'] ?? 'XOF';
+          _paymentPhoneNumber = info['phone_number'];
+          _paymentNumbers = [info];
+          _selectedNumber = info;
+          _isLoadingInfo = false;
+        });
+      } else {
+        // Fallback
+        final allNumbers = await service.getPaymentNumbersByCountry('+225');
+        setState(() {
+          _paymentNumbers = allNumbers;
+          if (allNumbers.isNotEmpty) {
+            _selectedNumber = allNumbers.first;
+            _monthlyAmount = allNumbers.first['monthly_amount'] ?? 1000;
+            _currency = allNumbers.first['currency'] ?? 'XOF';
+            _paymentPhoneNumber = allNumbers.first['phone_number'];
+          }
+          _isLoadingInfo = false;
+        });
+      }
+    } catch (e) {
+      setState(() => _isLoadingInfo = false);
+    }
+  }
+
+  int get _totalAmount => _selectedMonths * _monthlyAmount;
+
+  // ... (garder pickImage, uploadScreenshot, _submit, _getStatusTitle, build identiques)
+  // SEULE MODIFICATION : remplacer widget.amount par _monthlyAmount
+  // et widget.currency par _currency
+  // et widget.paymentPhoneNumber par _paymentPhoneNumber
 
   Future<void> _pickImage() async {
     final picked = await _picker.pickImage(
@@ -61,12 +111,13 @@ class _SubscriptionRenewalPageState extends State<SubscriptionRenewalPage> {
     if (_screenshotFile == null) return null;
     try {
       final ext = _screenshotFile!.path.split('.').last;
-      final fileName = '${widget.parentId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final fileName =
+          '${widget.parentId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
       final path = 'payments/$fileName';
 
-      await Supabase.instance.client.storage
-          .from('payment-screenshots')
-          .upload(path, _screenshotFile!, fileOptions: const FileOptions(upsert: true));
+      await Supabase.instance.client.storage.from('payment-screenshots').upload(
+          path, _screenshotFile!,
+          fileOptions: const FileOptions(upsert: true));
 
       final url = Supabase.instance.client.storage
           .from('payment-screenshots')
@@ -82,7 +133,8 @@ class _SubscriptionRenewalPageState extends State<SubscriptionRenewalPage> {
   Future<void> _submit() async {
     if (_refController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez saisir la référence de paiement')),
+        const SnackBar(
+            content: Text('Veuillez saisir la référence de paiement')),
       );
       return;
     }
@@ -91,7 +143,8 @@ class _SubscriptionRenewalPageState extends State<SubscriptionRenewalPage> {
       final custom = int.tryParse(_customMonthsController.text.trim());
       if (custom == null || custom < 1) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Veuillez saisir un nombre de mois valide')),
+          const SnackBar(
+              content: Text('Veuillez saisir un nombre de mois valide')),
         );
         return;
       }
@@ -112,7 +165,9 @@ class _SubscriptionRenewalPageState extends State<SubscriptionRenewalPage> {
           schoolId: widget.schoolId ?? '',
           reference: _refController.text.trim(),
           amount: _totalAmount.toDouble(),
-          phoneNumber: _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : null,
+          phoneNumber: _phoneController.text.trim().isNotEmpty
+              ? _phoneController.text.trim()
+              : null,
           screenshotUrl: screenshotUrl,
         ));
   }
@@ -137,11 +192,12 @@ class _SubscriptionRenewalPageState extends State<SubscriptionRenewalPage> {
     return BlocListener<AuthBloc, AuthState>(
       listenWhen: (previous, current) =>
           current is Unauthenticated ||
-          current is PaymentSubmittedSuccessfully || // ✅ CORRIGÉ : typo (2 l -> 1 l)
+          current is PaymentSubmittedSuccessfully ||
           current is PaymentPending,
       listener: (context, state) {
         if (state is Unauthenticated) {
-          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+          Navigator.of(context)
+              .pushNamedAndRemoveUntil('/login', (route) => false);
         }
       },
       child: Scaffold(
@@ -168,211 +224,256 @@ class _SubscriptionRenewalPageState extends State<SubscriptionRenewalPage> {
             ),
           ],
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: double.infinity,
+        body: _isLoadingInfo
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF6C63FF), Color(0xFF4A44D6)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      _getStatusTitle(),
-                      style: const TextStyle(color: Colors.white70, fontSize: 14),
-                    ),
-                    if (widget.daysRemaining != null && widget.daysRemaining! < 0) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Expiré depuis ${widget.daysRemaining!.abs()} jours',
-                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                    // Header avec montant dynamique
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF6C63FF), Color(0xFF4A44D6)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                    ],
-                    const SizedBox(height: 8),
-                    Text(
-                      '$_totalAmount ${widget.currency}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'pour $_selectedMonths mois',
-                      style: const TextStyle(color: Colors.white70, fontSize: 14),
-                    ),
-                    const SizedBox(height: 12),
-                    if (widget.paymentPhoneNumber != null)
-                      Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.phone, color: Colors.white70, size: 16),
-                          const SizedBox(width: 6),
                           Text(
-                            'Déposer sur : ${widget.paymentPhoneNumber}',
-                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            _getStatusTitle(),
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 14),
                           ),
+                          if (widget.daysRemaining != null &&
+                              widget.daysRemaining! < 0) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Expiré depuis ${widget.daysRemaining!.abs()} jours',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          Text(
+                            '$_totalAmount $_currency',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'pour $_selectedMonths mois',
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 14),
+                          ),
+                          const SizedBox(height: 12),
+                          // Numéros de paiement dynamiques
+                          if (_paymentNumbers.isNotEmpty) ...[
+                            const Divider(color: Colors.white24),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Numéros de dépôt',
+                              style: TextStyle(
+                                  color: Colors.white70, fontSize: 12),
+                            ),
+                            const SizedBox(height: 6),
+                            ..._paymentNumbers.map((n) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.phone,
+                                          color: Colors.white70, size: 14),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          '${n['provider']}: ${n['phone_number']}',
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )),
+                          ],
                         ],
                       ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Durée
+                    const Text(
+                      'Durée de l\'abonnement',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        ..._presetMonths
+                            .map((months) => _buildMonthChip(months)),
+                        _buildCustomChip(),
+                      ],
+                    ),
+                    if (_isCustom) ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _customMonthsController,
+                        keyboardType: TextInputType.number,
+                        onChanged: (v) {
+                          final val = int.tryParse(v);
+                          if (val != null && val > 0) {
+                            setState(() => _selectedMonths = val);
+                          }
+                        },
+                        decoration: InputDecoration(
+                          labelText: 'Nombre de mois personnalisé',
+                          hintText: 'Ex: 5',
+                          prefixIcon: const Icon(Icons.calendar_month,
+                              color: Color(0xFF6C63FF)),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+
+                    // Instructions
+                    const Text(
+                      'Instructions',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildInstruction('1',
+                        'Effectuez le paiement de $_totalAmount $_currency au numéro ci-dessus'),
+                    _buildInstruction(
+                        '2', 'Conservez la capture d\'écran du dépôt'),
+                    _buildInstruction('3', 'Saisissez la référence et envoyez'),
+                    const SizedBox(height: 24),
+                    TextField(
+                      controller: _refController,
+                      decoration: InputDecoration(
+                        labelText: 'Référence de paiement',
+                        hintText: 'Ex: WAVE123456',
+                        prefixIcon: const Icon(Icons.confirmation_number),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      decoration: InputDecoration(
+                        labelText: 'Numéro déposant (optionnel)',
+                        hintText: 'Ex: +2250706224549',
+                        prefixIcon: const Icon(Icons.phone_android),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Capture d\'écran du dépôt',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 10),
+                    GestureDetector(
+                      onTap: _pickImage,
+                      child: Container(
+                        width: double.infinity,
+                        height: 180,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: const Color(0xFF6C63FF).withOpacity(0.3),
+                              width: 2),
+                        ),
+                        child: _screenshotFile != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(14),
+                                child: Image.file(_screenshotFile!,
+                                    fit: BoxFit.cover),
+                              )
+                            : Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add_photo_alternate,
+                                      size: 48,
+                                      color: const Color(0xFF6C63FF)
+                                          .withOpacity(0.5)),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Appuyez pour ajouter une capture',
+                                    style: TextStyle(color: Colors.grey[600]),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: _isUploading ? null : _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6C63FF),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                          elevation: 0,
+                        ),
+                        child: _isUploading
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
+                                ),
+                              )
+                            : Text(
+                                'Soumettre ($_totalAmount $_currency)',
+                                style: const TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 40),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
-
-              const Text(
-                'Durée de l\'abonnement',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  ..._presetMonths.map((months) => _buildMonthChip(months)),
-                  _buildCustomChip(),
-                ],
-              ),
-              if (_isCustom) ...[
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _customMonthsController,
-                  keyboardType: TextInputType.number,
-                  onChanged: (v) {
-                    final val = int.tryParse(v);
-                    if (val != null && val > 0) {
-                      setState(() => _selectedMonths = val);
-                    }
-                  },
-                  decoration: InputDecoration(
-                    labelText: 'Nombre de mois personnalisé',
-                    hintText: 'Ex: 5',
-                    prefixIcon: const Icon(Icons.calendar_month, color: Color(0xFF6C63FF)),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 24),
-
-              const Text(
-                'Instructions',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              _buildInstruction('1', 'Effectuez le paiement de $_totalAmount ${widget.currency} au numéro ci-dessus'),
-              _buildInstruction('2', 'Conservez la capture d\'écran du dépôt'),
-              _buildInstruction('3', 'Saisissez la référence et envoyez'),
-              const SizedBox(height: 24),
-              TextField(
-                controller: _refController,
-                decoration: InputDecoration(
-                  labelText: 'Référence de paiement',
-                  hintText: 'Ex: WAVE123456',
-                  prefixIcon: const Icon(Icons.confirmation_number),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
-                  labelText: 'Numéro déposant (optionnel)',
-                  hintText: 'Ex: +2250706224549',
-                  prefixIcon: const Icon(Icons.phone_android),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Capture d\'écran du dépôt',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 10),
-              GestureDetector(
-                onTap: _pickImage,
-                child: Container(
-                  width: double.infinity,
-                  height: 180,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.3), width: 2),
-                  ),
-                  child: _screenshotFile != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          child: Image.file(_screenshotFile!, fit: BoxFit.cover),
-                        )
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.add_photo_alternate,
-                                size: 48, color: const Color(0xFF6C63FF).withOpacity(0.5)),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Appuyez pour ajouter une capture',
-                              style: TextStyle(color: Colors.grey[600]),
-                            ),
-                          ],
-                        ),
-                ),
-              ),
-              const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  onPressed: _isUploading ? null : _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6C63FF),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    elevation: 0,
-                  ),
-                  child: _isUploading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : Text(
-                          'Soumettre ($_totalAmount ${widget.currency})',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -438,12 +539,16 @@ class _SubscriptionRenewalPageState extends State<SubscriptionRenewalPage> {
             alignment: Alignment.center,
             child: Text(
               number,
-              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(text, style: TextStyle(color: Colors.grey[700], fontSize: 14)),
+            child: Text(text,
+                style: TextStyle(color: Colors.grey[700], fontSize: 14)),
           ),
         ],
       ),

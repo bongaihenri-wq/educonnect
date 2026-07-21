@@ -15,9 +15,11 @@ class SubscriptionWarningBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isCritical = daysRemaining <= 1;
     final Color bgColor = isCritical ? Colors.red[50]! : Colors.orange[50]!;
-    final Color borderColor = isCritical ? Colors.red[200]! : Colors.orange[200]!;
+    final Color borderColor =
+        isCritical ? Colors.red[200]! : Colors.orange[200]!;
     final Color textColor = isCritical ? Colors.red[800]! : Colors.orange[800]!;
-    final Color buttonColor = isCritical ? Colors.red[700]! : Colors.orange[700]!;
+    final Color buttonColor =
+        isCritical ? Colors.red[700]! : Colors.orange[700]!;
     final IconData icon = isCritical ? Icons.error_outline : Icons.access_time;
 
     return SliverToBoxAdapter(

@@ -49,12 +49,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       return true;
     }
 
-    if (daysRemaining != null && daysRemaining > 0 && daysRemaining <= 3) {
-      print('EXPIRING SOON: $daysRemaining jours -> ACCES AUTORISE');
-      return false;
-    }
-
-    if (status == 'trial' || status == 'active') {
+    // ✅ CORRIGÉ : Ajouter 'expiring_soon' comme valide
+    if (status == 'trial' || status == 'active' || status == 'expiring_soon') {
       print('ABONNEMENT OK');
       return false;
     }

@@ -118,7 +118,7 @@ class SubscriptionService {
     }).eq('id', transactionId);
   }
 
-  // ✅ CORRIGÉ : Status 'verified' au lieu de 'validated'
+  // ✅ Status 'verified' utilisé dans la table payment_transactions
   Future<Map<String, dynamic>> getStats() async {
     try {
       final now = DateTime.now().toIso8601String();
@@ -145,7 +145,7 @@ class SubscriptionService {
       final totalActiveParents = trialCount + paidCount;
 
       // 4. Total des paiements validés (revenus réels)
-      // ✅ CORRIGÉ : 'verified' au lieu de 'validated'
+      // ✅ Status 'verified' cohérent avec la fonction SQL validate_payment
       final revenueResponse = await _supabase
           .from('payment_transactions')
           .select('amount')
@@ -310,5 +310,31 @@ class SubscriptionService {
       'is_archived': true,
       'updated_at': DateTime.now().toIso8601String()
     }).eq('id', transactionId);
+  }
+
+  // ============================================
+  // ✅ NOUVEAU : Méthodes pour les numéros de paiement
+  // ============================================
+
+  /// Récupère les numéros de paiement pour un pays
+  Future<List<Map<String, dynamic>>> getPaymentNumbersByCountry(
+      String countryCode) async {
+    final response = await _supabase.rpc(
+      'get_payment_numbers_by_country',
+      params: {'p_country_code': countryCode},
+    );
+    return List<Map<String, dynamic>>.from(response ?? []);
+  }
+
+  /// Récupère le numéro principal pour un parent (via son école)
+  Future<Map<String, dynamic>?> getParentPaymentInfo(String parentId) async {
+    final response = await _supabase.rpc(
+      'get_parent_payment_info',
+      params: {'p_parent_id': parentId},
+    );
+    if (response is List && response.isNotEmpty) {
+      return Map<String, dynamic>.from(response.first);
+    }
+    return null;
   }
 }

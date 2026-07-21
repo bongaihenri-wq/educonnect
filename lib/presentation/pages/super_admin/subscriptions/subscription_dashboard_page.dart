@@ -12,7 +12,8 @@ class SubscriptionDashboardPage extends StatefulWidget {
   const SubscriptionDashboardPage({super.key});
 
   @override
-  State<SubscriptionDashboardPage> createState() => _SubscriptionDashboardPageState();
+  State<SubscriptionDashboardPage> createState() =>
+      _SubscriptionDashboardPageState();
 }
 
 class _SubscriptionDashboardPageState extends State<SubscriptionDashboardPage> {
@@ -22,7 +23,7 @@ class _SubscriptionDashboardPageState extends State<SubscriptionDashboardPage> {
   List<Map<String, dynamic>> _schools = [];
   Map<String, dynamic> _stats = {};
   List<Map<String, dynamic>> _parentsToRelaunch = [];
-  
+
   bool _isLoading = true;
   String? _selectedSchool;
   String? _selectedCountry;
@@ -40,7 +41,7 @@ class _SubscriptionDashboardPageState extends State<SubscriptionDashboardPage> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final List<dynamic> results = await Future.wait([
         _service.getAllSubscriptions(
@@ -82,12 +83,14 @@ class _SubscriptionDashboardPageState extends State<SubscriptionDashboardPage> {
       setState(() => _parentsToRelaunch = parents);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur relance: $e'), backgroundColor: Colors.red),
+        SnackBar(
+            content: Text('Erreur relance: $e'), backgroundColor: Colors.red),
       );
     }
   }
 
-  void _onFilterChanged({String? school, String? country, String? status, String? search}) {
+  void _onFilterChanged(
+      {String? school, String? country, String? status, String? search}) {
     setState(() {
       _selectedSchool = school;
       _selectedCountry = country;
@@ -102,7 +105,7 @@ class _SubscriptionDashboardPageState extends State<SubscriptionDashboardPage> {
     try {
       final authState = context.read<auth.AuthBloc>().state;
       String? adminId;
-      
+
       if (authState is auth.SuperAdminAuthenticated) {
         adminId = authState.userId;
       } else if (authState is auth.AdminAuthenticated) {
@@ -125,16 +128,22 @@ class _SubscriptionDashboardPageState extends State<SubscriptionDashboardPage> {
       if (result['success'] == true) {
         _loadData();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('✅ ${result['message']}'), backgroundColor: Colors.green),
+          SnackBar(
+              content: Text('✅ ${result['message']}'),
+              backgroundColor: Colors.green),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('⚠️ ${result['message']}'), backgroundColor: Colors.orange),
+          SnackBar(
+              content: Text('⚠️ ${result['message']}'),
+              backgroundColor: Colors.orange),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur validation: $e'), backgroundColor: Colors.red),
+        SnackBar(
+            content: Text('Erreur validation: $e'),
+            backgroundColor: Colors.red),
       );
     }
   }
@@ -145,11 +154,14 @@ class _SubscriptionDashboardPageState extends State<SubscriptionDashboardPage> {
       builder: (context) => AlertDialog(
         title: const Text('Rejeter le paiement'),
         content: TextField(
-          decoration: const InputDecoration(hintText: 'Raison du rejet...', border: OutlineInputBorder()),
+          decoration: const InputDecoration(
+              hintText: 'Raison du rejet...', border: OutlineInputBorder()),
           maxLines: 3,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler')),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, 'Paiement non reçu'),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -161,10 +173,13 @@ class _SubscriptionDashboardPageState extends State<SubscriptionDashboardPage> {
 
     if (reason != null) {
       try {
-        await _service.rejectPayment(transactionId: transactionId, reason: reason);
+        await _service.rejectPayment(
+            transactionId: transactionId, reason: reason);
         _loadData();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('❌ Paiement rejeté'), backgroundColor: Colors.orange),
+          const SnackBar(
+              content: Text('❌ Paiement rejeté'),
+              backgroundColor: Colors.orange),
         );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -174,13 +189,14 @@ class _SubscriptionDashboardPageState extends State<SubscriptionDashboardPage> {
     }
   }
 
-  void _callParent(String parentId) => ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('📞 Appel en cours...')),
-  );
+  void _callParent(String parentId) =>
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('📞 Appel en cours...')),
+      );
 
   void _sendSMS(String parentId) => ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('📱 SMS envoyé')),
-  );
+        const SnackBar(content: Text('📱 SMS envoyé')),
+      );
 
   void _viewDetails(String parentId) {}
 
@@ -214,7 +230,16 @@ class _SubscriptionDashboardPageState extends State<SubscriptionDashboardPage> {
             ],
           ),
           actions: [
-            IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData, tooltip: 'Actualiser'),
+            IconButton(
+              icon: const Icon(Icons.settings_phone),
+              onPressed: () =>
+                  Navigator.pushNamed(context, '/super-admin/payment-numbers'),
+              tooltip: 'Gérer les numéros',
+            ),
+            IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loadData,
+                tooltip: 'Actualiser'),
           ],
         ),
         body: _isLoading
@@ -232,15 +257,17 @@ class _SubscriptionDashboardPageState extends State<SubscriptionDashboardPage> {
                     onFilterChanged: _onFilterChanged,
                     onRefresh: _loadData,
                   ),
-                 PaymentsTab(
+                  PaymentsTab(
                     pendingPayments: _pendingPayments,
                     onRefresh: _loadData,
                     onValidate: _validatePayment,
                     onReject: _rejectPayment,
-                    getHistory: ({String? status, bool includeArchived = false}) => 
-                    _service.getPaymentHistory(status: status, includeArchived: includeArchived),
+                    getHistory: (
+                            {String? status, bool includeArchived = false}) =>
+                        _service.getPaymentHistory(
+                            status: status, includeArchived: includeArchived),
                     onArchive: (id) => _service.archivePayment(id),
-                   ),
+                  ),
                   RelaunchTab(
                     parentsToRelaunch: _parentsToRelaunch,
                     selectedRelanceStatus: _selectedRelanceStatus,
@@ -251,7 +278,8 @@ class _SubscriptionDashboardPageState extends State<SubscriptionDashboardPage> {
                     },
                     onSearchChanged: (value) {
                       _relanceSearchQuery = value;
-                      Future.delayed(const Duration(milliseconds: 500), _loadRelaunchData);
+                      Future.delayed(
+                          const Duration(milliseconds: 500), _loadRelaunchData);
                     },
                     onRefresh: _loadRelaunchData,
                     onCall: _callParent,
