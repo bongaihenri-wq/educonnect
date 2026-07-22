@@ -21,22 +21,29 @@ class AdminQuickActions extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // Ligne 1 : Gestion académique
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _quickAccessButton(context, Icons.people_alt, 'Classes &\nÉlèves', Colors.indigo, '/admin/classes-students'),
+                _quickAccessButton(
+                    context,
+                    Icons.people_alt,
+                    'Classes &\nÉlèves',
+                    Colors.indigo,
+                    '/admin/classes-students'),
                 const SizedBox(width: 12),
-                _quickAccessButton(context, Icons.person_outline, 'Enseignants', Colors.orange, '/admin/teachers'),
+                _quickAccessButton(context, Icons.person_outline, 'Enseignants',
+                    Colors.orange, '/admin/teachers'),
                 const SizedBox(width: 12),
-                _quickAccessButton(context, Icons.bar_chart, 'Notes', Colors.purple, '/grades'),
+                _quickAccessButton(context, Icons.bar_chart, 'Notes',
+                    Colors.purple, '/grades'),
                 const SizedBox(width: 12),
               ],
             ),
           ),
-          
+
           const SizedBox(height: 16),
 
           // Ligne 2 : Pédagogie & Planning
@@ -44,12 +51,15 @@ class AdminQuickActions extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _quickAccessButton(context, Icons.calendar_today, 'Emploi du\ntemps', Colors.teal, '/schedule'),
+                _quickAccessButton(context, Icons.calendar_today,
+                    'Emploi du\ntemps', Colors.teal, '/schedule'),
                 const SizedBox(width: 12),
-                _quickAccessButton(context, Icons.assignment, 'Devoirs', Colors.deepOrange, '/homework'),
+                _quickAccessButton(context, Icons.assignment, 'Devoirs',
+                    Colors.deepOrange, '/homework'),
                 const SizedBox(width: 12),
                 // ✅ MODIFIÉ : '/admin/reports' → '/school-report'
-                _quickAccessButton(context, Icons.analytics, 'Rapports', Colors.cyan, '/school-report'),
+                _quickAccessButton(context, Icons.analytics, 'Rapports',
+                    Colors.cyan, '/school-report'),
               ],
             ),
           ),
@@ -61,7 +71,15 @@ class AdminQuickActions extends StatelessWidget {
             icon: Icons.campaign,
             label: 'Messagerie',
             color: Colors.purple,
-            onTap: () => Navigator.pushNamed(context,'/admin/messages'),
+            onTap: () => Navigator.pushNamed(context, '/admin/messages'),
+          ),
+          const SizedBox(height: 12),
+          // ✅ AJOUTÉ : Bouton Identifiants
+          _buildActionTile(
+            icon: Icons.key,
+            label: 'Identifiants Parents & Enseignants',
+            color: AppTheme.violet,
+            onTap: () => Navigator.pushNamed(context, '/admin/credentials'),
           ),
           const SizedBox(height: 12),
           _buildActionTile(
@@ -124,7 +142,8 @@ class AdminQuickActions extends StatelessWidget {
     );
   }
 
-  Widget _quickAccessButton(BuildContext context, IconData icon, String label, Color color, String route) {
+  Widget _quickAccessButton(BuildContext context, IconData icon, String label,
+      Color color, String route) {
     return InkWell(
       onTap: () => Navigator.pushNamed(context, route),
       borderRadius: BorderRadius.circular(16),

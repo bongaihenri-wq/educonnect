@@ -42,6 +42,7 @@ import '../presentation/pages/admin/admin_send_message_page.dart';
 import '../presentation/pages/admin/bulk_import_page.dart';
 import '../presentation/pages/admin/school_report/school_report_page.dart';
 import '../presentation/pages/admin/admin_messages_page.dart';
+import '../presentation/pages/admin/admin_credentials_page.dart';
 
 // ==================== ASSISTANT & PRINCIPAL ====================
 import '../presentation/pages/assistant/assistant_dashboard.dart';
@@ -60,6 +61,7 @@ import '../presentation/pages/super_admin/school_year_management_page.dart';
 import '../presentation/pages/super_admin/commercial_dashboard_page.dart';
 import '../presentation/pages/super_admin/school_trimesters_page.dart';
 import '../presentation/pages/super_admin/school_trimester_setup_page.dart';
+import '../presentation/pages/super_admin/super_admin_credentials_page.dart';
 
 // ==================== BLOCS & REPOSITORIES ====================
 import '../presentation/blocs/attendance/attendance_bloc.dart';
@@ -107,9 +109,8 @@ class AppRoutes {
   static const String adminSettings = '/admin/settings';
   static const String adminSendMessage = '/admin/send-message';
   static const String adminBulkImport = '/admin/bulk-import';
-  static const String schoolReport = '/school-report'; // ✅ AJOUTÉ
-
-  // Routes pilotage
+  static const String schoolReport = '/school-report';
+  static const String adminCredentials = '/admin/credentials';
   static const String schedule = '/schedule';
   static const String homework = '/homework';
   static const String grades = '/grades';
@@ -138,6 +139,7 @@ class AppRoutes {
   static const String schoolTrimesterSetup = '/school-trimester-setup';
   static const String analyticsDashboard = '/analytics-dashboard';
   static const String paymentNumbersManagement = '/super-admin/payment-numbers';
+  static const String superAdminCredentials = '/super-admin/credentials';
 
   // -------------------- ANCIENNES ROUTES (compatibilité) --------------------
   static const String classesStudents = '/classes_students';
@@ -271,6 +273,7 @@ class AppRoutes {
           );
         },
         schoolReport: (context) => const SchoolReportPage(), // ✅ AJOUTÉ
+        adminCredentials: (context) => const AdminCredentialsPage(),
 
         // Routes pilotage
         schedule: (context) => const SchedulePage(),
@@ -336,6 +339,7 @@ class AppRoutes {
         analyticsDashboard: (context) => const AnalyticsDashboardPage(),
         paymentNumbersManagement: (context) =>
             const PaymentNumbersManagementPage(),
+        superAdminCredentials: (context) => const SuperAdminCredentialsPage(),
       };
 
   static AttendanceBloc _createAttendanceBloc(BuildContext context) {

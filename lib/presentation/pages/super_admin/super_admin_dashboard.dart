@@ -366,6 +366,13 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
         color: Colors.pink,
         onTap: () => Navigator.pushNamed(context, AppRoutes.schoolManagement),
       ),
+      _AdminAction(
+        icon: Icons.key,
+        label: 'Identifiants',
+        color: Colors.amber,
+        onTap: () =>
+            Navigator.pushNamed(context, AppRoutes.superAdminCredentials),
+      ),
     ];
 
     return Column(

@@ -7,7 +7,8 @@ enum PeriodType {
   mois,
   trimestre,
   semestre,
-  annee, month;
+  annee,
+  month;
 
   String get label {
     switch (this) {
@@ -88,7 +89,8 @@ class ReportPeriodModel extends Equatable {
     while (!currentMonth.isAfter(lastMonth)) {
       periods.add(ReportPeriodModel(
         type: PeriodType.mois,
-        value: '${currentMonth.year}-${currentMonth.month.toString().padLeft(2, '0')}',
+        value:
+            '${currentMonth.year}-${currentMonth.month.toString().padLeft(2, '0')}',
         label: _monthName(currentMonth.month, currentMonth.year),
         startDate: DateTime(currentMonth.year, currentMonth.month, 1),
         endDate: DateTime(currentMonth.year, currentMonth.month + 1, 0),
@@ -101,8 +103,21 @@ class ReportPeriodModel extends Equatable {
   }
 
   static String _monthName(int month, int year) {
-    final names = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-                   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+    final names = [
+      '',
+      'Janvier',
+      'Février',
+      'Mars',
+      'Avril',
+      'Mai',
+      'Juin',
+      'Juillet',
+      'Août',
+      'Septembre',
+      'Octobre',
+      'Novembre',
+      'Décembre'
+    ];
     return '${names[month]} $year';
   }
 
@@ -110,11 +125,15 @@ class ReportPeriodModel extends Equatable {
   static ReportPeriodModel getCurrentPeriod(List<ReportPeriodModel> periods) {
     final now = DateTime.now();
     return periods.firstWhere(
-      (p) => now.isAfter(p.startDate) && now.isBefore(p.endDate.add(const Duration(days: 1))),
+      (p) =>
+          now.isAfter(p.startDate) &&
+          now.isBefore(p.endDate.add(const Duration(days: 1))),
       orElse: () => periods.last,
     );
   }
 
   @override
   List<Object?> get props => [type, value, startDate, endDate];
+
+  String? get name => null;
 }

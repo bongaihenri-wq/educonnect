@@ -1,0 +1,620 @@
+// lib/presentation/pages/super_admin/super_admin_credentials_page.dart
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../config/theme.dart';
+import '../../../services/credentials_service.dart';
+import '../../../services/pdf_export_service.dart';
+import '../../../services/excel_export_service.dart';
+import '../../blocs/auth_bloc/auth_bloc.dart';
+
+class SuperAdminCredentialsPage extends StatefulWidget {
+  const SuperAdminCredentialsPage({super.key});
+
+  @override
+  State<SuperAdminCredentialsPage> createState() =>
+      _SuperAdminCredentialsPageState();
+}
+
+class _SuperAdminCredentialsPageState extends State<SuperAdminCredentialsPage> {
+  final CredentialsService _credentialsService = CredentialsService();
+  List<UserCredential> _credentials = [];
+  List<UserCredential> _filteredCredentials = [];
+  bool _isLoading = true;
+  String? _error;
+  String _searchQuery = '';
+  String? _roleFilter;
+  String? _schoolFilter;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCredentials();
+    });
+  }
+
+  Future<void> _loadCredentials() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final credentials = await _credentialsService.getAllCredentials();
+      if (mounted) {
+        setState(() {
+          _credentials = credentials;
+          _filteredCredentials = credentials;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Erreur: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _applyFilters() {
+    var filtered = _credentials;
+
+    // Filtre par rôle
+    if (_roleFilter != null && _roleFilter != 'all') {
+      filtered = filtered.where((c) => c.role == _roleFilter).toList();
+    }
+
+    // Filtre par école
+    if (_schoolFilter != null && _schoolFilter != 'all') {
+      filtered = filtered.where((c) => c.schoolId == _schoolFilter).toList();
+    }
+
+    // Filtre par recherche
+    if (_searchQuery.isNotEmpty) {
+      final query = _searchQuery.toLowerCase();
+      filtered = filtered.where((c) {
+        return c.fullName.toLowerCase().contains(query) ||
+            c.phone.contains(query) ||
+            c.generatedPassword.toLowerCase().contains(query) ||
+            (c.matricule?.toLowerCase().contains(query) ?? false) ||
+            (c.schoolName?.toLowerCase().contains(query) ?? false);
+      }).toList();
+    }
+
+    setState(() => _filteredCredentials = filtered);
+  }
+
+  void _onSearchChanged(String value) {
+    _searchQuery = value;
+    _applyFilters();
+  }
+
+  void _onRoleFilterChanged(String? role) {
+    _roleFilter = role;
+    _applyFilters();
+  }
+
+  void _onSchoolFilterChanged(String? schoolId) {
+    _schoolFilter = schoolId;
+    _applyFilters();
+  }
+
+  // Liste des écoles uniques pour le filtre
+  List<Map<String, String>> get _uniqueSchools {
+    final schools = <Map<String, String>>[];
+    final seen = <String>{};
+
+    for (final c in _credentials) {
+      if (c.schoolId != null &&
+          c.schoolName != null &&
+          !seen.contains(c.schoolId)) {
+        seen.add(c.schoolId!);
+        schools.add({'id': c.schoolId!, 'name': c.schoolName!});
+      }
+    }
+
+    schools.sort((a, b) => a['name']!.compareTo(b['name']!));
+    return schools;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.bisLight,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: AppTheme.violet,
+        foregroundColor: Colors.white,
+        title: const Text('Identifiants - Toutes les écoles'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Actualiser',
+            onPressed: _loadCredentials,
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          _buildHeader(),
+          _buildSearchBar(),
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppTheme.violet))
+                : _error != null
+                    ? _buildError()
+                    : _filteredCredentials.isEmpty
+                        ? _buildEmpty()
+                        : _buildList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final parentCount = _credentials.where((c) => c.role == 'parent').length;
+    final teacherCount = _credentials.where((c) => c.role == 'teacher').length;
+    final schoolCount = _uniqueSchools.length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppTheme.violet, const Color(0xFF6D28D9)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Super Admin - Vue globale',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    icon: Icons.school,
+                    label: 'Écoles',
+                    count: schoolCount,
+                    color: Colors.blue,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildStatCard(
+                    icon: Icons.family_restroom,
+                    label: 'Parents',
+                    count: parentCount,
+                    color: Colors.green,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildStatCard(
+                    icon: Icons.school_outlined,
+                    label: 'Enseignants',
+                    count: teacherCount,
+                    color: Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _exportToPDF,
+                    icon: const Icon(Icons.picture_as_pdf, size: 18),
+                    label: const Text('Export PDF'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppTheme.violet,
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _exportToExcel,
+                    icon: const Icon(Icons.table_chart, size: 18),
+                    label: const Text('Export Excel'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppTheme.violet,
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatCard({
+    required IconData icon,
+    required String label,
+    required int count,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: Colors.white, size: 20),
+          const SizedBox(height: 4),
+          Text(
+            '$count',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.8),
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    final schools = _uniqueSchools;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      color: Colors.white,
+      child: Column(
+        children: [
+          TextField(
+            onChanged: _onSearchChanged,
+            decoration: InputDecoration(
+              hintText: 'Rechercher par nom, téléphone, école...',
+              prefixIcon: const Icon(Icons.search, color: Colors.grey),
+              filled: true,
+              fillColor: Colors.grey.shade100,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildRoleChip('Tous', 'all', Icons.people),
+                const SizedBox(width: 8),
+                _buildRoleChip('Parents', 'parent', Icons.family_restroom),
+                const SizedBox(width: 8),
+                _buildRoleChip('Enseignants', 'teacher', Icons.school),
+              ],
+            ),
+          ),
+          if (schools.length > 1) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  isExpanded: true,
+                  value: _schoolFilter ?? 'all',
+                  hint: const Text('Filtrer par école'),
+                  items: [
+                    const DropdownMenuItem(
+                      value: 'all',
+                      child: Text('Toutes les écoles'),
+                    ),
+                    ...schools.map((s) => DropdownMenuItem(
+                          value: s['id'],
+                          child:
+                              Text(s['name']!, overflow: TextOverflow.ellipsis),
+                        )),
+                  ],
+                  onChanged: (value) => _onSchoolFilterChanged(value),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoleChip(String label, String role, IconData icon) {
+    final isSelected =
+        _roleFilter == role || (role == 'all' && _roleFilter == null);
+    return ChoiceChip(
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: isSelected ? Colors.white : Colors.grey),
+          const SizedBox(width: 6),
+          Text(label),
+        ],
+      ),
+      selected: isSelected,
+      onSelected: (_) => _onRoleFilterChanged(role == 'all' ? null : role),
+      selectedColor: AppTheme.violet,
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.white : Colors.grey.shade700,
+      ),
+    );
+  }
+
+  Widget _buildList() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: _filteredCredentials.length,
+      itemBuilder: (context, index) {
+        final cred = _filteredCredentials[index];
+        return _buildCredentialCard(cred);
+      },
+    );
+  }
+
+  Widget _buildCredentialCard(UserCredential cred) {
+    final isParent = cred.role == 'parent';
+    final typeColor = isParent ? Colors.blue : Colors.orange;
+    final typeIcon = isParent ? Icons.family_restroom : Icons.school;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: typeColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(typeIcon, color: typeColor, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cred.fullName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        cred.displayRole,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: typeColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.copy, size: 20),
+                  tooltip: 'Copier',
+                  onPressed: () => _copyCredential(cred),
+                ),
+              ],
+            ),
+            const Divider(height: 20),
+            if (cred.schoolName != null) ...[
+              _buildInfoRow(Icons.school, 'École', cred.schoolName!),
+              const SizedBox(height: 8),
+            ],
+            _buildInfoRow(Icons.phone, 'Téléphone', cred.phone),
+            const SizedBox(height: 8),
+            _buildPasswordRow(cred.generatedPassword),
+            if (isParent && cred.matricule != null) ...[
+              const SizedBox(height: 8),
+              _buildInfoRow(
+                  Icons.confirmation_number, 'Matricule', cred.matricule!),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: Colors.grey.shade600),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPasswordRow(String password) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.amber.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.key, size: 16, color: Colors.amber.shade800),
+          const SizedBox(width: 8),
+          Text(
+            'Mot de passe: ',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.amber.shade800,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              password,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.amber.shade900,
+                fontFamily: 'monospace',
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.copy, size: 18, color: Colors.amber.shade800),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: password));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Mot de passe copié !'),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildError() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+          const SizedBox(height: 16),
+          Text(_error!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.red.shade600)),
+          const SizedBox(height: 16),
+          ElevatedButton(
+              onPressed: _loadCredentials, child: const Text('Réessayer')),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.search_off, size: 64, color: Colors.grey.shade300),
+          const SizedBox(height: 16),
+          Text('Aucun identifiant trouvé',
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 16)),
+        ],
+      ),
+    );
+  }
+
+  void _copyCredential(UserCredential cred) {
+    final text = '''
+${cred.fullName} (${cred.displayRole})
+${cred.schoolName != null ? 'École: ${cred.schoolName}' : ''}
+Téléphone: ${cred.phone}
+Mot de passe: ${cred.generatedPassword}
+${cred.matricule != null ? 'Matricule: ${cred.matricule}' : ''}
+''';
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+          content: Text('Identifiants copiés !'),
+          backgroundColor: Colors.green),
+    );
+  }
+
+  Future<void> _exportToPDF() async {
+    if (_credentials.isEmpty) return;
+
+    final filePath = await PdfExportService.exportCredentials(
+      credentials: _filteredCredentials,
+      schoolName: 'Toutes_les_ecoles',
+      roleFilter: _roleFilter,
+    );
+
+    if (filePath != null) {
+      await PdfExportService.sharePdf(filePath);
+      _showSuccess('PDF exporté avec succès !');
+    } else {
+      _showError('Erreur export PDF');
+    }
+  }
+
+  Future<void> _exportToExcel() async {
+    if (_credentials.isEmpty) return;
+
+    final filePath = await ExcelExportService.exportCredentials(
+      credentials: _filteredCredentials,
+      schoolName: 'Toutes_les_ecoles',
+      roleFilter: _roleFilter,
+    );
+
+    if (filePath != null) {
+      await ExcelExportService.shareExcel(filePath);
+      _showSuccess('Excel exporté avec succès !');
+    } else {
+      _showError('Erreur export Excel');
+    }
+  }
+
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.green),
+    );
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+}
