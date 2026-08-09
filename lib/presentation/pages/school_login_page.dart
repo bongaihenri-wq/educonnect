@@ -16,7 +16,7 @@ class SchoolLoginPage extends StatefulWidget {
 
 class _SchoolLoginPageState extends State<SchoolLoginPage> {
   final _formKey = GlobalKey<FormState>();
-  
+
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _schoolCodeController = TextEditingController();
@@ -35,7 +35,7 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
     final prefs = await SharedPreferences.getInstance();
     _schoolCodeController.text = prefs.getString('saved_school_code') ?? '';
     _phoneController.text = prefs.getString('saved_phone') ?? '';
-    
+
     if (_schoolCodeController.text.isNotEmpty) {
       _verifySchool(_schoolCodeController.text);
     }
@@ -44,7 +44,7 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
   Future<void> _verifySchool(String code) async {
     if (code.length < 3) return;
     setState(() => _isValidatingSchool = true);
-    
+
     try {
       final school = await Supabase.instance.client
           .from('schools')
@@ -78,13 +78,14 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('saved_school_code', _schoolCodeController.text.trim().toUpperCase());
+    await prefs.setString(
+        'saved_school_code', _schoolCodeController.text.trim().toUpperCase());
     await prefs.setString('saved_phone', phone);
 
     context.read<auth.AuthBloc>().add(auth.LoginWithPhoneRequested(
-      phone: phone,
-      password: _passwordController.text,
-    ));
+          phone: phone,
+          password: _passwordController.text,
+        ));
   }
 
   @override
@@ -95,7 +96,8 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
         listener: (context, state) {
           // ✅ CORRIGÉ : Ajout des cas manquants pour éviter de rester bloqué sur login
           if (state is auth.SuperAdminAuthenticated) {
-            Navigator.pushReplacementNamed(context, AppRoutes.superAdminDashboard);
+            Navigator.pushReplacementNamed(
+                context, AppRoutes.superAdminDashboard);
           } else if (state is auth.TeacherAuthenticated) {
             Navigator.pushReplacementNamed(context, AppRoutes.teacherDashboard);
           } else if (state is auth.AdminAuthenticated) {
@@ -103,9 +105,11 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
           } else if (state is auth.ParentAuthenticated) {
             Navigator.pushReplacementNamed(context, AppRoutes.parentDashboard);
           } else if (state is auth.AssistantAuthenticated) {
-            Navigator.pushReplacementNamed(context, AppRoutes.assistantDashboard);
+            Navigator.pushReplacementNamed(
+                context, AppRoutes.assistantDashboard);
           } else if (state is auth.PrincipalAuthenticated) {
-            Navigator.pushReplacementNamed(context, AppRoutes.principalDashboard);
+            Navigator.pushReplacementNamed(
+                context, AppRoutes.principalDashboard);
           } else if (state is auth.SubscriptionExpired) {
             Navigator.pushReplacementNamed(
               context,
@@ -120,11 +124,13 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
                 'paymentPhoneNumber': state.paymentPhoneNumber,
               },
             );
-          } else if (state is auth.PaymentSubmittedSuccessfully || state is auth.PaymentPending) {
+          } else if (state is auth.PaymentSubmittedSuccessfully ||
+              state is auth.PaymentPending) {
             Navigator.pushReplacementNamed(context, AppRoutes.paymentPending);
           } else if (state is auth.AuthError) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message), backgroundColor: Colors.red),
+              SnackBar(
+                  content: Text(state.message), backgroundColor: Colors.red),
             );
           }
         },
@@ -136,9 +142,17 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
                 key: _formKey,
                 child: Column(
                   children: [
-                    Icon(Icons.school, size: 80, color: AppTheme.violet),
+                    Image.asset(
+                      'assets/logo/logo_educonnect.png',
+                      height: 110,
+                      fit: BoxFit.contain,
+                    ),
                     const SizedBox(height: 16),
-                    Text('EduConnect', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.violet)),
+                    Text('EduConnect',
+                        style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.violet)),
                     const SizedBox(height: 40),
 
                     // Code école - OPTIONNEL
@@ -149,19 +163,28 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
                         labelText: 'Code école (optionnel)',
                         hintText: 'COL2024',
                         prefixIcon: const Icon(Icons.school_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        suffixIcon: _isValidatingSchool 
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                          : _schoolName != null 
-                            ? const Icon(Icons.check_circle, color: Colors.green)
-                            : null,
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        suffixIcon: _isValidatingSchool
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2))
+                            : _schoolName != null
+                                ? const Icon(Icons.check_circle,
+                                    color: Colors.green)
+                                : null,
                       ),
                       onChanged: _verifySchool,
                     ),
                     if (_schoolName != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
-                        child: Text(_schoolName!, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                        child: Text(_schoolName!,
+                            style: const TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold)),
                       ),
                     const SizedBox(height: 24),
 
@@ -173,9 +196,11 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
                         labelText: 'Téléphone',
                         hintText: '+225 05 06 22 44 49',
                         prefixIcon: const Icon(Icons.phone),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
-                      validator: (v) => v?.isEmpty ?? true ? 'Téléphone requis' : null,
+                      validator: (v) =>
+                          v?.isEmpty ?? true ? 'Téléphone requis' : null,
                     ),
                     const SizedBox(height: 16),
 
@@ -187,16 +212,21 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
                         labelText: 'Mot de passe',
                         prefixIcon: const Icon(Icons.lock),
                         suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
-                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          icon: Icon(_obscurePassword
+                              ? Icons.visibility
+                              : Icons.visibility_off),
+                          onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword),
                         ),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
-                      validator: (v) => v?.isEmpty ?? true ? 'Mot de passe requis' : null,
+                      validator: (v) =>
+                          v?.isEmpty ?? true ? 'Mot de passe requis' : null,
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Mot de passe: Matricule ou Initiale+Nom',
+                      'Mot de passe: Matricule',
                       style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                     ),
                     const SizedBox(height: 32),
@@ -210,11 +240,17 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.violet,
                             minimumSize: const Size(double.infinity, 56),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
                           ),
                           child: isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('Se connecter', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white)
+                              : const Text('Se connecter',
+                                  style: TextStyle(
+                                      fontSize: 18,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold)),
                         );
                       },
                     ),

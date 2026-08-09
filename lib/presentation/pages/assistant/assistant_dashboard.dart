@@ -37,6 +37,7 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
 
   Future<void> _loadStats() async {
     setState(() => _isLoading = true);
+    print('🔍 DEBUG ASSISTANT countryCode = "${widget.countryCode}"');
     try {
       final parentsResult = await _supabase
           .from('app_users')
@@ -92,7 +93,7 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
       final schoolsResult = await _supabase
           .from('schools')
           .select('id')
-          .eq('country_code', widget.countryCode);
+          .eq('country_code', _schoolCountryCode);
 
       setState(() {
         _blockedCount = blocked;
@@ -108,21 +109,41 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
 
   String get _countryName {
     switch (widget.countryCode) {
+      case 'CI':
       case '+225':
         return '🇨🇮 Côte d\'Ivoire';
+      case 'CM':
       case '+237':
         return '🇨🇲 Cameroun';
+      case 'SN':
       case '+221':
         return '🇸🇳 Sénégal';
+      case 'GH':
       case '+233':
         return '🇬🇭 Ghana';
+      case 'BF':
       case '+226':
         return '🇧🇫 Burkina Faso';
+      case 'GA':
       case '+241':
         return '🇬🇦 Gabon';
       default:
         return widget.countryCode;
     }
+  }
+
+  String get _schoolCountryCode {
+    const isoToPrefix = {
+      'CI': '+225',
+      'SN': '+221',
+      'CM': '+237',
+      'BJ': '+229',
+      'TG': '+228',
+      'BF': '+226',
+      'GH': '+233',
+      'GA': '+241',
+    };
+    return isoToPrefix[widget.countryCode] ?? widget.countryCode;
   }
 
   void _logout() {

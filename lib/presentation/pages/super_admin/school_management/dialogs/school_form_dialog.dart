@@ -31,12 +31,12 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
   bool _isLoading = false;
 
   final List<Map<String, String>> _countries = [
-    {'code': 'CI', 'name': 'Côte d\'Ivoire'},
-    {'code': 'SN', 'name': 'Sénégal'},
-    {'code': 'CM', 'name': 'Cameroun'},
-    {'code': 'BJ', 'name': 'Bénin'},
-    {'code': 'TG', 'name': 'Togo'},
-    {'code': 'BF', 'name': 'Burkina Faso'},
+    {'code': '+225', 'name': 'Côte d\'Ivoire'},
+    {'code': '+221', 'name': 'Sénégal'},
+    {'code': '+237', 'name': 'Cameroun'},
+    {'code': '+229', 'name': 'Bénin'},
+    {'code': '+228', 'name': 'Togo'},
+    {'code': '+226', 'name': 'Burkina Faso'},
   ];
 
   @override
@@ -48,15 +48,17 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
     _phoneController = TextEditingController(text: s?['phone'] ?? '');
     _emailController = TextEditingController(text: s?['email'] ?? '');
     _codeController = TextEditingController(text: s?['school_code'] ?? '');
-    _monthlyFeeController = TextEditingController(text: (s?['monthly_fee'] ?? 1000).toString());
-    
+    _monthlyFeeController =
+        TextEditingController(text: (s?['monthly_fee'] ?? 1000).toString());
+
     final existingYear = s?['current_school_year'] as String?;
     if (existingYear != null && existingYear.isNotEmpty) {
       _schoolYearController = TextEditingController(text: existingYear);
     } else {
-      _schoolYearController = TextEditingController(text: _calculateCurrentSchoolYear());
+      _schoolYearController =
+          TextEditingController(text: _calculateCurrentSchoolYear());
     }
-    
+
     if (s != null) {
       _planType = s['plan_type'] ?? 'basic';
       _countryCode = s['country_code'] ?? 'CI';
@@ -183,18 +185,28 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
                   prefixIcon: Icon(Icons.card_membership),
                 ),
                 items: ['free', 'basic', 'premium', 'enterprise']
-                    .map((p) => DropdownMenuItem(value: p, child: Text(p.toUpperCase())))
+                    .map((p) => DropdownMenuItem(
+                        value: p, child: Text(p.toUpperCase())))
                     .toList(),
                 onChanged: (v) => setState(() => _planType = v!),
               ),
               const SizedBox(height: 12),
+              // ✅ CORRIGÉ : champ obligatoire + validateur montant
               TextFormField(
                 controller: _monthlyFeeController,
                 decoration: const InputDecoration(
-                  labelText: 'Frais mensuel (XOF)',
+                  labelText: 'Frais mensuel (XOF) *',
                   prefixIcon: Icon(Icons.attach_money),
+                  hintText: 'Ex: 1000, 1500, 5000',
                 ),
                 keyboardType: TextInputType.number,
+                validator: (v) {
+                  final fee = int.tryParse(v ?? '');
+                  if (fee == null || fee <= 0) {
+                    return 'Montant invalide (ex: 1000)';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
@@ -204,7 +216,8 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
                   prefixIcon: Icon(Icons.flag),
                 ),
                 items: _countries
-                    .map((c) => DropdownMenuItem(value: c['code'], child: Text(c['name']!)))
+                    .map((c) => DropdownMenuItem(
+                        value: c['code'], child: Text(c['name']!)))
                     .toList(),
                 onChanged: (v) => setState(() => _countryCode = v!),
               ),
@@ -237,7 +250,10 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
         ElevatedButton(
           onPressed: _isLoading ? null : _saveSchool,
           child: _isLoading
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2))
               : Text(isEditing ? 'Modifier' : 'Créer'),
         ),
       ],
@@ -251,25 +267,33 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
 
     try {
       final schoolCode = _codeController.text.trim().toUpperCase();
-      
+
       final existing = await Supabase.instance.client
           .from('schools')
           .select('id, school_code')
           .eq('school_code', schoolCode)
           .maybeSingle();
-      
-      if (existing != null && (widget.school == null || existing['id'] != widget.school!['id'])) {
+
+      if (existing != null &&
+          (widget.school == null || existing['id'] != widget.school!['id'])) {
         throw Exception('Ce code école "$schoolCode" existe déjà.');
       }
 
       final data = {
         'name': _nameController.text.trim(),
         'school_code': schoolCode,
-        'address': _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
-        'phone': _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
-        'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        'address': _addressController.text.trim().isEmpty
+            ? null
+            : _addressController.text.trim(),
+        'phone': _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
+        'email': _emailController.text.trim().isEmpty
+            ? null
+            : _emailController.text.trim(),
         'plan_type': _planType,
-        'monthly_fee': int.tryParse(_monthlyFeeController.text) ?? 5000,
+        'monthly_fee': int.tryParse(_monthlyFeeController.text) ??
+            1000, // ✅ CORRIGÉ (était 5000)
         'country_code': _countryCode,
         'is_active': _isActive,
         'is_test': _isTest,
@@ -285,18 +309,20 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
             .eq('id', widget.school!['id']);
       } else {
         data['api_key'] = _generateApiKey();
-        
+
         final user = Supabase.instance.client.auth.currentUser;
         if (user != null) {
           data['created_by'] = user.id;
         }
-        
+
         await Supabase.instance.client.from('schools').insert(data);
       }
 
       Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(widget.school != null ? 'École modifiée' : 'École créée')),
+        SnackBar(
+            content:
+                Text(widget.school != null ? 'École modifiée' : 'École créée')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

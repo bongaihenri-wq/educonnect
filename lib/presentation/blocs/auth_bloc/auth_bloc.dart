@@ -395,6 +395,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           'school_id': schoolId,
           'email': result['email'],
           'phone': result['phone'],
+          'country_code':
+              result['country_code'], // ✅ AJOUTÉ : pays pour assistant
         }, schoolName, emit, parentData: parentData);
       } else {
         // ✅ Track : échec

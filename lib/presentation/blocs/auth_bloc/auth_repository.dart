@@ -30,7 +30,7 @@ class AuthRepository {
       'role': prefs.getString('role'),
       'school_id': prefs.getString('school_id'),
     };
-    
+
     _logger.logDebug(
       category: LogCategory.auth,
       message: 'Session récupérée',
@@ -39,7 +39,7 @@ class AuthRepository {
         'role': session['role'],
       },
     );
-    
+
     return session;
   }
 
@@ -60,14 +60,14 @@ class AuthRepository {
     } else {
       await prefs.remove('school_id');
     }
-    
+
     // ✅ Mettre à jour le contexte du logger
     _logger.setUserContext(
       userId: userId,
       userRole: role,
       schoolId: schoolId,
     );
-    
+
     _logger.logInfo(
       category: LogCategory.auth,
       message: 'Session sauvegardée',
@@ -91,13 +91,13 @@ class AuthRepository {
     }
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
-    
+
     _logger.clearUserContext();
     _logger.logInfo(
       category: LogCategory.auth,
       message: 'Session effacée',
     );
-    
+
     // Flush les logs avant logout
     await _logger.flush();
   }
@@ -106,21 +106,21 @@ class AuthRepository {
 
   Future<List<dynamic>?> loginByPhone(String phone, String password) async {
     final stopwatch = Stopwatch()..start();
-    
+
     _logger.logInfo(
       category: LogCategory.auth,
       message: 'Tentative de connexion',
       metadata: {'phone': _anonymizePhone(phone)},
     );
-    
+
     try {
       final response = await _supabase.rpc('login_by_phone', params: {
         'p_phone': phone,
         'p_password': password,
       });
-      
+
       stopwatch.stop();
-      
+
       if (response == null || response.isEmpty) {
         _logger.logError(
           category: LogCategory.auth,
@@ -131,7 +131,7 @@ class AuthRepository {
       }
 
       final result = response[0];
-      
+
       if (result['success'] == true) {
         _logger.logApi(
           endpoint: 'login_by_phone',
@@ -139,7 +139,7 @@ class AuthRepository {
           statusCode: 200,
           durationMs: stopwatch.elapsedMilliseconds,
         );
-        
+
         _logger.logAnalytics(
           eventName: 'login_success',
           parameters: {
@@ -157,11 +157,11 @@ class AuthRepository {
           },
         );
       }
-      
+
       return response;
     } catch (e, stackTrace) {
       stopwatch.stop();
-      
+
       _logger.logError(
         category: LogCategory.auth,
         message: 'Erreur login_by_phone',
@@ -170,7 +170,7 @@ class AuthRepository {
         apiEndpoint: 'login_by_phone',
         metadata: {'duration_ms': stopwatch.elapsedMilliseconds},
       );
-      
+
       rethrow;
     }
   }
@@ -179,34 +179,35 @@ class AuthRepository {
 
   Future<Map<String, dynamic>?> getUserById(String userId) async {
     final stopwatch = Stopwatch()..start();
-    
+
     try {
       final user = await _supabase
           .from('app_users')
-          .select('id, first_name, last_name, role, school_id, email, phone, country_code')
+          .select(
+              'id, first_name, last_name, role, school_id, email, phone, country_code')
           .eq('id', userId)
           .single();
-      
+
       stopwatch.stop();
-      
+
       _logger.logApi(
         endpoint: 'app_users/select',
         method: 'GET',
         statusCode: user != null ? 200 : 404,
         durationMs: stopwatch.elapsedMilliseconds,
       );
-      
+
       return user;
     } catch (e, stackTrace) {
       stopwatch.stop();
-      
+
       _logger.logError(
         category: LogCategory.api,
         message: 'Erreur getUserById',
         error: e,
         stackTrace: stackTrace,
       );
-      
+
       return null;
     }
   }
@@ -234,8 +235,10 @@ class AuthRepository {
       });
 
       if (response == null) return null;
-      
-      final data = response is List ? (response.isNotEmpty ? response[0] : null) : response;
+
+      final data = response is List
+          ? (response.isNotEmpty ? response[0] : null)
+          : response;
       if (data == null) return null;
 
       _logger.logInfo(
@@ -276,7 +279,7 @@ class AuthRepository {
           .select('name')
           .eq('id', schoolId)
           .single();
-      
+
       return school?['name'] ?? 'Mon Ecole';
     } catch (e, stackTrace) {
       _logger.logError(
@@ -308,6 +311,26 @@ class AuthRepository {
     }
   }
 
+  /// ✅ NOUVEAU : Infos de facturation de l'école (source de vérité du montant)
+  Future<Map<String, dynamic>?> getSchoolBillingInfo(String? schoolId) async {
+    if (schoolId == null) return null;
+    try {
+      final school = await _supabase
+          .from('schools')
+          .select('monthly_fee, currency, payment_phone_number')
+          .eq('id', schoolId)
+          .maybeSingle();
+      return school;
+    } catch (e) {
+      _logger.logError(
+        category: LogCategory.api,
+        message: 'Erreur getSchoolBillingInfo',
+        error: e,
+      );
+      return null;
+    }
+  }
+
   // ─── Abonnements ───────────────────────────────────────────
 
   Future<Map<String, dynamic>?> checkSubscription(
@@ -315,9 +338,15 @@ class AuthRepository {
     String? schoolId,
   ) async {
     try {
+      // ✅ NOUVEAU : frais de l'école = source de vérité du montant affiché
+      final billing = await getSchoolBillingInfo(schoolId);
+      final schoolFee = (billing?['monthly_fee'] as num?)?.toInt() ?? 0;
+      final schoolCurrency = billing?['currency'] as String?;
+
       var response = await _supabase
           .from('parent_subscriptions')
-          .select('id, status, plan_type, trial_ends_at, current_period_end, amount, currency')
+          .select(
+              'id, status, plan_type, trial_ends_at, current_period_end, amount, currency')
           .eq('parent_id', parentId)
           .maybeSingle();
 
@@ -327,22 +356,25 @@ class AuthRepository {
           message: 'Création trial auto',
           metadata: {'parent_id': parentId},
         );
-        
+
         try {
           await _supabase.from('parent_subscriptions').insert({
             'parent_id': parentId,
             'school_id': schoolId,
             'status': 'trial',
             'plan_type': 'trial',
-            'trial_ends_at': DateTime.now().add(const Duration(days: 7)).toIso8601String(),
-            'amount': 1000,
-            'currency': 'XOF',
+            'trial_ends_at':
+                DateTime.now().add(const Duration(days: 7)).toIso8601String(),
+            'amount': schoolFee > 0 ? schoolFee : 1000, // ✅ CORRIGÉ
+            'currency': schoolCurrency ?? 'XOF', // ✅ CORRIGÉ
             'created_at': DateTime.now().toIso8601String(),
             'updated_at': DateTime.now().toIso8601String(),
           });
         } catch (e) {
           final errorStr = e.toString().toLowerCase();
-          if (errorStr.contains('duplicate') || errorStr.contains('23505') || errorStr.contains('unique')) {
+          if (errorStr.contains('duplicate') ||
+              errorStr.contains('23505') ||
+              errorStr.contains('unique')) {
             _logger.logDebug(
               category: LogCategory.business,
               message: 'Trial déjà existant (race condition)',
@@ -358,14 +390,16 @@ class AuthRepository {
 
         response = await _supabase
             .from('parent_subscriptions')
-            .select('id, status, plan_type, trial_ends_at, current_period_end, amount, currency')
+            .select(
+                'id, status, plan_type, trial_ends_at, current_period_end, amount, currency')
             .eq('parent_id', parentId)
             .maybeSingle();
       }
 
       if (response == null) return null;
 
-      final paymentPhoneNumber = await getSchoolPaymentPhone(schoolId);
+      // ✅ CORRIGÉ : le téléphone vient du même fetch (1 requête économisée)
+      final paymentPhoneNumber = billing?['payment_phone_number'] as String?;
 
       final trialEndsAt = response['trial_ends_at'] != null
           ? DateTime.parse(response['trial_ends_at'])
@@ -373,7 +407,9 @@ class AuthRepository {
       final currentPeriodEnd = response['current_period_end'] != null
           ? DateTime.parse(response['current_period_end'])
           : null;
-      final endDate = trialEndsAt ?? currentPeriodEnd;
+      final endDate = response['status'] == 'active'
+          ? (currentPeriodEnd ?? trialEndsAt)
+          : (trialEndsAt ?? currentPeriodEnd);
       int? daysRemaining;
       if (endDate != null) {
         daysRemaining = endDate.difference(DateTime.now()).inDays;
@@ -394,8 +430,9 @@ class AuthRepository {
         'plan_type': response['plan_type'],
         'trial_ends_at': trialEndsAt,
         'current_period_end': currentPeriodEnd,
-        'amount': response['amount'],
-        'currency': response['currency'],
+        // ✅ CORRIGÉ : frais école en priorité, sinon montant stocké, sinon 1000
+        'amount': schoolFee > 0 ? schoolFee : (response['amount'] ?? 1000),
+        'currency': schoolCurrency ?? response['currency'] ?? 'XOF',
         'payment_phone_number': paymentPhoneNumber,
         'days_remaining': daysRemaining,
       };
@@ -416,7 +453,8 @@ class AuthRepository {
     try {
       final response = await _supabase
           .from('payment_transactions')
-          .select('id, external_ref, amount, status, created_at, screenshot_url')
+          .select(
+              'id, external_ref, amount, status, created_at, screenshot_url')
           .eq('parent_id', parentId)
           .eq('status', 'pending')
           .order('created_at', ascending: false)
@@ -434,14 +472,16 @@ class AuthRepository {
         );
       }
 
-      return response == null ? null : {
-        'id': response['id'],
-        'external_ref': response['external_ref'],
-        'amount': (response['amount'] as num).toDouble(),
-        'status': response['status'],
-        'created_at': response['created_at'],
-        'screenshot_url': response['screenshot_url'],
-      };
+      return response == null
+          ? null
+          : {
+              'id': response['id'],
+              'external_ref': response['external_ref'],
+              'amount': (response['amount'] as num).toDouble(),
+              'status': response['status'],
+              'created_at': response['created_at'],
+              'screenshot_url': response['screenshot_url'],
+            };
     } catch (e, stackTrace) {
       _logger.logError(
         category: LogCategory.business,
@@ -469,7 +509,7 @@ class AuthRepository {
         'amount': amount,
       },
     );
-    
+
     final existing = await _supabase
         .from('payment_transactions')
         .select('id')
@@ -485,7 +525,7 @@ class AuthRepository {
         'screenshot_url': screenshotUrl,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', existing['id']);
-      
+
       _logger.logInfo(
         category: LogCategory.business,
         message: 'Paiement mis à jour',
@@ -503,7 +543,7 @@ class AuthRepository {
         'screenshot_url': screenshotUrl,
         'created_at': DateTime.now().toIso8601String(),
       });
-      
+
       _logger.logInfo(
         category: LogCategory.business,
         message: 'Nouveau paiement créé',
@@ -523,7 +563,7 @@ class AuthRepository {
           .select('student_id')
           .eq('parent_id', parentId)
           .single();
-      
+
       Map<String, dynamic> studentData = {};
       if (parentStudent != null) {
         final student = await _supabase
@@ -531,7 +571,7 @@ class AuthRepository {
             .select('*, classes(name)')
             .eq('id', parentStudent['student_id'])
             .single();
-        
+
         if (student != null) {
           studentData = {
             'studentId': student['id'],
@@ -548,7 +588,7 @@ class AuthRepository {
       int? amount;
       String? currency;
       String? paymentPhone;
-      
+
       if (sub != null) {
         status = sub['status'] as String?;
         endDate = sub['trial_ends_at'] ?? sub['current_period_end'];
@@ -556,7 +596,7 @@ class AuthRepository {
         currency = sub['currency'] as String?;
         paymentPhone = sub['payment_phone_number'] as String?;
         daysRemaining = sub['days_remaining'] as int?;
-        
+
         if (daysRemaining != null && daysRemaining > 0 && daysRemaining <= 3) {
           status = 'expiring_soon';
         }

@@ -10,21 +10,23 @@ class CommercialDashboardPage extends StatefulWidget {
   const CommercialDashboardPage({super.key, this.countryCode});
 
   @override
-  State<CommercialDashboardPage> createState() => _CommercialDashboardPageState();
+  State<CommercialDashboardPage> createState() =>
+      _CommercialDashboardPageState();
 }
 
 class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
   final _supabase = Supabase.instance.client;
   bool _isLoading = true;
-  
+
   List<Map<String, dynamic>> _parents = [];
   List<Map<String, dynamic>> _schools = [];
-  
+
   String _parentFilter = 'all';
   String _schoolFilter = 'all';
 
   // ✅ AJOUTÉ : Vérifie si on filtre par pays
-  bool get _hasCountryFilter => widget.countryCode != null && widget.countryCode!.isNotEmpty;
+  bool get _hasCountryFilter =>
+      widget.countryCode != null && widget.countryCode!.isNotEmpty;
 
   @override
   void initState() {
@@ -38,16 +40,16 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
       // ========== ÉTAPE 1 : Parents ==========
       var parentsQuery = _supabase
           .from('app_users')
-          .select('id, first_name, last_name, phone, school_id, country_code, created_at')
+          .select(
+              'id, first_name, last_name, phone, school_id, country_code, created_at')
           .eq('role', 'parent');
 
       if (_hasCountryFilter) {
         parentsQuery = parentsQuery.eq('country_code', widget.countryCode!);
       }
 
-      final parentsResult = await parentsQuery
-          .order('created_at', ascending: false)
-          .limit(200);
+      final parentsResult =
+          await parentsQuery.order('created_at', ascending: false).limit(200);
 
       var parentsList = List<Map<String, dynamic>>.from(parentsResult);
       final parentIds = parentsList.map((p) => p['id'] as String).toList();
@@ -57,7 +59,8 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
       if (parentIds.isNotEmpty) {
         final subsResult = await _supabase
             .from('parent_subscriptions')
-            .select('parent_id, status, plan_type, trial_ends_at, current_period_end, amount, currency')
+            .select(
+                'parent_id, status, plan_type, trial_ends_at, current_period_end, amount, currency')
             .limit(1000);
 
         for (final s in List<Map<String, dynamic>>.from(subsResult)) {
@@ -71,7 +74,7 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
       // ========== ÉTAPE 3 : Écoles ==========
       final Map<String, Map<String, dynamic>> schoolsById = {};
       final Map<String, List<Map<String, dynamic>>> parentsBySchool = {};
-      
+
       var schoolsQuery = _supabase
           .from('schools')
           .select('id, name, phone, created_at, is_test, country_code');
@@ -80,9 +83,8 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
         schoolsQuery = schoolsQuery.eq('country_code', widget.countryCode!);
       }
 
-      final allSchoolsResult = await schoolsQuery
-          .order('created_at', ascending: false)
-          .limit(200);
+      final allSchoolsResult =
+          await schoolsQuery.order('created_at', ascending: false).limit(200);
 
       var allSchoolsList = List<Map<String, dynamic>>.from(allSchoolsResult);
 
@@ -96,24 +98,32 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
       final parents = parentsList.map((p) {
         final sub = subsByParent[p['id']];
         final school = schoolsById[p['school_id']];
-        
+
         String commercialStatus = 'no_subscription';
         String? subStatus = sub?['status'] as String?;
         String? planType = sub?['plan_type'] as String?;
-        DateTime? trialEnd = sub?['trial_ends_at'] != null 
-            ? DateTime.tryParse(sub!['trial_ends_at'].toString()) 
+        DateTime? trialEnd = sub?['trial_ends_at'] != null
+            ? DateTime.tryParse(sub!['trial_ends_at'].toString())
             : null;
-        DateTime? periodEnd = sub?['current_period_end'] != null 
-            ? DateTime.tryParse(sub!['current_period_end'].toString()) 
+        DateTime? periodEnd = sub?['current_period_end'] != null
+            ? DateTime.tryParse(sub!['current_period_end'].toString())
             : null;
 
         if (sub == null) {
           commercialStatus = 'no_subscription';
-        } else if (subStatus == 'active' && planType == 'monthly' && periodEnd != null && periodEnd.isAfter(now)) {
+        } else if (subStatus == 'active' &&
+            planType == 'monthly' &&
+            periodEnd != null &&
+            periodEnd.isAfter(now)) {
           commercialStatus = 'paying';
-        } else if (subStatus == 'active' && planType == 'trial' && trialEnd != null && trialEnd.isAfter(now)) {
+        } else if (subStatus == 'active' &&
+            planType == 'trial' &&
+            trialEnd != null &&
+            trialEnd.isAfter(now)) {
           commercialStatus = 'trial_active';
-        } else if (planType == 'trial' && trialEnd != null && trialEnd.isBefore(now)) {
+        } else if (planType == 'trial' &&
+            trialEnd != null &&
+            trialEnd.isBefore(now)) {
           commercialStatus = 'trial_expired';
         } else if (subStatus == 'expired' || subStatus == 'pending') {
           commercialStatus = subStatus!;
@@ -121,10 +131,11 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
           commercialStatus = 'no_subscription';
         }
 
-        final createdAt = p['created_at'] != null 
-            ? DateTime.tryParse(p['created_at'].toString()) 
+        final createdAt = p['created_at'] != null
+            ? DateTime.tryParse(p['created_at'].toString())
             : null;
-        final daysSinceCreated = createdAt != null ? now.difference(createdAt).inDays : 0;
+        final daysSinceCreated =
+            createdAt != null ? now.difference(createdAt).inDays : 0;
 
         return {
           'id': p['id'],
@@ -155,11 +166,19 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
       final schools = allSchoolsList.map((s) {
         final sid = s['id'] as String;
         final schoolParents = parentsBySchool[sid] ?? [];
-        final payingCount = schoolParents.where((p) => p['commercial_status'] == 'paying').length;
-        final trialActiveCount = schoolParents.where((p) => p['commercial_status'] == 'trial_active').length;
-        final trialExpiredCount = schoolParents.where((p) => p['commercial_status'] == 'trial_expired').length;
-        final noSubCount = schoolParents.where((p) => p['commercial_status'] == 'no_subscription').length;
-        
+        final payingCount = schoolParents
+            .where((p) => p['commercial_status'] == 'paying')
+            .length;
+        final trialActiveCount = schoolParents
+            .where((p) => p['commercial_status'] == 'trial_active')
+            .length;
+        final trialExpiredCount = schoolParents
+            .where((p) => p['commercial_status'] == 'trial_expired')
+            .length;
+        final noSubCount = schoolParents
+            .where((p) => p['commercial_status'] == 'no_subscription')
+            .length;
+
         String schoolStatus = 'prospect';
         if (payingCount > 0) {
           schoolStatus = 'paying';
@@ -173,7 +192,9 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
           'id': sid,
           'name': s['name'] ?? '—',
           'phone': s['phone'] ?? '—',
-          'created_at': s['created_at'] != null ? DateTime.tryParse(s['created_at'].toString()) : null,
+          'created_at': s['created_at'] != null
+              ? DateTime.tryParse(s['created_at'].toString())
+              : null,
           'is_test': s['is_test'] == true,
           'total_parents': schoolParents.length,
           'paying_count': payingCount,
@@ -205,13 +226,19 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
   List<Map<String, dynamic>> get _filteredParents {
     switch (_parentFilter) {
       case 'no_sub':
-        return _parents.where((p) => p['commercial_status'] == 'no_subscription').toList();
+        return _parents
+            .where((p) => p['commercial_status'] == 'no_subscription')
+            .toList();
       case 'trial_expired':
-        return _parents.where((p) => p['commercial_status'] == 'trial_expired').toList();
+        return _parents
+            .where((p) => p['commercial_status'] == 'trial_expired')
+            .toList();
       case 'to_call':
         return _parents.where((p) {
           final status = p['commercial_status'] as String;
-          return status == 'no_subscription' || status == 'trial_expired' || status == 'expired';
+          return status == 'no_subscription' ||
+              status == 'trial_expired' ||
+              status == 'expired';
         }).toList();
       default:
         return _parents;
@@ -233,11 +260,17 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    final noSubCount = _parents.where((p) => p['commercial_status'] == 'no_subscription').length;
-    final trialExpiredCount = _parents.where((p) => p['commercial_status'] == 'trial_expired').length;
-    final payingCount = _parents.where((p) => p['commercial_status'] == 'paying').length;
-    final trialSchools = _schools.where((s) => s['school_status'] == 'trial').length;
-    final payingSchools = _schools.where((s) => s['school_status'] == 'paying').length;
+    final noSubCount = _parents
+        .where((p) => p['commercial_status'] == 'no_subscription')
+        .length;
+    final trialExpiredCount =
+        _parents.where((p) => p['commercial_status'] == 'trial_expired').length;
+    final payingCount =
+        _parents.where((p) => p['commercial_status'] == 'paying').length;
+    final trialSchools =
+        _schools.where((s) => s['school_status'] == 'trial').length;
+    final payingSchools =
+        _schools.where((s) => s['school_status'] == 'paying').length;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
@@ -262,19 +295,18 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildKpiRow(noSubCount, trialExpiredCount, payingCount, payingSchools),
+                    _buildKpiRow(noSubCount, trialExpiredCount, payingCount,
+                        payingSchools),
                     const SizedBox(height: 20),
-                    
-                    _buildSectionHeader('Parents', noSubCount, trialExpiredCount, payingCount),
+                    _buildSectionHeader(
+                        'Parents', noSubCount, trialExpiredCount, payingCount),
                     const SizedBox(height: 10),
                     _buildParentFilters(),
                     const SizedBox(height: 10),
                     _filteredParents.isEmpty
                         ? _buildEmptyState('Aucun parent dans cette catégorie')
                         : _buildParentsList(),
-                    
                     const SizedBox(height: 28),
-                    
                     _buildSectionTitle('Écoles', Colors.blue),
                     const SizedBox(height: 10),
                     _buildSchoolFilters(trialSchools, payingSchools),
@@ -282,7 +314,6 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
                     _filteredSchools.isEmpty
                         ? _buildEmptyState('Aucune école dans cette catégorie')
                         : _buildSchoolsList(),
-                    
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -291,16 +322,25 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
     );
   }
 
-  Widget _buildKpiRow(int noSub, int trialExpired, int payingParents, int payingSchools) {
+  Widget _buildKpiRow(
+      int noSub, int trialExpired, int payingParents, int payingSchools) {
     return Row(
       children: [
-        Expanded(child: _buildKpiCard('Prospects', '$noSub', Icons.person_outline, Colors.orange)),
+        Expanded(
+            child: _buildKpiCard(
+                'Prospects', '$noSub', Icons.person_outline, Colors.orange)),
         const SizedBox(width: 6),
-        Expanded(child: _buildKpiCard('Essais finis', '$trialExpired', Icons.timer_off, Colors.red)),
+        Expanded(
+            child: _buildKpiCard(
+                'Essais finis', '$trialExpired', Icons.timer_off, Colors.red)),
         const SizedBox(width: 6),
-        Expanded(child: _buildKpiCard('Payants', '$payingParents', Icons.payment, Colors.green)),
+        Expanded(
+            child: _buildKpiCard(
+                'Payants', '$payingParents', Icons.payment, Colors.green)),
         const SizedBox(width: 6),
-        Expanded(child: _buildKpiCard('Écoles', '$payingSchools', Icons.school, const Color(0xFF6C63FF))),
+        Expanded(
+            child: _buildKpiCard('Écoles', '$payingSchools', Icons.school,
+                const Color(0xFF6C63FF))),
       ],
     );
   }
@@ -319,7 +359,9 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
           const SizedBox(height: 2),
           FittedBox(
             fit: BoxFit.scaleDown,
-            child: Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+            child: Text(value,
+                style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.bold, color: color)),
           ),
           const SizedBox(height: 2),
           FittedBox(
@@ -337,18 +379,27 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
     );
   }
 
-  Widget _buildSectionHeader(String title, int noSub, int trialExp, int paying) {
+  Widget _buildSectionHeader(
+      String title, int noSub, int trialExp, int paying) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Container(width: 4, height: 20, decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(2))),
+            Container(
+                width: 4,
+                height: 20,
+                decoration: BoxDecoration(
+                    color: Colors.orange,
+                    borderRadius: BorderRadius.circular(2))),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2D3142)),
+                style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF2D3142)),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -372,13 +423,17 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _buildFilterChip('Tous', 'all', _parentFilter, (v) => setState(() => _parentFilter = v)),
+          _buildFilterChip('Tous', 'all', _parentFilter,
+              (v) => setState(() => _parentFilter = v)),
           const SizedBox(width: 6),
-          _buildFilterChip('Sans abo', 'no_sub', _parentFilter, (v) => setState(() => _parentFilter = v)),
+          _buildFilterChip('Sans abo', 'no_sub', _parentFilter,
+              (v) => setState(() => _parentFilter = v)),
           const SizedBox(width: 6),
-          _buildFilterChip('Essai fini', 'trial_expired', _parentFilter, (v) => setState(() => _parentFilter = v)),
+          _buildFilterChip('Essai fini', 'trial_expired', _parentFilter,
+              (v) => setState(() => _parentFilter = v)),
           const SizedBox(width: 6),
-          _buildFilterChip('À relancer', 'to_call', _parentFilter, (v) => setState(() => _parentFilter = v)),
+          _buildFilterChip('À relancer', 'to_call', _parentFilter,
+              (v) => setState(() => _parentFilter = v)),
         ],
       ),
     );
@@ -389,19 +444,24 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _buildFilterChip('Toutes', 'all', _schoolFilter, (v) => setState(() => _schoolFilter = v)),
+          _buildFilterChip('Toutes', 'all', _schoolFilter,
+              (v) => setState(() => _schoolFilter = v)),
           const SizedBox(width: 6),
-          _buildFilterChip('Prospects', 'prospect', _schoolFilter, (v) => setState(() => _schoolFilter = v)),
+          _buildFilterChip('Prospects', 'prospect', _schoolFilter,
+              (v) => setState(() => _schoolFilter = v)),
           const SizedBox(width: 6),
-          _buildFilterChip('Essai ($trialSchools)', 'trial', _schoolFilter, (v) => setState(() => _schoolFilter = v)),
+          _buildFilterChip('Essai ($trialSchools)', 'trial', _schoolFilter,
+              (v) => setState(() => _schoolFilter = v)),
           const SizedBox(width: 6),
-          _buildFilterChip('Payant ($payingSchools)', 'paying', _schoolFilter, (v) => setState(() => _schoolFilter = v)),
+          _buildFilterChip('Payant ($payingSchools)', 'paying', _schoolFilter,
+              (v) => setState(() => _schoolFilter = v)),
         ],
       ),
     );
   }
 
-  Widget _buildFilterChip(String label, String value, String groupValue, Function(String) onSelected) {
+  Widget _buildFilterChip(String label, String value, String groupValue,
+      Function(String) onSelected) {
     final isSelected = value == groupValue;
     return ChoiceChip(
       label: Text(
@@ -425,12 +485,17 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
   Widget _buildSectionTitle(String title, Color color) {
     return Row(
       children: [
-        Container(width: 4, height: 20, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+        Container(
+            width: 4,
+            height: 20,
+            decoration: BoxDecoration(
+                color: color, borderRadius: BorderRadius.circular(2))),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
             title,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
+            style: TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold, color: color),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -455,7 +520,8 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w500),
+              style: TextStyle(
+                  color: Colors.grey[600], fontWeight: FontWeight.w500),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
@@ -474,11 +540,11 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
         final school = p['school_name'] as String;
         final days = p['days_since_created'] as int;
         final status = p['commercial_status'] as String;
-        
+
         Color statusColor;
         String statusLabel;
         IconData statusIcon;
-        
+
         switch (status) {
           case 'no_subscription':
             statusColor = Colors.orange;
@@ -513,7 +579,8 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
 
         return Card(
           margin: const EdgeInsets.only(bottom: 10),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
@@ -532,13 +599,15 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
                         children: [
                           Text(
                             name,
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 15),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
                             '$school • $phone',
-                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            style: TextStyle(
+                                fontSize: 12, color: Colors.grey[600]),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -546,14 +615,18 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: statusColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         statusLabel,
-                        style: TextStyle(fontSize: 11, color: statusColor, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: statusColor,
+                            fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
@@ -627,7 +700,9 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
           margin: const EdgeInsets.only(bottom: 10),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            side: isTest ? BorderSide(color: Colors.orange.withOpacity(0.5), width: 2) : BorderSide.none,
+            side: isTest
+                ? BorderSide(color: Colors.orange.withOpacity(0.5), width: 2)
+                : BorderSide.none,
           ),
           child: ListTile(
             leading: CircleAvatar(
@@ -639,35 +714,45 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
                 Expanded(
                   child: Text(
                     name,
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 14),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 if (isTest)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.orange.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(color: Colors.orange.withOpacity(0.3)),
                     ),
-                    child: const Text('TEST', style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w600)),
+                    child: const Text('TEST',
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.orange,
+                            fontWeight: FontWeight.w600)),
                   ),
               ],
             ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$total parent${total > 1 ? 's' : ''}', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                Text('$total parent${total > 1 ? 's' : ''}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                 const SizedBox(height: 4),
                 Wrap(
                   spacing: 6,
                   runSpacing: 4,
                   children: [
-                    if (paying > 0) _buildMiniBadge('$paying payant', Colors.green),
-                    if (trialActive > 0) _buildMiniBadge('$trialActive essai', Colors.blue),
-                    if (trialExpired > 0) _buildMiniBadge('$trialExpired fini', Colors.red),
+                    if (paying > 0)
+                      _buildMiniBadge('$paying payant', Colors.green),
+                    if (trialActive > 0)
+                      _buildMiniBadge('$trialActive essai', Colors.blue),
+                    if (trialExpired > 0)
+                      _buildMiniBadge('$trialExpired fini', Colors.red),
                   ],
                 ),
               ],
@@ -680,7 +765,10 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
               ),
               child: Text(
                 statusLabel,
-                style: TextStyle(fontSize: 11, color: statusColor, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                    fontSize: 11,
+                    color: statusColor,
+                    fontWeight: FontWeight.w600),
               ),
             ),
           ),
@@ -696,11 +784,17 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(text, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w500)),
+      child: Text(text,
+          style: TextStyle(
+              fontSize: 10, color: color, fontWeight: FontWeight.w500)),
     );
   }
 
-  Widget _buildActionButton({required IconData icon, required String label, required Color color, required VoidCallback onTap}) {
+  Widget _buildActionButton(
+      {required IconData icon,
+      required String label,
+      required Color color,
+      required VoidCallback onTap}) {
     return Expanded(
       child: InkWell(
         onTap: onTap,
@@ -717,7 +811,9 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
             children: [
               Icon(icon, color: color, size: 16),
               const SizedBox(width: 4),
-              Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12)),
+              Text(label,
+                  style: TextStyle(
+                      color: color, fontWeight: FontWeight.w600, fontSize: 12)),
             ],
           ),
         ),
@@ -728,7 +824,9 @@ class _CommercialDashboardPageState extends State<CommercialDashboardPage> {
   void _copyPhone(String phone) {
     Clipboard.setData(ClipboardData(text: phone));
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('📋 $phone copié'), behavior: SnackBarBehavior.floating),
+      SnackBar(
+          content: Text('📋 $phone copié'),
+          behavior: SnackBarBehavior.floating),
     );
   }
 
