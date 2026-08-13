@@ -68,11 +68,13 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
     final phone = _phoneController.text.replaceAll(RegExp(r'\s'), '');
     print('🔍 TELEPHONE ENVOYE: "$phone"');
     print('🔍 LONGUEUR: ${phone.length}');
-    print('🔍 CODEPOINTS: ${phone.runes.toList()}');
 
-    if (_schoolCodeController.text.isNotEmpty && _schoolName == null) {
+    // ✅ Bloque seulement si un code SAISI n'existe pas.
+    // Champ vide → la fonction SQL décide selon le type de compte.
+    if (_schoolCodeController.text.trim().isNotEmpty && _schoolName == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez valider le code école')),
+        const SnackBar(
+            content: Text('Code école inconnu — vérifiez le code saisi')),
       );
       return;
     }
@@ -85,6 +87,8 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
     context.read<auth.AuthBloc>().add(auth.LoginWithPhoneRequested(
           phone: phone,
           password: _passwordController.text,
+          schoolCode:
+              _schoolCodeController.text.trim().toUpperCase(), // ✅ NOUVEAU
         ));
   }
 
@@ -106,7 +110,13 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
             Navigator.pushReplacementNamed(context, AppRoutes.parentDashboard);
           } else if (state is auth.AssistantAuthenticated) {
             Navigator.pushReplacementNamed(
-                context, AppRoutes.assistantDashboard);
+              context,
+              AppRoutes.assistantDashboard,
+              arguments: {
+                'countryCode':
+                    state.countryCode, // ✅ NOUVEAU : 'CI' depuis le login
+              },
+            );
           } else if (state is auth.PrincipalAuthenticated) {
             Navigator.pushReplacementNamed(
                 context, AppRoutes.principalDashboard);
@@ -155,13 +165,15 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
                             color: AppTheme.violet)),
                     const SizedBox(height: 40),
 
-                    // Code école - OPTIONNEL
+                    // ✅ Code école : obligatoire seulement pour les comptes rattachés
+                    // à une école — la fonction SQL tranche selon le type de compte
                     TextFormField(
                       controller: _schoolCodeController,
                       textCapitalization: TextCapitalization.characters,
                       decoration: InputDecoration(
-                        labelText: 'Code école (optionnel)',
-                        hintText: 'COL2024',
+                        labelText: 'Code école',
+                        hintText:
+                            'Obligatoire pour parents, enseignants, admins',
                         prefixIcon: const Icon(Icons.school_outlined),
                         border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12)),
@@ -254,6 +266,8 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
                         );
                       },
                     ),
+                    // ✅ Règle UI : espace pour la barre de navigation système
+                    const SizedBox(height: 80),
                   ],
                 ),
               ),

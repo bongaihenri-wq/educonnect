@@ -58,7 +58,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - .env
+    - env.txt
     - assets/templates/students_parents_template.csv
     - assets/templates/teachers_template.csv
     - assets/templates/schedules_template.csv

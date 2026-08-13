@@ -261,7 +261,13 @@ class AppRoutes {
         adminReports: (context) => const AdminDashboard(),
         adminTeacherTracking: (context) => const TeacherTrackingPage(),
         adminSettings: (context) => const SettingsPage(),
-        adminSendMessage: (context) => const AdminSendMessagePage(),
+        adminSendMessage: (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          return AdminSendMessagePage(
+            preselectedTeacherId: args?['teacherId'] as String?,
+          );
+        },
         adminMessages: (context) => const AdminMessagesPage(),
         adminBulkImport: (context) {
           final args = ModalRoute.of(context)?.settings.arguments
@@ -284,8 +290,9 @@ class AppRoutes {
         assistantDashboard: (context) {
           final args = ModalRoute.of(context)?.settings.arguments
               as Map<String, dynamic>?;
+          final cc = args?['countryCode'] as String?;
           return AssistantDashboard(
-            countryCode: args?['countryCode'] ?? '+225',
+            countryCode: (cc != null && cc.isNotEmpty) ? cc : 'CI',
           );
         },
 

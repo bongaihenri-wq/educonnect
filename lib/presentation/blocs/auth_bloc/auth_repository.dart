@@ -104,7 +104,8 @@ class AuthRepository {
 
   // ─── Appels RPC / Auth ─────────────────────────────────────
 
-  Future<List<dynamic>?> loginByPhone(String phone, String password) async {
+  Future<List<dynamic>?> loginByPhone(String phone, String password,
+      {String? schoolCode}) async {
     final stopwatch = Stopwatch()..start();
 
     _logger.logInfo(
@@ -114,10 +115,16 @@ class AuthRepository {
     );
 
     try {
-      final response = await _supabase.rpc('login_by_phone', params: {
+      // ✅ NOUVEAU : le code école est transmis quand fourni → validation serveur
+      final params = <String, dynamic>{
         'p_phone': phone,
         'p_password': password,
-      });
+      };
+      if (schoolCode != null) {
+        params['p_school_code'] = schoolCode.trim();
+      }
+
+      final response = await _supabase.rpc('login_by_phone', params: params);
 
       stopwatch.stop();
 
