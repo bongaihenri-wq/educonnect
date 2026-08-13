@@ -259,8 +259,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     print('AUTHBLOC PHONE RECU: "${event.phone}"');
 
     try {
-      final response =
-          await _repository.loginByPhone(event.phone, event.password);
+      final response = await _repository.loginByPhone(
+        event.phone,
+        event.password,
+        schoolCode: event.schoolCode,
+      );
 
       if (response == null || response.isEmpty) {
         // ✅ Track : échec

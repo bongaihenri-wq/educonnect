@@ -12,10 +12,12 @@ class AppStarted extends AuthEvent {
 class LoginWithPhoneRequested extends AuthEvent {
   final String phone;
   final String password;
-  
+  final String? schoolCode;
+
   const LoginWithPhoneRequested({
     required this.phone,
     required this.password,
+    this.schoolCode,
   });
 }
 

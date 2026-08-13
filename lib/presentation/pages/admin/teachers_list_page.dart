@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../config/theme.dart';
+import '../../../config/routes.dart'; // ✅ AJOUTÉ : pour AppRoutes.adminSendMessage
 import '../../../services/admin_stats_service.dart';
 import '../../blocs/auth_bloc/auth_bloc.dart' as auth;
 
@@ -16,6 +17,8 @@ class TeachersListPage extends StatefulWidget {
 class _TeachersListPageState extends State<TeachersListPage> {
   final AdminStatsService _statsService = AdminStatsService();
   List<Map<String, dynamic>> _teachers = [];
+  List<Map<String, dynamic>> _schedules =
+      []; // ✅ AJOUTÉ : emplois du temps (lien enseignant ↔ classe)
   bool _isLoading = true;
   String? _schoolId;
   String? _error;
@@ -41,11 +44,15 @@ class _TeachersListPageState extends State<TeachersListPage> {
         return;
       }
 
-      final teachers = await _statsService.getTeachersWithAttendanceStats(_schoolId!);
-      
+      final teachers =
+          await _statsService.getTeachersWithAttendanceStats(_schoolId!);
+
       final enrichedTeachers = teachers.map((teacher) {
         return teacher as Map<String, dynamic>;
       }).toList();
+
+      // ✅ AJOUTÉ : charger les emplois du temps pour le regroupement par classe
+      await _loadSchedules();
 
       if (mounted) {
         setState(() {
@@ -61,6 +68,100 @@ class _TeachersListPageState extends State<TeachersListPage> {
         });
       }
     }
+  }
+
+  // ✅ AJOUTÉ : charge les liaisons enseignant ↔ classe (fallback silencieux si erreur)
+  Future<void> _loadSchedules() async {
+    try {
+      final data = await Supabase.instance.client
+          .from('schedules')
+          .select('teacher_id, class_id, classes(name)')
+          .eq('school_id', _schoolId!)
+          .eq('is_active', true);
+      _schedules = List<Map<String, dynamic>>.from(data);
+    } catch (_) {
+      _schedules =
+          []; // pas de regroupement possible → tout ira dans "Sans classe assignée"
+    }
+  }
+
+  // ✅ AJOUTÉ : regroupe les enseignants par classe (un enseignant peut apparaître dans plusieurs classes)
+  Map<String, List<Map<String, dynamic>>> _groupTeachersByClass() {
+    final Map<String, List<Map<String, dynamic>>> groups = {};
+    final Set<String> assignedTeacherIds = {};
+    final byId = {for (var t in _teachers) t['teacher_id'].toString(): t};
+
+    for (final s in _schedules) {
+      final tid = s['teacher_id']?.toString();
+      final className = s['classes']?['name']?.toString() ?? 'Classe inconnue';
+      if (tid == null || !byId.containsKey(tid)) continue;
+      groups.putIfAbsent(className, () => []);
+      if (!groups[className]!.any((t) => t['teacher_id'].toString() == tid)) {
+        groups[className]!.add(byId[tid]!);
+      }
+      assignedTeacherIds.add(tid);
+    }
+
+    final unassigned = _teachers
+        .where((t) => !assignedTeacherIds.contains(t['teacher_id'].toString()))
+        .toList();
+    if (unassigned.isNotEmpty) {
+      groups['Sans classe assignée'] = unassigned;
+    }
+
+    final sortedKeys =
+        groups.keys.where((k) => k != 'Sans classe assignée').toList()..sort();
+    if (groups.containsKey('Sans classe assignée')) {
+      sortedKeys.add('Sans classe assignée');
+    }
+    return {for (var k in sortedKeys) k: groups[k]!};
+  }
+
+  // ✅ AJOUTÉ : construit la liste avec en-têtes de classe
+  List<Widget> _buildGroupedList() {
+    final groups = _groupTeachersByClass();
+    final widgets = <Widget>[];
+    groups.forEach((className, teachers) {
+      widgets.add(_buildClassHeader(className, teachers.length));
+      widgets.addAll(teachers.map(_buildTeacherCard));
+    });
+    return widgets;
+  }
+
+  // ✅ AJOUTÉ : en-tête de classe
+  Widget _buildClassHeader(String className, int count) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 8),
+      child: Row(
+        children: [
+          Icon(Icons.class_, size: 18, color: AppTheme.violet),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              className,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppTheme.violet.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '$count ens.',
+              style: TextStyle(
+                color: AppTheme.violet,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -91,10 +192,10 @@ class _TeachersListPageState extends State<TeachersListPage> {
               ? _buildErrorWidget()
               : _teachers.isEmpty
                   ? _buildEmptyWidget()
-                  : ListView.builder(
+                  : ListView(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                      itemCount: _teachers.length,
-                      itemBuilder: (context, index) => _buildTeacherCard(_teachers[index]),
+                      children:
+                          _buildGroupedList(), // ✅ MODIFIÉ : liste groupée par classe
                     ),
     );
   }
@@ -103,9 +204,9 @@ class _TeachersListPageState extends State<TeachersListPage> {
     final teacherName = teacher['teacher_name'] ?? 'Inconnu';
     final email = teacher['email'] ?? 'Email non défini';
     final phone = teacher['phone'] ?? 'Téléphone non défini';
-    
+
     final scheduledCourses = teacher['scheduled_courses'] ?? 0;
-    final callsThisMonth = teacher['calls_this_month'] ?? 0;  // ✅ Nombre de sessions uniques
+    final callsThisMonth = teacher['calls_this_month'] ?? 0;
     final totalStudentRecords = teacher['total_student_records'] ?? 0;
     final presenceRate = teacher['student_presence_rate'] ?? 0;
 
@@ -117,7 +218,8 @@ class _TeachersListPageState extends State<TeachersListPage> {
           backgroundColor: AppTheme.violet,
           child: Text(
             teacherName.isNotEmpty ? teacherName[0] : '?',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ),
         title: Text(
@@ -125,7 +227,7 @@ class _TeachersListPageState extends State<TeachersListPage> {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
-          '$scheduledCourses cours • $callsThisMonth appels ce mois',  // ✅ Texte corrigé
+          '$scheduledCourses cours • $callsThisMonth appels ce mois',
           style: TextStyle(color: Colors.grey[600], fontSize: 13),
         ),
         trailing: Container(
@@ -162,14 +264,14 @@ class _TeachersListPageState extends State<TeachersListPage> {
                 const SizedBox(height: 8),
                 _buildInfoRow(Icons.phone, phone),
                 const SizedBox(height: 16),
-                
+
                 // Stats détaillées
                 Row(
                   children: [
                     _buildDetailStat(
                       Icons.check_circle,
-                      '$callsThisMonth',  // ✅ Nombre de sessions
-                      'Appels ce mois',    // ✅ Texte corrigé
+                      '$callsThisMonth',
+                      'Appels ce mois',
                       Colors.green,
                     ),
                     const SizedBox(width: 8),
@@ -188,9 +290,9 @@ class _TeachersListPageState extends State<TeachersListPage> {
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 12),
-                
+
                 // Info supplémentaire
                 Container(
                   padding: const EdgeInsets.all(10),
@@ -200,7 +302,8 @@ class _TeachersListPageState extends State<TeachersListPage> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline, size: 14, color: Colors.grey[600]),
+                      Icon(Icons.info_outline,
+                          size: 14, color: Colors.grey[600]),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -214,9 +317,9 @@ class _TeachersListPageState extends State<TeachersListPage> {
                     ],
                   ),
                 ),
-                
+
                 const SizedBox(height: 12),
-                
+
                 // Actions
                 Row(
                   children: [
@@ -250,15 +353,21 @@ class _TeachersListPageState extends State<TeachersListPage> {
       children: [
         Icon(icon, size: 16, color: Colors.grey[600]),
         const SizedBox(width: 8),
-        Text(
-          text,
-          style: TextStyle(color: Colors.grey[700], fontSize: 14),
+        Expanded(
+          // ✅ sécurité anti-débordement
+          child: Text(
+            text,
+            style: TextStyle(color: Colors.grey[700], fontSize: 14),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildDetailStat(IconData icon, String value, String label, Color color) {
+  Widget _buildDetailStat(
+      IconData icon, String value, String label, Color color) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -301,7 +410,7 @@ class _TeachersListPageState extends State<TeachersListPage> {
   void _showTeacherDetails(Map<String, dynamic> teacher) {
     final teacherName = teacher['teacher_name'] ?? '';
     final teacherId = teacher['teacher_id'] ?? '';
-    
+
     Navigator.pushNamed(
       context,
       '/admin/teacher-tracking',
@@ -313,11 +422,14 @@ class _TeachersListPageState extends State<TeachersListPage> {
     );
   }
 
+  // ✅ MODIFIÉ : redirige vers la page d'envoi avec l'enseignant pré-sélectionné
   void _sendMessageToTeacher(Map<String, dynamic> teacher) {
-    final teacherName = teacher['teacher_name'] ?? '';
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Message à $teacherName - à implémenter')),
+    final teacherId = teacher['teacher_id'] ?? '';
+
+    Navigator.pushNamed(
+      context,
+      AppRoutes.adminSendMessage,
+      arguments: {'teacherId': teacherId},
     );
   }
 

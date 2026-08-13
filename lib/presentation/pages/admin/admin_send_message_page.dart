@@ -6,7 +6,8 @@ import '../../../config/theme.dart';
 import '../../blocs/auth_bloc/auth_bloc.dart';
 
 class AdminSendMessagePage extends StatefulWidget {
-  const AdminSendMessagePage({super.key});
+  final String? preselectedTeacherId;
+  const AdminSendMessagePage({super.key, this.preselectedTeacherId});
 
   @override
   State<AdminSendMessagePage> createState() => _AdminSendMessagePageState();
@@ -17,7 +18,7 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   final _searchController = TextEditingController(); // ✅ AJOUTÉ
-  
+
   String _recipientType = 'all_parents';
   String? _selectedClassId;
   String? _selectedParentId;
@@ -25,7 +26,7 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
   final Set<String> _selectedParentIds = {}; // ✅ AJOUTÉ (sélection multiple)
   String _priority = 'normal';
   DateTime? _expiresAt;
-  
+
   List<Map<String, dynamic>> _classes = [];
   List<Map<String, dynamic>> _parents = [];
   List<Map<String, dynamic>> _teachers = [];
@@ -52,23 +53,23 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
 
   Future<void> _loadData() async {
     if (_schoolId == null) return;
-    
+
     setState(() => _isLoading = true);
-    
+
     try {
       final classes = await _client
           .from('classes')
           .select('id, name, level')
           .eq('school_id', _schoolId!)
           .order('level');
-      
+
       final parents = await _client
           .from('app_users')
           .select('id, first_name, last_name, phone')
           .eq('school_id', _schoolId!)
           .eq('role', 'parent')
           .order('last_name');
-      
+
       final teachers = await _client
           .from('app_users')
           .select('id, first_name, last_name')
@@ -79,6 +80,11 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
       setState(() {
         _classes = List<Map<String, dynamic>>.from(classes);
         _parents = List<Map<String, dynamic>>.from(parents);
+        _teachers = List<Map<String, dynamic>>.from(teachers);
+        if (widget.preselectedTeacherId != null) {
+          _recipientType = 'specific_teacher';
+          _selectedTeacherId = widget.preselectedTeacherId;
+        }
         _isLoading = false;
       });
     } catch (e) {
@@ -90,7 +96,7 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
   List<Map<String, dynamic>> get _filteredParents {
     final query = _searchController.text.trim().toLowerCase();
     if (query.isEmpty) return _parents;
-    
+
     return _parents.where((p) {
       final name = '${p['first_name']} ${p['last_name']}'.toLowerCase();
       final phone = (p['phone'] ?? '').toLowerCase();
@@ -99,16 +105,20 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
   }
 
   Future<void> _sendMessage() async {
-    if (_titleController.text.trim().isEmpty || _contentController.text.trim().isEmpty) {
+    if (_titleController.text.trim().isEmpty ||
+        _contentController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez remplir le titre et le contenu'), backgroundColor: Colors.orange),
+        const SnackBar(
+            content: Text('Veuillez remplir le titre et le contenu'),
+            backgroundColor: Colors.orange),
       );
       return;
     }
 
     if (_schoolId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('School ID non trouvé'), backgroundColor: Colors.red),
+        const SnackBar(
+            content: Text('School ID non trouvé'), backgroundColor: Colors.red),
       );
       return;
     }
@@ -116,7 +126,9 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
     // ✅ Vérification sélection multiple
     if (_recipientType == 'specific_parents' && _selectedParentIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez sélectionner au moins un parent'), backgroundColor: Colors.orange),
+        const SnackBar(
+            content: Text('Veuillez sélectionner au moins un parent'),
+            backgroundColor: Colors.orange),
       );
       return;
     }
@@ -142,7 +154,8 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
             'expires_at': expiresAt,
             'sender_name': 'Administration',
             'target_parent_id': parentId,
-            'target_parent_name': '${parent['first_name']} ${parent['last_name']}',
+            'target_parent_name':
+                '${parent['first_name']} ${parent['last_name']}',
           });
         }
       } else {
@@ -165,7 +178,8 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
         if (_recipientType == 'specific_parent' && _selectedParentId != null) {
           insertData['target_parent_id'] = _selectedParentId;
         }
-        if (_recipientType == 'specific_teacher' && _selectedTeacherId != null) {
+        if (_recipientType == 'specific_teacher' &&
+            _selectedTeacherId != null) {
           insertData['target_teacher_id'] = _selectedTeacherId;
         }
 
@@ -230,61 +244,72 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
                     decoration: InputDecoration(
                       labelText: 'Titre *',
                       prefixIcon: const Icon(Icons.title),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       filled: true,
                       fillColor: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   TextField(
                     controller: _contentController,
                     maxLines: 5,
                     decoration: InputDecoration(
                       labelText: 'Contenu *',
                       prefixIcon: const Icon(Icons.description),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       filled: true,
                       fillColor: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   _buildRecipientSelector(),
                   const SizedBox(height: 16),
-                  
+
                   // ✅ AJOUTÉ : Sélection multiple parents avec recherche
-                  if (_recipientType == 'specific_parents') _buildMultiParentSelector(),
+                  if (_recipientType == 'specific_parents')
+                    _buildMultiParentSelector(),
                   if (_recipientType == 'class_parents') _buildClassSelector(),
-                  if (_recipientType == 'specific_parent') _buildParentSelector(),
-                  if (_recipientType == 'specific_teacher') _buildTeacherSelector(),
+                  if (_recipientType == 'specific_parent')
+                    _buildParentSelector(),
+                  if (_recipientType == 'specific_teacher')
+                    _buildTeacherSelector(),
                   if (_recipientType == 'all_teachers') _buildTeacherSelector(),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   _buildPrioritySelector(),
                   const SizedBox(height: 16),
-                  
+
                   _buildExpirySelector(),
                   const SizedBox(height: 24),
-                  
+
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: _isSending ? null : _sendMessage,
                       icon: _isSending
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
                           : const Icon(Icons.send),
                       label: Text(_isSending
                           ? 'Envoi...'
-                          : _recipientType == 'specific_parents' && _selectedParentIds.isNotEmpty
+                          : _recipientType == 'specific_parents' &&
+                                  _selectedParentIds.isNotEmpty
                               ? 'Envoyer à ${_selectedParentIds.length} parent(s)'
                               : 'Envoyer le message'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.violet,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   ),
@@ -296,24 +321,51 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
 
   Widget _buildRecipientSelector() {
     final recipients = [
-      {'value': 'all_parents', 'label': 'Tous les parents', 'icon': Icons.people},
-      {'value': 'class_parents', 'label': 'Parents d\'une classe', 'icon': Icons.class_},
-      {'value': 'specific_parents', 'label': 'Parents spécifiques', 'icon': Icons.people_outline}, // ✅ AJOUTÉ
-      {'value': 'specific_parent', 'label': 'Un parent (dropdown)', 'icon': Icons.person}, // ✅ Renommé
-      {'value': 'all_teachers', 'label': 'Tous les enseignants', 'icon': Icons.school},
-      {'value': 'specific_teacher', 'label': 'Enseignant spécifique', 'icon': Icons.person_outline},
+      {
+        'value': 'all_parents',
+        'label': 'Tous les parents',
+        'icon': Icons.people
+      },
+      {
+        'value': 'class_parents',
+        'label': 'Parents d\'une classe',
+        'icon': Icons.class_
+      },
+      {
+        'value': 'specific_parents',
+        'label': 'Parents spécifiques',
+        'icon': Icons.people_outline
+      }, // ✅ AJOUTÉ
+      {
+        'value': 'specific_parent',
+        'label': 'Un parent (dropdown)',
+        'icon': Icons.person
+      }, // ✅ Renommé
+      {
+        'value': 'all_teachers',
+        'label': 'Tous les enseignants',
+        'icon': Icons.school
+      },
+      {
+        'value': 'specific_teacher',
+        'label': 'Enseignant spécifique',
+        'icon': Icons.person_outline
+      },
       {'value': 'all_users', 'label': 'Tout le monde', 'icon': Icons.public},
     ];
 
     return Card(
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade300)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Destinataires', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const Text('Destinataires',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -324,7 +376,9 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
                   label: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(r['icon'] as IconData, size: 16, color: isSelected ? Colors.white : Colors.grey),
+                      Icon(r['icon'] as IconData,
+                          size: 16,
+                          color: isSelected ? Colors.white : Colors.grey),
                       const SizedBox(width: 4),
                       Text(r['label'] as String),
                     ],
@@ -336,7 +390,8 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
                     fontSize: 12,
                   ),
                   onSelected: (selected) {
-                    if (selected) setState(() => _recipientType = r['value'] as String);
+                    if (selected)
+                      setState(() => _recipientType = r['value'] as String);
                   },
                 );
               }).toList(),
@@ -351,7 +406,9 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
   Widget _buildMultiParentSelector() {
     return Card(
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade300)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -360,7 +417,9 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Parents sélectionnés', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                const Text('Parents sélectionnés',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                 Text(
                   '${_selectedParentIds.length} / ${_parents.length}',
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
@@ -368,7 +427,7 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
               ],
             ),
             const SizedBox(height: 12),
-            
+
             // Barre de recherche
             TextField(
               controller: _searchController,
@@ -386,23 +445,26 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
               ),
             ),
             const SizedBox(height: 8),
-            
+
             // Boutons tout sélectionner / désélectionner
             Row(
               children: [
                 TextButton(
                   onPressed: () => setState(() {
-                    _selectedParentIds.addAll(_filteredParents.map((p) => p['id'] as String));
+                    _selectedParentIds
+                        .addAll(_filteredParents.map((p) => p['id'] as String));
                   }),
-                  child: const Text('Tout sélectionner', style: TextStyle(fontSize: 12)),
+                  child: const Text('Tout sélectionner',
+                      style: TextStyle(fontSize: 12)),
                 ),
                 TextButton(
                   onPressed: () => setState(() => _selectedParentIds.clear()),
-                  child: const Text('Tout désélectionner', style: TextStyle(fontSize: 12)),
+                  child: const Text('Tout désélectionner',
+                      style: TextStyle(fontSize: 12)),
                 ),
               ],
             ),
-            
+
             // Liste des parents avec checkbox
             Container(
               height: 300,
@@ -416,7 +478,8 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.search_off, size: 40, color: Colors.grey[400]),
+                          Icon(Icons.search_off,
+                              size: 40, color: Colors.grey[400]),
                           const SizedBox(height: 8),
                           Text(
                             'Aucun parent trouvé',
@@ -431,9 +494,10 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
                         final parent = _filteredParents[index];
                         final id = parent['id'] as String;
                         final isSelected = _selectedParentIds.contains(id);
-                        final name = '${parent['first_name']} ${parent['last_name']}';
+                        final name =
+                            '${parent['first_name']} ${parent['last_name']}';
                         final phone = parent['phone'] ?? 'N/A';
-                        
+
                         return CheckboxListTile(
                           value: isSelected,
                           onChanged: (v) => setState(() {
@@ -445,9 +509,12 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
                           }),
                           title: Text(
                             name,
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 13),
                           ),
-                          subtitle: Text(phone, style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                          subtitle: Text(phone,
+                              style: TextStyle(
+                                  color: Colors.grey.shade500, fontSize: 11)),
                           activeColor: const Color(0xFF6C63FF),
                           dense: true,
                           controlAffinity: ListTileControlAffinity.leading,
@@ -464,7 +531,9 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
   Widget _buildClassSelector() {
     return Card(
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade300)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: DropdownButtonFormField<String>(
@@ -482,7 +551,8 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
             );
           }).toList(),
           onChanged: (value) => setState(() => _selectedClassId = value),
-          validator: (value) => value == null ? 'Sélectionnez une classe' : null,
+          validator: (value) =>
+              value == null ? 'Sélectionnez une classe' : null,
         ),
       ),
     );
@@ -491,7 +561,9 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
   Widget _buildParentSelector() {
     return Card(
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade300)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: DropdownButtonFormField<String>(
@@ -519,7 +591,9 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
   Widget _buildTeacherSelector() {
     return Card(
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade300)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: DropdownButtonFormField<String>(
@@ -538,7 +612,8 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
             );
           }).toList(),
           onChanged: (value) => setState(() => _selectedTeacherId = value),
-          validator: (value) => value == null ? 'Sélectionnez un enseignant' : null,
+          validator: (value) =>
+              value == null ? 'Sélectionnez un enseignant' : null,
         ),
       ),
     );
@@ -554,13 +629,16 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
 
     return Card(
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade300)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Priorité', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            const Text('Priorité',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -575,7 +653,8 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
                     fontWeight: FontWeight.w600,
                   ),
                   onSelected: (selected) {
-                    if (selected) setState(() => _priority = p['value'] as String);
+                    if (selected)
+                      setState(() => _priority = p['value'] as String);
                   },
                 );
               }).toList(),
@@ -599,7 +678,9 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
       },
       child: Card(
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey.shade300)),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -610,12 +691,15 @@ class _AdminSendMessagePageState extends State<AdminSendMessagePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Date d\'expiration', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    const Text('Date d\'expiration',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 14)),
                     Text(
                       _expiresAt != null
                           ? '${_expiresAt!.day.toString().padLeft(2, '0')}/${_expiresAt!.month.toString().padLeft(2, '0')}/${_expiresAt!.year}'
                           : 'Par défaut : 30 jours',
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                      style:
+                          TextStyle(color: Colors.grey.shade600, fontSize: 12),
                     ),
                   ],
                 ),

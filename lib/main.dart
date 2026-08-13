@@ -26,7 +26,7 @@ void main() async {
       '🔍 SERVICE_KEY empty: ${const String.fromEnvironment('SUPABASE_SERVICE_ROLE_KEY').isEmpty}');
 
   try {
-    await dotenv.load(fileName: ".env");
+    await dotenv.load(fileName: "env.txt");
   } catch (e) {
     debugPrint("Erreur lors du chargement du fichier .env: $e");
   }
