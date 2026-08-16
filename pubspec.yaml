@@ -3,7 +3,7 @@ description: Application de suivi scolaire pour parents et enseignants
 
 publish_to: 'none'
 
-version: 1.5.0+15
+version: 1.7.0+17
 
 
 environment:
