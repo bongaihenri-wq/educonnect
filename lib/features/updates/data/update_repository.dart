@@ -90,14 +90,24 @@ class UpdateRepository {
         .toList();
   }
 
-  /// Upload un APK vers Supabase Storage et retourne son URL publique
+  /// Upload un APK vers Supabase Storage avec retry (compatible supabase_flutter 2.3.x)
   Future<String> uploadApk(Uint8List bytes, String fileName) async {
     final path = 'releases/$fileName';
-    await _client.storage.from('apk-updates').uploadBinary(
-          path,
-          bytes,
-          fileOptions: const FileOptions(upsert: true),
-        );
-    return _client.storage.from('apk-updates').getPublicUrl(path);
+    const maxAttempts = 3;
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await _client.storage.from('apk-updates').uploadBinary(
+              path,
+              bytes,
+              fileOptions: const FileOptions(upsert: true),
+            );
+        return _client.storage.from('apk-updates').getPublicUrl(path);
+      } catch (e) {
+        if (attempt == maxAttempts) rethrow;
+        await Future.delayed(Duration(seconds: 2 * attempt));
+      }
+    }
+    throw Exception('Upload impossible après $maxAttempts tentatives');
   }
 }
