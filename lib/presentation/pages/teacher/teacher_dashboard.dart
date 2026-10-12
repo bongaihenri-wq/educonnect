@@ -12,6 +12,7 @@ import 'widgets/quick_actions_grid.dart';
 import 'widgets/course_list_section.dart';
 import 'teacher_messages_page.dart';
 import '../../widgets/empty_state_widget.dart';
+import 'package:educonnect/features/updates/widgets/update_banner.dart';
 
 class TeacherDashboard extends StatefulWidget {
   const TeacherDashboard({super.key});
@@ -132,6 +133,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 const DashboardHeader(),
+                const SliverToBoxAdapter(child: UpdateBanner()),
                 StatCardsRow(
                   teacherId: _extractUserId(context.read<AuthBloc>().state),
                   schoolId: _extractSchoolId(context.read<AuthBloc>().state),

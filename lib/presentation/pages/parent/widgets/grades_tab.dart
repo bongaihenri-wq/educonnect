@@ -1,5 +1,7 @@
 // lib/presentation/pages/parent/widgets/grades_tab.dart
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:educonnect/features/payments/data/payment_repository.dart';
 import '../../../../config/theme.dart';
 import '../../admin/widgets/period_selector.dart';
 import 'common_widgets.dart';
@@ -11,6 +13,12 @@ class GradesTab extends StatefulWidget {
   final Map<String, dynamic>? selectedPeriod;
   final ValueChanged<Map<String, dynamic>?> onPeriodChanged;
 
+  // ✅ NOUVEAU : verrouillage par paiement
+  final String studentId;
+  final String schoolId;
+  final VoidCallback?
+      onOpenCompta; // ouvre l'onglet Compta depuis l'écran verrouillé
+
   const GradesTab({
     super.key,
     required this.grades,
@@ -18,6 +26,9 @@ class GradesTab extends StatefulWidget {
     this.periods = const [],
     this.selectedPeriod,
     required this.onPeriodChanged,
+    required this.studentId,
+    required this.schoolId,
+    this.onOpenCompta,
   });
 
   @override
@@ -27,6 +38,80 @@ class GradesTab extends StatefulWidget {
 class _GradesTabState extends State<GradesTab> {
   String _selectedTypeFilter = 'Tout';
   String _selectedSubjectFilter = 'Tout';
+
+  // ✅ NOUVEAU : état du verrouillage
+  bool _checkingAccess = true; // vérification en cours
+  bool _gatingEnabled = false; // l'école a activé l'option
+  bool _blocked = false; // cet élève est non à jour
+  double _remaining = 0; // reste dû affiché sur l'écran verrouillé
+
+  // ─── VÉRIFICATION ACCÈS (verrouillage) ─────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedTypeFilter = 'Tout';
+    _selectedSubjectFilter = 'Tout';
+    _checkAccess();
+  }
+
+  @override
+  void didUpdateWidget(GradesTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedPeriod?['id'] != widget.selectedPeriod?['id']) {
+      setState(() {
+        _selectedTypeFilter = 'Tout';
+        _selectedSubjectFilter = 'Tout';
+      });
+    }
+    // ✅ Recheck si l'enfant change
+    if (oldWidget.studentId != widget.studentId) {
+      _checkAccess();
+    }
+  }
+
+  Future<void> _checkAccess() async {
+    setState(() => _checkingAccess = true);
+    try {
+      final repo = PaymentRepository(Supabase.instance.client);
+      final enabled = await repo.getGradeGatingEnabled(widget.schoolId);
+
+      if (!enabled) {
+        if (!mounted) return;
+        setState(() {
+          _gatingEnabled = false;
+          _blocked = false;
+          _checkingAccess = false;
+        });
+        return;
+      }
+
+      final status = await repo.getMyChildStatus(widget.studentId);
+
+      // Règle de sécurité : sans donnée de paiement → JAMAIS bloqué
+      final blocked =
+          status != null && (status['is_up_to_date'] as bool? ?? true) == false;
+
+      if (!mounted) return;
+      setState(() {
+        _gatingEnabled = true;
+        _blocked = blocked;
+        if (blocked) {
+          _remaining = ((status?['amount_due'] as num?)?.toDouble() ?? 0) -
+              ((status?['amount_paid'] as num?)?.toDouble() ?? 0);
+        }
+        _checkingAccess = false;
+      });
+    } catch (_) {
+      // Fail-open : en cas d'erreur réseau/serveur, on n bloque PAS
+      if (!mounted) return;
+      setState(() {
+        _gatingEnabled = false;
+        _blocked = false;
+        _checkingAccess = false;
+      });
+    }
+  }
 
   // ─── VÉRIFICATIONS PÉRIODE ─────────────────────────
 
@@ -75,7 +160,8 @@ class _GradesTabState extends State<GradesTab> {
     var filtered = _periodFilteredGrades;
 
     if (_selectedTypeFilter != 'Tout') {
-      filtered = filtered.where((g) => g['type'] == _selectedTypeFilter).toList();
+      filtered =
+          filtered.where((g) => g['type'] == _selectedTypeFilter).toList();
     }
 
     if (_selectedSubjectFilter != 'Tout') {
@@ -150,30 +236,19 @@ class _GradesTabState extends State<GradesTab> {
     return ['Tout', ...subjects];
   }
 
-  // ─── LIFECYCLE ─────────────────────────
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedTypeFilter = 'Tout';
-    _selectedSubjectFilter = 'Tout';
-  }
-
-  @override
-  void didUpdateWidget(GradesTab oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedPeriod?['id'] != widget.selectedPeriod?['id']) {
-      setState(() {
-        _selectedTypeFilter = 'Tout';
-        _selectedSubjectFilter = 'Tout';
-      });
-    }
-  }
-
   // ─── BUILD PRINCIPAL ─────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Vérification du verrouillage AVANT tout affichage
+    if (_checkingAccess) {
+      return const Center(
+          child: CircularProgressIndicator(color: AppTheme.violet));
+    }
+    if (_gatingEnabled && _blocked) {
+      return _buildLockedScreen();
+    }
+
     final trimesterAvg = _trimesterAverage;
     final filteredAvg = _filteredAverage;
     final filteredGrades = _fullyFilteredGrades;
@@ -187,20 +262,13 @@ class _GradesTabState extends State<GradesTab> {
           color: AppTheme.bisLight,
           child: Column(
             children: [
-              // ─── MOYENNE TRIMESTRE ───
               _buildTrimesterAverageCard(trimesterAvg),
-
               const SizedBox(height: 12),
-
-              // ─── FILTRES ───
               _buildFilters(),
-
               const SizedBox(height: 8),
-
-              // ─── MOYENNE FILTRÉE ───
-              if (_selectedTypeFilter != 'Tout' || _selectedSubjectFilter != 'Tout')
+              if (_selectedTypeFilter != 'Tout' ||
+                  _selectedSubjectFilter != 'Tout')
                 _buildFilteredAverageCard(filteredAvg),
-
               const SizedBox(height: 8),
             ],
           ),
@@ -215,6 +283,58 @@ class _GradesTabState extends State<GradesTab> {
               : _buildGradesList(filteredGrades),
         ),
       ],
+    );
+  }
+
+  // ✅ NOUVEAU : écran verrouillé (remplace TOUT l'onglet Notes)
+  Widget _buildLockedScreen() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(height: 40),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.lock_outline,
+                size: 56, color: Colors.orange.shade800),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Notes et moyennes indisponibles',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.orange.shade900,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Un reste dû de ${_remaining.toStringAsFixed(0)} F est enregistré sur la scolarité de votre enfant.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Régularisez votre situation auprès de l\'établissement pour consulter les notes et suivre les moyennes.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.violet),
+            icon: const Icon(Icons.payments, size: 18),
+            label: const Text('Voir ma situation'),
+            onPressed: widget.onOpenCompta,
+          ),
+          const SizedBox(height: 40),
+        ],
+      ),
     );
   }
 
@@ -281,7 +401,8 @@ class _GradesTabState extends State<GradesTab> {
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
@@ -417,7 +538,6 @@ class _GradesTabState extends State<GradesTab> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          // Période (PeriodSelector existant)
           if (widget.periods.isNotEmpty)
             PeriodSelector(
               periods: widget.periods,
@@ -426,10 +546,7 @@ class _GradesTabState extends State<GradesTab> {
                 widget.onPeriodChanged(period);
               },
             ),
-
           const SizedBox(height: 10),
-
-          // Type + Matière
           Row(
             children: [
               Expanded(
@@ -448,7 +565,8 @@ class _GradesTabState extends State<GradesTab> {
                   items: _availableSubjects,
                   label: 'Matière',
                   icon: Icons.book,
-                  onChanged: (val) => setState(() => _selectedSubjectFilter = val),
+                  onChanged: (val) =>
+                      setState(() => _selectedSubjectFilter = val),
                 ),
               ),
             ],
@@ -563,11 +681,15 @@ class _GradesTabState extends State<GradesTab> {
     final noteSur20 = maxValue > 0 ? (value / maxValue) * 20 : 0.0;
 
     Color color;
-    if (noteSur20 >= 14) color = Colors.green;
-    else if (noteSur20 >= 10) color = Colors.orange;
-    else color = Colors.red;
+    if (noteSur20 >= 14)
+      color = Colors.green;
+    else if (noteSur20 >= 10)
+      color = Colors.orange;
+    else
+      color = Colors.red;
 
-    final dateStr = '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}';
+    final dateStr =
+        '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 2),
@@ -681,7 +803,20 @@ class _GradesTabState extends State<GradesTab> {
   String _formatShortDate(String isoDate) {
     try {
       final dt = DateTime.parse(isoDate);
-      final months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'];
+      final months = [
+        'Jan',
+        'Fév',
+        'Mar',
+        'Avr',
+        'Mai',
+        'Juin',
+        'Juil',
+        'Août',
+        'Sept',
+        'Oct',
+        'Nov',
+        'Déc'
+      ];
       return '${dt.day} ${months[dt.month - 1]}';
     } catch (_) {
       return isoDate;

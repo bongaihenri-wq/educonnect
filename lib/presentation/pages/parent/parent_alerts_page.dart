@@ -1,8 +1,11 @@
 // lib/presentation/pages/parent/parent_alerts_page.dart
+import 'package:educonnect/presentation/blocs/auth_bloc/auth_bloc.dart';
+import 'package:educonnect/presentation/pages/parent/child_detail_page.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '/services/child_detail_service.dart';
 import '../../../config/theme.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 class ParentAlertsPage extends StatefulWidget {
   final String studentId;
@@ -25,6 +28,10 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
   List<Map<String, dynamic>> _weekAbsences = [];
   List<Map<String, dynamic>> _weekRetards = [];
   List<Map<String, dynamic>> _weekComments = [];
+  // Mises à jour scolarité (persistantes jusqu'à clic)
+  List<Map<String, dynamic>> _paymentUpdates = [];
+  // Messages administration (relances incluses)
+  List<Map<String, dynamic>> _adminMessages = [];
 
   @override
   void initState() {
@@ -75,12 +82,121 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
 
     final recentComments = List<Map<String, dynamic>>.from(commentsResponse);
 
+    // 4. Mises à jour de scolarité (non lues)
+    try {
+      final rows = await _supabase
+          .from('student_notifications')
+          .select('id, message, created_at')
+          .eq('student_id', widget.studentId)
+          .eq('type', 'payment_update')
+          .isFilter('read_at', null)
+          .order('created_at', ascending: false);
+      _paymentUpdates = List<Map<String, dynamic>>.from(rows);
+    } catch (e) {
+      debugPrint('Erreur chargement notifs scolarité: $e');
+    }
+
+    // 5. Messages administration (relances incluses) — 7 derniers jours
+    // 5. Messages administration (relances incluses) — 7 derniers jours
+    try {
+      final authState = context.read<AuthBloc>().state;
+      final parentId = authState is ParentAuthenticated ? authState.userId : '';
+      final schoolId =
+          authState is ParentAuthenticated ? authState.schoolId : '';
+      if (parentId.isNotEmpty && schoolId.isNotEmpty) {
+        // Deux requêtes fusionnées en Dart (fiabilité > astuce .or())
+        final specific = await _supabase
+            .from('admin_messages')
+            .select('id, title, content, sender_name, priority, created_at')
+            .eq('school_id', schoolId)
+            .eq('target_parent_id', parentId)
+            .gte('created_at', sevenDaysAgo.toIso8601String());
+
+        final broadcast = await _supabase
+            .from('admin_messages')
+            .select('id, title, content, sender_name, priority, created_at')
+            .eq('school_id', schoolId)
+            .eq('recipient_type', 'all_parents')
+            .gte('created_at', sevenDaysAgo.toIso8601String());
+
+        final merged = <Map<String, dynamic>>[
+          ...List<Map<String, dynamic>>.from(specific as List),
+          ...List<Map<String, dynamic>>.from(broadcast as List),
+        ];
+        final seen = <dynamic>{};
+        merged.retainWhere((m) => seen.add(m['id']));
+        merged.sort((a, b) =>
+            (b['created_at'] as String).compareTo(a['created_at'] as String));
+        _adminMessages = merged;
+        debugPrint('✅ admin_messages chargés: ${_adminMessages.length}');
+      }
+    } catch (e) {
+      debugPrint('❌ Erreur chargement admin_messages: $e');
+    }
+
     setState(() {
       _weekAbsences = absences;
       _weekRetards = retards;
       _weekComments = recentComments;
       _isLoading = false;
     });
+  }
+
+  // Clic sur une alerte scolarité → marque lu + ouvre Compta
+  Future<void> _openCompta(String notificationId) async {
+    try {
+      await _supabase
+          .from('student_notifications')
+          .update({'read_at': DateTime.now().toIso8601String()}).eq(
+              'id', notificationId);
+    } catch (e) {
+      debugPrint('Erreur marquage lu: $e');
+    }
+
+    setState(() {
+      _paymentUpdates.removeWhere((n) => n['id'] == notificationId);
+    });
+
+    if (!mounted) return;
+    final state = context.read<AuthBloc>().state;
+    if (state is! ParentAuthenticated || state.studentId.isEmpty) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChildDetailPage(
+          studentId: state.studentId,
+          studentName: state.studentName,
+          studentMatricule: state.studentMatricule,
+          className: state.className,
+          parentName: '${state.firstName} ${state.lastName}',
+          schoolName: state.schoolName,
+          schoolId: state.schoolId,
+          initialTab: 4,
+        ),
+      ),
+    );
+  }
+
+  // Clic sur un message administration → ouvre l'onglet Messages (index 4)
+  void _openMessagesTab() {
+    final state = context.read<AuthBloc>().state;
+    if (state is! ParentAuthenticated || state.studentId.isEmpty) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChildDetailPage(
+          studentId: state.studentId,
+          studentName: state.studentName,
+          studentMatricule: state.studentMatricule,
+          className: state.className,
+          parentName: '${state.firstName} ${state.lastName}',
+          schoolName: state.schoolName,
+          schoolId: state.schoolId,
+          initialTab: 4,
+        ),
+      ),
+    );
   }
 
   @override
@@ -106,8 +222,8 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),
-                maxLines: 2, // ← AJOUTÉ: 2 lignes max
-                overflow: TextOverflow.ellipsis, // ← AJOUTÉ
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -119,6 +235,147 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
           : SafeArea(
               child: CustomScrollView(
                 slivers: [
+                  // ─── SCOLARITÉ — MISES À JOUR (persistantes jusqu'à clic) ───
+                  if (_paymentUpdates.isNotEmpty) ...[
+                    _buildSectionTitle('Scolarité — mises à jour',
+                        Icons.payments, Colors.green.shade700),
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final n = _paymentUpdates[index];
+                          final date =
+                              DateTime.parse(n['created_at'] as String);
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 4),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border:
+                                    Border.all(color: Colors.green.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.payments,
+                                      color: Colors.green.shade700),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          n['message'] as String,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        Text(
+                                          '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}',
+                                          style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey.shade600),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        _openCompta(n['id'] as String),
+                                    child: const Text('Voir'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                        childCount: _paymentUpdates.length,
+                      ),
+                    ),
+                  ],
+
+                  // ─── MESSAGES ADMINISTRATION (relances) ───
+                  if (_adminMessages.isNotEmpty) ...[
+                    _buildSectionTitle('Messages — Administration',
+                        Icons.campaign, Colors.orange.shade800),
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final m = _adminMessages[index];
+                          final date =
+                              DateTime.parse(m['created_at'] as String);
+                          final priority = m['priority'] as String? ?? 'normal';
+                          final isUrgent =
+                              priority == 'high' || priority == 'urgent';
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 4),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isUrgent
+                                    ? Colors.red.shade50
+                                    : Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isUrgent
+                                      ? Colors.red.shade200
+                                      : Colors.orange.shade200,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.campaign,
+                                      color: isUrgent
+                                          ? Colors.red.shade700
+                                          : Colors.orange.shade800),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          m['title'] as String,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13),
+                                        ),
+                                        Text(
+                                          m['content'] as String,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                        Text(
+                                          '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}',
+                                          style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey.shade600),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: _openMessagesTab,
+                                    child: const Text('Voir'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                        childCount: _adminMessages.length,
+                      ),
+                    ),
+                  ],
+
                   // ─── ABSENCES ────────────────────
                   _buildSectionTitle(
                       'Absences (7 derniers jours)', Icons.cancel, Colors.red),
@@ -157,8 +414,8 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                   fontWeight: FontWeight.bold,
                   color: AppTheme.nightBlue,
                 ),
-                maxLines: 2, // ← AJOUTÉ
-                overflow: TextOverflow.ellipsis, // ← AJOUTÉ
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -186,8 +443,8 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                   child: Text(
                     'Aucun ${status == 'absent' ? 'absence' : 'retard'} cette semaine',
                     style: TextStyle(color: Colors.grey.shade500),
-                    maxLines: 2, // ← AJOUTÉ
-                    overflow: TextOverflow.ellipsis, // ← AJOUTÉ
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -234,8 +491,8 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                             fontWeight: FontWeight.w600,
                             color: AppTheme.nightBlue,
                           ),
-                          maxLines: 2, // ← AJOUTÉ
-                          overflow: TextOverflow.ellipsis, // ← AJOUTÉ
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         Text(
                           '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} à $time',
@@ -319,7 +576,6 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
           final targetSubject = comment['target_subject'] as String?;
           final isRead = comment['is_read'] as bool? ?? true;
 
-          // Récupération nom expéditeur
           final teacherData = comment['app_users'] as Map<String, dynamic>?;
           String senderName;
           if (teacherData != null) {
@@ -350,7 +606,6 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ─── EN-TÊTE : EXPÉDITEUR + DESTINATAIRE ───
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -368,7 +623,6 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // ← CORRIGÉ: Wrap au lieu de Row pour éviter overflow
                             Wrap(
                               crossAxisAlignment: WrapCrossAlignment.center,
                               spacing: 8,
@@ -427,8 +681,6 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                     ],
                   ),
                   const SizedBox(height: 8),
-
-                  // ─── CONTENU ───
                   Text(
                     content,
                     style: const TextStyle(
@@ -436,11 +688,9 @@ class _ParentAlertsPageState extends State<ParentAlertsPage> {
                       color: AppTheme.nightBlue,
                       fontSize: 13,
                     ),
-                    maxLines: 3, // ← AJOUTÉ: 3 lignes max
-                    overflow: TextOverflow.ellipsis, // ← AJOUTÉ
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                   ),
-
-                  // ─── MÉTA : MATIÈRE + DATE ───
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: 12,

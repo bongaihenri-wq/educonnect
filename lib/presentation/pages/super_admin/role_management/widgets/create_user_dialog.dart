@@ -95,16 +95,21 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
     if (!_formKey.currentState!.validate()) return;
 
     // Validation spécifique par rôle
-    if (_isAssistant && (_selectedCountryCode == null || _selectedCountryCode!.isEmpty)) {
-      setState(() => _errorMessage = 'Veuillez sélectionner un pays pour l\'assistant');
+    if (_isAssistant &&
+        (_selectedCountryCode == null || _selectedCountryCode!.isEmpty)) {
+      setState(() =>
+          _errorMessage = 'Veuillez sélectionner un pays pour l\'assistant');
       return;
     }
-    if (_isPrincipal && (_selectedSchoolId == null || _selectedSchoolId!.isEmpty)) {
-      setState(() => _errorMessage = 'Veuillez sélectionner une école pour le principal');
+    if (_isPrincipal &&
+        (_selectedSchoolId == null || _selectedSchoolId!.isEmpty)) {
+      setState(() =>
+          _errorMessage = 'Veuillez sélectionner une école pour le principal');
       return;
     }
     if (_isPrincipal && _selectedClassIds.isEmpty) {
-      setState(() => _errorMessage = 'Veuillez sélectionner au moins une classe');
+      setState(
+          () => _errorMessage = 'Veuillez sélectionner au moins une classe');
       return;
     }
 
@@ -124,13 +129,15 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
           'p_first_name': _firstNameController.text.trim(),
           'p_last_name': _lastNameController.text.trim(),
           'p_phone': _phoneController.text.trim(),
-          'p_email': _emailController.text.trim().isEmpty 
-              ? null 
+          'p_email': _emailController.text.trim().isEmpty
+              ? null
               : _emailController.text.trim(),
           'p_password': _passwordController.text,
           'p_role_code': widget.roleCode,
           'p_country_code': _isAssistant ? _selectedCountryCode : null,
-          'p_school_id': _isPrincipal ? _selectedSchoolId : null,
+          'p_school_id': _isPrincipal
+              ? _selectedSchoolId
+              : (widget.roleCode == 'comptable' ? _selectedSchoolId : null),
           'p_created_by': currentUser?.id,
         },
       );
@@ -156,9 +163,10 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
         }
 
         setState(() {
-          _successMessage = '✅ ${widget.roleName} créé !\n📱 ${result['phone']}\n🔑 MDP: ${result['password_temp']}';
+          _successMessage =
+              '✅ ${widget.roleName} créé !\n📱 ${result['phone']}\n🔑 MDP: ${result['password_temp']}';
         });
-        
+
         await Future.delayed(const Duration(seconds: 2));
         if (mounted) {
           Navigator.of(context).pop(true);
@@ -244,7 +252,8 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
+                        Icon(Icons.check_circle,
+                            color: Colors.green.shade700, size: 20),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -265,7 +274,8 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                     border: OutlineInputBorder(),
                   ),
                   textCapitalization: TextCapitalization.words,
-                  validator: (v) => v?.trim().isEmpty == true ? 'Prénom obligatoire' : null,
+                  validator: (v) =>
+                      v?.trim().isEmpty == true ? 'Prénom obligatoire' : null,
                 ),
                 const SizedBox(height: 12),
 
@@ -278,7 +288,8 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                     border: OutlineInputBorder(),
                   ),
                   textCapitalization: TextCapitalization.words,
-                  validator: (v) => v?.trim().isEmpty == true ? 'Nom obligatoire' : null,
+                  validator: (v) =>
+                      v?.trim().isEmpty == true ? 'Nom obligatoire' : null,
                 ),
                 const SizedBox(height: 12),
 
@@ -287,8 +298,8 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                   controller: _phoneController,
                   decoration: InputDecoration(
                     labelText: 'Téléphone *',
-                    hintText: _selectedCountryCode != null 
-                        ? '$_selectedCountryCode 0701234567' 
+                    hintText: _selectedCountryCode != null
+                        ? '$_selectedCountryCode 0701234567'
                         : '+225 0701234567',
                     prefixIcon: const Icon(Icons.phone),
                     border: const OutlineInputBorder(),
@@ -298,7 +309,8 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                     FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]')),
                   ],
                   validator: (v) {
-                    if (v?.trim().isEmpty == true) return 'Téléphone obligatoire';
+                    if (v?.trim().isEmpty == true)
+                      return 'Téléphone obligatoire';
                     return null;
                   },
                 ),
@@ -315,7 +327,8 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                   keyboardType: TextInputType.emailAddress,
                   validator: (v) {
                     if (v?.trim().isEmpty == true) return null;
-                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v!.trim())) {
+                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                        .hasMatch(v!.trim())) {
                       return 'Email invalide';
                     }
                     return null;
@@ -336,7 +349,8 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                     items: _countries.map((c) {
                       return DropdownMenuItem(
                         value: c['code'],
-                        child: Text(c['name']!, overflow: TextOverflow.ellipsis),
+                        child:
+                            Text(c['name']!, overflow: TextOverflow.ellipsis),
                       );
                     }).toList(),
                     onChanged: (v) => setState(() => _selectedCountryCode = v),
@@ -361,13 +375,13 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                         child: Text('Sélectionner une école'),
                       ),
                       ...widget.schools.map((s) => DropdownMenuItem(
-                        value: s['id']?.toString(),
-                        child: Text(
-                          '🏫 ${s['name']?.toString() ?? 'Sans nom'}',
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      )),
+                            value: s['id']?.toString(),
+                            child: Text(
+                              '🏫 ${s['name']?.toString() ?? 'Sans nom'}',
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          )),
                     ],
                     onChanged: (v) {
                       setState(() {
@@ -383,30 +397,39 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
 
                   // ✅ PRINCIPAL : Sélection des CLASSES
                   if (_isLoadingClasses)
-                    const Center(child: Padding(
+                    const Center(
+                        child: Padding(
                       padding: EdgeInsets.all(12),
                       child: CircularProgressIndicator(),
                     ))
-                  else if (_selectedSchoolId != null && _classesInSchool.isEmpty)
+                  else if (_selectedSchoolId != null &&
+                      _classesInSchool.isEmpty)
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.orange.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                        border:
+                            Border.all(color: Colors.orange.withOpacity(0.3)),
                       ),
                       child: const Row(
                         children: [
                           Icon(Icons.warning, color: Colors.orange, size: 20),
                           SizedBox(width: 8),
-                          Expanded(child: Text('Aucune classe dans cette école', style: TextStyle(color: Colors.orange))),
+                          Expanded(
+                              child: Text('Aucune classe dans cette école',
+                                  style: TextStyle(color: Colors.orange))),
                         ],
                       ),
                     )
-                  else if (_selectedSchoolId != null && _classesInSchool.isNotEmpty) ...[
+                  else if (_selectedSchoolId != null &&
+                      _classesInSchool.isNotEmpty) ...[
                     Text(
                       'Classe(s) *',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[800], fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[800],
+                          fontWeight: FontWeight.w500),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
@@ -427,11 +450,16 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                               }
                             });
                           },
-                          selectedColor: const Color(0xFF6C63FF).withOpacity(0.2),
+                          selectedColor:
+                              const Color(0xFF6C63FF).withOpacity(0.2),
                           checkmarkColor: const Color(0xFF6C63FF),
                           labelStyle: TextStyle(
-                            color: isSelected ? const Color(0xFF6C63FF) : Colors.grey[700],
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: isSelected
+                                ? const Color(0xFF6C63FF)
+                                : Colors.grey[700],
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
                           ),
                         );
                       }).toList(),
@@ -441,7 +469,8 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           'Sélectionnez au moins une classe',
-                          style: TextStyle(fontSize: 12, color: Colors.red[400]),
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.red[400]),
                         ),
                       ),
                     const SizedBox(height: 12),
@@ -464,13 +493,13 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                         child: Text('🌍 Aucune école'),
                       ),
                       ...widget.schools.map((s) => DropdownMenuItem(
-                        value: s['id']?.toString(),
-                        child: Text(
-                          '🏫 ${s['name']?.toString() ?? 'Sans nom'}',
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                      )),
+                            value: s['id']?.toString(),
+                            child: Text(
+                              '🏫 ${s['name']?.toString() ?? 'Sans nom'}',
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          )),
                     ],
                     onChanged: (v) => setState(() => _selectedSchoolId = v),
                   ),
@@ -485,10 +514,12 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                     prefixIcon: const Icon(Icons.lock_outline),
                     border: const OutlineInputBorder(),
                     helperText: 'Par défaut: 123456 (modifiable)',
-                    helperStyle: TextStyle(color: Colors.orange.shade700, fontSize: 12),
+                    helperStyle:
+                        TextStyle(color: Colors.orange.shade700, fontSize: 12),
                   ),
                   obscureText: true,
-                  validator: (v) => (v?.length ?? 0) < 6 ? 'Minimum 6 caractères' : null,
+                  validator: (v) =>
+                      (v?.length ?? 0) < 6 ? 'Minimum 6 caractères' : null,
                 ),
 
                 const SizedBox(height: 16),
@@ -503,7 +534,8 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+                      Icon(Icons.info_outline,
+                          color: Colors.blue.shade700, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -512,7 +544,8 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
                               : _isPrincipal
                                   ? 'Le principal verra les données des classes sélectionnées dans cette école.'
                                   : 'L\'utilisateur pourra se connecter avec son téléphone et ce mot de passe.',
-                          style: TextStyle(color: Colors.blue.shade700, fontSize: 12),
+                          style: TextStyle(
+                              color: Colors.blue.shade700, fontSize: 12),
                         ),
                       ),
                     ],
@@ -531,7 +564,7 @@ class _CreateUserDialogState extends State<CreateUserDialog> {
         ),
         ElevatedButton.icon(
           onPressed: _isSubmitting ? null : _submit,
-          icon: _isSubmitting 
+          icon: _isSubmitting
               ? const SizedBox(
                   width: 18,
                   height: 18,

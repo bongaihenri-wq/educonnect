@@ -8,6 +8,7 @@ import 'widgets/quick_actions_grid.dart';
 import 'widgets/logout_button.dart';
 import 'widgets/subscription_warning_banner.dart';
 import 'subscription_renewal_page.dart';
+import 'package:educonnect/features/updates/widgets/update_banner.dart';
 
 class ParentDashboard extends StatelessWidget {
   const ParentDashboard({super.key});
@@ -18,7 +19,8 @@ class ParentDashboard extends StatelessWidget {
       listenWhen: (previous, current) => current is Unauthenticated,
       listener: (context, state) {
         // ✅ Redirection forcée vers le login quand déconnecté
-        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/login', (route) => false);
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF8F9FE),
@@ -63,6 +65,7 @@ class ParentDashboard extends StatelessWidget {
                       daysRemaining: state.daysRemaining!,
                       onRenew: () => _navigateToRenewal(context, state),
                     ),
+                  const SliverToBoxAdapter(child: UpdateBanner()),
 
                   // 🔒 CORRECTION : SafeArea + padding top pour éviter la barre de statut
                   SliverSafeArea(
