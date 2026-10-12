@@ -707,7 +707,7 @@ class _AlertsSectionState extends State<AlertsSection> {
           parentName: '${state.firstName} ${state.lastName}',
           schoolName: state.schoolName,
           schoolId: state.schoolId,
-          initialTab: 3,
+          initialTab: 4,
         ),
       ),
     );

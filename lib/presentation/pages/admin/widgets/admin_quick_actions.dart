@@ -82,6 +82,14 @@ class AdminQuickActions extends StatelessWidget {
             onTap: () => Navigator.pushNamed(context, '/admin/credentials'),
           ),
           const SizedBox(height: 12),
+          // ✅ AJOUTÉ : Paiements & verrouillage des notes
+          _buildActionTile(
+            icon: Icons.payments_outlined,
+            label: 'Paiements & Accès aux notes',
+            color: Colors.green.shade700,
+            onTap: () => Navigator.pushNamed(context, '/admin/payments'),
+          ),
+          const SizedBox(height: 12),
           _buildActionTile(
             icon: Icons.settings,
             label: 'Paramètres École',

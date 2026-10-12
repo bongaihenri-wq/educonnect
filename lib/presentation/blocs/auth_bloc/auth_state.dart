@@ -8,8 +8,11 @@ abstract class AuthState {
 }
 
 class AuthInitial extends AuthState {}
+
 class AuthLoading extends AuthState {}
+
 class Unauthenticated extends AuthState {}
+
 class AuthError extends AuthState {
   final String message;
   const AuthError(this.message);
@@ -22,7 +25,7 @@ abstract class Authenticated extends AuthState {
   final String schoolId;
   final String schoolName;
   final String role;
-  
+
   const Authenticated({
     required this.userId,
     required this.firstName,
@@ -88,7 +91,7 @@ class AdminAuthenticated extends Authenticated {
 // ✅ MODIFIÉ : Ajout countryCode
 class AssistantAuthenticated extends Authenticated {
   final String countryCode;
-  
+
   const AssistantAuthenticated({
     required super.userId,
     required super.firstName,
@@ -103,7 +106,7 @@ class AssistantAuthenticated extends Authenticated {
 class PrincipalAuthenticated extends Authenticated {
   final String classId;
   final String className;
-  
+
   const PrincipalAuthenticated({
     required super.userId,
     required super.firstName,
@@ -125,12 +128,23 @@ class TeacherAuthenticated extends Authenticated {
   }) : super(role: 'teacher');
 }
 
+// ✅ NOUVEAU : Comptable (rôle métier — module Comptabilité Scolarité)
+class ComptableAuthenticated extends Authenticated {
+  const ComptableAuthenticated({
+    required super.userId,
+    required super.firstName,
+    required super.lastName,
+    required super.schoolId,
+    required super.schoolName,
+  }) : super(role: 'comptable');
+}
+
 class ParentAuthenticated extends Authenticated {
   final String studentId;
   final String studentName;
   final String studentMatricule;
   final String className;
-  
+
   final String? subscriptionStatus;
   final DateTime? subscriptionEndDate;
   final int? daysRemaining;

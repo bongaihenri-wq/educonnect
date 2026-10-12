@@ -10,6 +10,7 @@ import 'admin/admin_dashboard.dart';
 import 'super_admin/super_admin_dashboard.dart';
 import 'assistant/assistant_dashboard.dart';
 import 'principal/principal_dashboard.dart';
+import 'package:educonnect/features/payments/pages/school_accounting_page.dart';
 
 class AuthStateRouter extends StatelessWidget {
   const AuthStateRouter({super.key});
@@ -73,6 +74,10 @@ class AuthStateRouter extends StatelessWidget {
 
         if (state is AdminAuthenticated) {
           return const AdminDashboard();
+        }
+
+        if (state is ComptableAuthenticated) {
+          return SchoolAccountingPage(schoolId: state.schoolId);
         }
 
         // ✅ CORRIGÉ : Assistant sans arguments dans le constructeur

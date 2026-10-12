@@ -49,7 +49,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       return true;
     }
 
-    // ✅ CORRIGÉ : Ajouter 'expiring_soon' comme valide
     if (status == 'trial' || status == 'active' || status == 'expiring_soon') {
       print('ABONNEMENT OK');
       return false;
@@ -59,7 +58,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     return true;
   }
 
-  // ✅ CORRIGÉ : countryCode assistant depuis user + ajout principal
   void _emitAuthenticated(
     Map<String, dynamic> user,
     String schoolName,
@@ -78,6 +76,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       ));
     } else if (role == 'admin') {
       emit(AdminAuthenticated(
+        userId: user['id'],
+        firstName: user['first_name'],
+        lastName: user['last_name'],
+        schoolId: user['school_id'] ?? '',
+        schoolName: schoolName,
+      ));
+    } else if (role == 'comptable') {
+      // ✅ NOUVEAU : routage vers la page Comptabilité
+      emit(ComptableAuthenticated(
         userId: user['id'],
         firstName: user['first_name'],
         lastName: user['last_name'],
@@ -148,7 +155,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   Future<void> _onAppStarted(AppStarted event, Emitter<AuthState> emit) async {
     emit(AuthLoading());
 
-    // ✅ Track : login screen viewed (pas de session)
     analytics.track(AnalyticsEvents.loginScreenViewed);
 
     try {
@@ -163,7 +169,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           return;
         }
 
-        // ✅ Track : login auto (session existante)
         analytics.updateUser(
           userId: userId,
           role: role,
@@ -199,7 +204,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           if (_isSubscriptionExpired(sub)) {
             print('ABONNEMENT EXPIRE -> SubscriptionExpired');
 
-            // ✅ Track : abonnement expiré
             analytics.track(AnalyticsEvents.subscriptionExpired, parameters: {
               'days_remaining': sub?['days_remaining'],
               'parent_id': userId,
@@ -236,10 +240,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       }
     } catch (e) {
       print('Erreur AppStarted: $e');
-
-      // ✅ Track : erreur au démarrage
       analytics.trackError('auth_startup', e.toString());
-
       emit(Unauthenticated());
     }
   }
@@ -250,7 +251,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
 
-    // ✅ Track : tentative de login
     analytics.track(AnalyticsEvents.loginAttempted, parameters: {
       'role': 'parent',
       'method': 'phone',
@@ -266,7 +266,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
 
       if (response == null || response.isEmpty) {
-        // ✅ Track : échec
         analytics.track(AnalyticsEvents.loginFailed, parameters: {
           'error': 'Erreur serveur',
           'role': 'parent',
@@ -292,9 +291,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         String finalRole = result['role'];
         final phone = result['phone'] ?? event.phone;
 
+        // ✅ MODIFIÉ : comptable ajouté à la récupération du rôle spécifique
         final roleFuture = (result['role'] == 'teacher' ||
                 result['role'] == 'admin' ||
-                result['role'] == 'assistant')
+                result['role'] == 'assistant' ||
+                result['role'] == 'comptable')
             ? _repository.getSpecificRole(result['user_id'], phone, schoolId)
             : Future.value(null);
 
@@ -321,7 +322,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           if (pendingPayment != null) {
             print('PAIEMENT PENDING -> PaymentPendingPage');
 
-            // ✅ Track : paiement en attente
             analytics.track(AnalyticsEvents.paymentInitiated, parameters: {
               'status': 'pending',
               'amount': pendingPayment['amount'],
@@ -341,7 +341,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           if (_isSubscriptionExpired(sub)) {
             print('ABONNEMENT EXPIRE -> SubscriptionExpired');
 
-            // ✅ Track : abonnement expiré
             analytics.track(AnalyticsEvents.subscriptionExpired, parameters: {
               'days_remaining': sub?['days_remaining'],
               'parent_id': result['user_id'],
@@ -378,7 +377,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
               await _repository.getParentDataLite(result['user_id'], sub);
         }
 
-        // ✅ Track : succès
         analytics.updateUser(
           userId: result['user_id'],
           role: finalRole,
@@ -398,11 +396,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           'school_id': schoolId,
           'email': result['email'],
           'phone': result['phone'],
-          'country_code':
-              result['country_code'], // ✅ AJOUTÉ : pays pour assistant
+          'country_code': result['country_code'],
         }, schoolName, emit, parentData: parentData);
       } else {
-        // ✅ Track : échec
         analytics.track(AnalyticsEvents.loginFailed, parameters: {
           'error': result['message'],
           'role': 'parent',
@@ -414,7 +410,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } catch (e) {
       print('Erreur Login: $e');
 
-      // ✅ Track : échec
       analytics.track(AnalyticsEvents.loginFailed, parameters: {
         'error': e.toString(),
         'role': 'parent',
@@ -443,7 +438,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
       print('Paiement enregistre: ${event.reference}');
 
-      // ✅ Track : paiement soumis
       analytics.track(AnalyticsEvents.paymentInitiated, parameters: {
         'status': 'submitted',
         'amount': event.amount,
@@ -461,7 +455,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } catch (e) {
       print('Erreur paiement: $e');
 
-      // ✅ Track : échec paiement
       analytics.track(AnalyticsEvents.paymentFailed, parameters: {
         'error': e.toString(),
         'amount': event.amount,
@@ -533,16 +526,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _onLogout(LogoutRequested event, Emitter<AuthState> emit) async {
-    // ✅ Récupérer la session d'abord (c'est un Future)
     final session = await _repository.getSession();
 
-    // ✅ Track : logout avec les données de la session récupérée
     analytics.track(AnalyticsEvents.logout, parameters: {
       'user_id': session['user_id'],
       'role': session['role'],
     });
 
-    // ✅ Flush immédiat avant déconnexion
     await analytics.flushImmediately();
 
     try {
@@ -551,7 +541,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       print('Erreur clearSession: $e');
     }
 
-    // ✅ Reset analytics user
     analytics.updateUser(userId: null, role: null, schoolId: null);
 
     emit(Unauthenticated());

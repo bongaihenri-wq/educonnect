@@ -52,7 +52,8 @@ class QuickActionsGrid extends StatelessWidget {
                   icon: Icons.chat_bubble_outline,
                   label: 'Messages',
                   color: AppTheme.teal,
-                  onTap: () => _navigateTo(context, 3), // Index 3 = Commentaires
+                  onTap: () =>
+                      _navigateTo(context, 3), // Index 3 = Commentaires
                 ),
                 _buildQuickAccess(
                   context: context,
@@ -60,6 +61,13 @@ class QuickActionsGrid extends StatelessWidget {
                   label: 'Bulletins',
                   color: AppTheme.sunshine,
                   onTap: null,
+                ),
+                _buildQuickAccess(
+                  context: context,
+                  icon: Icons.payments,
+                  label: 'Comptabilité',
+                  color: Colors.green.shade700,
+                  onTap: () => _navigateTo(context, 5), // Index 5 = Compta
                 ),
               ],
             ),
@@ -80,7 +88,8 @@ class QuickActionsGrid extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), // ✅ Réduit
+        padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 8), // ✅ Réduit
         decoration: BoxDecoration(
           color: AppTheme.white,
           borderRadius: BorderRadius.circular(12),

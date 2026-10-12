@@ -63,6 +63,7 @@ flutter:
     - assets/templates/teachers_template.csv
     - assets/templates/schedules_template.csv
     - assets/logo/
+    - assets/templates/payments_template.csv
 
 # ============================================
 # ICÔNE DE L'APP (remplace le logo Flutter)

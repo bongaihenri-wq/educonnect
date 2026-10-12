@@ -6,6 +6,8 @@ import '../../blocs/auth_bloc/auth_bloc.dart' as auth;
 import '../../../config/routes.dart';
 import '../../../services/subscription_service.dart';
 import 'analytics_dashboard_page.dart';
+import 'package:educonnect/features/updates/widgets/update_banner.dart';
+import 'package:educonnect/features/updates/pages/publish_update_page.dart';
 
 class SuperAdminDashboardPage extends StatefulWidget {
   const SuperAdminDashboardPage({super.key});
@@ -16,9 +18,6 @@ class SuperAdminDashboardPage extends StatefulWidget {
 }
 
 class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
-  int _pendingPaymentsCount = 0;
-  bool _isLoadingPending = true;
-
   @override
   void initState() {
     super.initState();
@@ -29,13 +28,8 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
     try {
       final service = SubscriptionService(Supabase.instance.client);
       final pending = await service.getPendingPayments();
-      setState(() {
-        _pendingPaymentsCount = pending.length;
-        _isLoadingPending = false;
-      });
-    } catch (e) {
-      setState(() => _isLoadingPending = false);
-    }
+      setState(() {});
+    } catch (e) {}
   }
 
   @override
@@ -73,6 +67,7 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const UpdateBanner(),
                   _buildHeader(superAdmin),
                   const SizedBox(height: 24),
                   _buildGlobalStats(),
@@ -372,6 +367,19 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
         color: Colors.amber,
         onTap: () =>
             Navigator.pushNamed(context, AppRoutes.superAdminCredentials),
+      ),
+      _AdminAction(
+        icon: Icons.system_update_alt,
+        label: 'Publier MAJ',
+        color: const Color(0xFF6C63FF),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const PublishUpdatePage(),
+            ),
+          );
+        },
       ),
     ];
 
