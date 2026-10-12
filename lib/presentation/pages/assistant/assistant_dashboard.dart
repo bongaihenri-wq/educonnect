@@ -9,6 +9,7 @@ import '../../blocs/auth_bloc/auth_bloc.dart' as auth;
 import '../super_admin/support_dashboard_page.dart';
 import '../super_admin/commercial_dashboard_page.dart';
 import '../super_admin/subscriptions/subscription_dashboard_page.dart';
+import 'package:educonnect/features/updates/widgets/update_banner.dart';
 
 class AssistantDashboard extends StatefulWidget {
   final String countryCode;
@@ -195,6 +196,7 @@ class _AssistantDashboardState extends State<AssistantDashboard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const UpdateBanner(),
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(

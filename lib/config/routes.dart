@@ -43,6 +43,7 @@ import '../presentation/pages/admin/bulk_import_page.dart';
 import '../presentation/pages/admin/school_report/school_report_page.dart';
 import '../presentation/pages/admin/admin_messages_page.dart';
 import '../presentation/pages/admin/admin_credentials_page.dart';
+import 'package:educonnect/features/payments/pages/school_accounting_page.dart';
 
 // ==================== ASSISTANT & PRINCIPAL ====================
 import '../presentation/pages/assistant/assistant_dashboard.dart';
@@ -73,6 +74,10 @@ import '../data/repositories/class_repository.dart';
 import '../data/repositories/student_repository.dart';
 import '../data/repositories/course_repository.dart';
 import '../services/teacher_service.dart';
+// ==================== MODULE PAIEMENTS ====================
+import 'package:educonnect/features/payments/pages/payment_import_page.dart';
+import 'package:educonnect/features/payments/data/payment_repository.dart';
+import 'package:educonnect/features/payments/logic/payments_bloc.dart';
 
 class AppRoutes {
   // -------------------- AUTH --------------------
@@ -114,6 +119,7 @@ class AppRoutes {
   static const String schedule = '/schedule';
   static const String homework = '/homework';
   static const String grades = '/grades';
+  static const String adminAccounting = '/admin/accounting';
 
   // -------------------- ASSISTANT & PRINCIPAL --------------------
   static const String assistantDashboard = '/assistant/dashboard';
@@ -143,6 +149,7 @@ class AppRoutes {
 
   // -------------------- ANCIENNES ROUTES (compatibilité) --------------------
   static const String classesStudents = '/classes_students';
+  static const String adminPayments = '/admin/payments';
 
   static Map<String, WidgetBuilder> get routes => {
         // AUTH
@@ -280,6 +287,24 @@ class AppRoutes {
         },
         schoolReport: (context) => const SchoolReportPage(), // ✅ AJOUTÉ
         adminCredentials: (context) => const AdminCredentialsPage(),
+        adminPayments: (context) {
+          final authState = context.read<auth.AuthBloc>().state;
+          final schoolId =
+              authState is auth.Authenticated ? authState.schoolId : '';
+
+          return BlocProvider(
+            create: (_) => PaymentsBloc(
+              PaymentRepository(Supabase.instance.client),
+            )..add(PaymentsStatusRequested(schoolId)),
+            child: PaymentImportPage(schoolId: schoolId),
+          );
+        },
+        adminAccounting: (context) {
+          final authState = context.read<auth.AuthBloc>().state;
+          final schoolId =
+              authState is auth.Authenticated ? authState.schoolId : '';
+          return SchoolAccountingPage(schoolId: schoolId);
+        },
 
         // Routes pilotage
         schedule: (context) => const SchedulePage(),

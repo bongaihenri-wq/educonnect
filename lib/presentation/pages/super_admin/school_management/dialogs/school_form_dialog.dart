@@ -25,7 +25,7 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
   late final TextEditingController _schoolYearController;
 
   String _planType = 'basic';
-  String _countryCode = 'CI';
+  String _countryCode = '+225';
   bool _isActive = true;
   bool _isTest = false;
   bool _isLoading = false;
@@ -61,7 +61,19 @@ class _SchoolFormDialogState extends State<SchoolFormDialog> {
 
     if (s != null) {
       _planType = s['plan_type'] ?? 'basic';
-      _countryCode = s['country_code'] ?? 'CI';
+      final raw = s['country_code'] as String?;
+      // Normalise les anciens codes ('CI' → '+225') et vérifie la présence dans la liste
+      const legacy = {
+        'CI': '+225',
+        'SN': '+221',
+        'CM': '+237',
+        'BJ': '+229',
+        'TG': '+228',
+        'BF': '+226'
+      };
+      final mapped = legacy[raw] ?? raw;
+      _countryCode =
+          _countries.any((c) => c['code'] == mapped) ? mapped! : '+225';
       _isActive = s['is_active'] ?? true;
       _isTest = s['is_test'] ?? false;
     }

@@ -10,6 +10,7 @@ import 'widgets/admin_stats_grid.dart';
 import 'widgets/school_stats_section.dart';
 import 'widgets/admin_quick_actions.dart';
 import 'widgets/period_selector.dart';
+import 'package:educonnect/features/updates/widgets/update_banner.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -31,7 +32,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     'error': null,
   };
   String? _schoolId;
-  
+
   List<Map<String, dynamic>> _academicPeriods = [];
   Map<String, dynamic>? _selectedPeriod;
   int _daysRange = 30;
@@ -79,13 +80,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Future<void> _loadPeriods() async {
     if (_schoolId == null) return;
-    
+
     setState(() => _loadingPeriods = true);
-    
+
     try {
       _academicPeriods = await _periodService.getAllPeriods(_schoolId!);
       final current = await _periodService.getCurrentPeriod(_schoolId!);
-      
+
       if (mounted) {
         setState(() {
           _selectedPeriod = current;
@@ -166,8 +167,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
               slivers: [
                 // 1. ENTÊTE
                 SliverToBoxAdapter(
-                  child: AdminHeader(adminName: adminName, schoolName: schoolName),
+                  child:
+                      AdminHeader(adminName: adminName, schoolName: schoolName),
                 ),
+                const SliverToBoxAdapter(child: UpdateBanner()),
 
                 const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
@@ -214,7 +217,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 const SliverToBoxAdapter(
                   child: AdminQuickActions(),
                 ),
-                
+
                 const SliverToBoxAdapter(child: SizedBox(height: 80)),
               ],
             ),

@@ -120,6 +120,9 @@ class _SchoolLoginPageState extends State<SchoolLoginPage> {
           } else if (state is auth.PrincipalAuthenticated) {
             Navigator.pushReplacementNamed(
                 context, AppRoutes.principalDashboard);
+          } else if (state is auth.ComptableAuthenticated) {
+            // ✅ NOUVEAU : routage comptable vers la page Comptabilité
+            Navigator.pushReplacementNamed(context, AppRoutes.adminAccounting);
           } else if (state is auth.SubscriptionExpired) {
             Navigator.pushReplacementNamed(
               context,

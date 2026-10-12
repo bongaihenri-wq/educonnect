@@ -8,6 +8,7 @@ import '../../../../config/routes.dart';
 import '../../../../config/theme.dart';
 import '../../blocs/auth_bloc/auth_bloc.dart' as auth;
 import 'widgets/student_detail_sheet.dart';
+import 'package:educonnect/features/updates/widgets/update_banner.dart';
 
 class PrincipalDashboard extends StatefulWidget {
   const PrincipalDashboard({super.key});
@@ -157,7 +158,6 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
             maxLines: 1, overflow: TextOverflow.ellipsis),
         backgroundColor: AppTheme.violet,
         foregroundColor: Colors.white,
-        // PAS DE leading (bouton retour) — c'est la page racine du principal
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadClasses),
           IconButton(
@@ -179,13 +179,15 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: _myClasses
-                              .map((cls) => _ClassCard(
-                                    cls: cls,
-                                    onOpenDetail: () => _openClassDetail(cls),
-                                    onRefresh: _loadClasses,
-                                  ))
-                              .toList(),
+                          children: [
+                            const UpdateBanner(), // ✅ bannière
+                            // ✅ le "..." étale la liste dans children
+                            ..._myClasses.map((cls) => _ClassCard(
+                                  cls: cls,
+                                  onOpenDetail: () => _openClassDetail(cls),
+                                  onRefresh: _loadClasses,
+                                )),
+                          ],
                         ),
                       ),
                     ),

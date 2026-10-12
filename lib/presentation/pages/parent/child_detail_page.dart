@@ -8,6 +8,7 @@ import 'widgets/timetable_tab.dart';
 import 'widgets/messages/unified_messages_tab.dart';
 import 'widgets/homework_tab.dart';
 import 'parent_attendance_page.dart';
+import 'widgets/compta_tab.dart';
 
 class ChildDetailPage extends StatefulWidget {
   final String studentName;
@@ -35,12 +36,13 @@ class ChildDetailPage extends StatefulWidget {
   State<ChildDetailPage> createState() => _ChildDetailPageState();
 }
 
-class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProviderStateMixin {
+class _ChildDetailPageState extends State<ChildDetailPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _service = ChildDetailService();
   final _periodService = PeriodService(); // ✅ AJOUTÉ
   bool _isLoading = true;
-  
+
   List<Map<String, dynamic>> _attendance = [];
   List<Map<String, dynamic>> _grades = [];
   List<Map<String, dynamic>> _timetable = [];
@@ -57,7 +59,7 @@ class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProv
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 5,
+      length: 6,
       vsync: this,
       initialIndex: widget.initialTab,
     );
@@ -67,7 +69,7 @@ class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProv
 
   Future<void> _loadAllData() async {
     setState(() => _isLoading = true);
-    
+
     final results = await Future.wait([
       _service.getAttendance(widget.studentId),
       _service.getGrades(widget.studentId),
@@ -76,7 +78,7 @@ class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProv
       _service.getHomeworks(widget.studentId),
       _service.getStats(widget.studentId),
     ]);
-    
+
     setState(() {
       _attendance = results[0] as List<Map<String, dynamic>>;
       _grades = results[1] as List<Map<String, dynamic>>;
@@ -131,6 +133,7 @@ class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProv
             Tab(icon: Icon(Icons.schedule), text: 'Emploi du temps'),
             Tab(icon: Icon(Icons.assignment), text: 'Devoirs'),
             Tab(icon: Icon(Icons.chat), text: 'Messages'),
+            Tab(icon: Icon(Icons.payments), text: 'Compta'),
           ],
         ),
       ),
@@ -152,9 +155,13 @@ class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProv
                 GradesTab(
                   grades: _grades,
                   stats: _stats,
-                  periods: _academicPeriods, // ✅ AJOUTÉ
-                  selectedPeriod: _selectedPeriod, // ✅ AJOUTÉ
-                  onPeriodChanged: _onPeriodChanged, // ✅ AJOUTÉ
+                  periods: _academicPeriods,
+                  selectedPeriod: _selectedPeriod,
+                  onPeriodChanged: _onPeriodChanged,
+                  // ✅ Verrouillage par paiement
+                  studentId: widget.studentId,
+                  schoolId: widget.schoolId,
+                  onOpenCompta: () => _tabController.animateTo(5),
                 ),
                 TimetableTab(timetable: _timetable),
                 HomeworkTab(homeworks: _homeworks),
@@ -163,6 +170,7 @@ class _ChildDetailPageState extends State<ChildDetailPage> with SingleTickerProv
                   parentName: widget.parentName ?? 'Parent',
                   schoolId: widget.schoolId,
                 ),
+                ComptaTab(studentId: widget.studentId),
               ],
             ),
     );
