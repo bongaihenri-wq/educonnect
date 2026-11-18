@@ -6,50 +6,74 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class ImportService {
   static final client = Supabase.instance.client;
 
-  static Future<void> executeFullImport({
-    required String type, // 'teachers', 'students_parents', 'schedules'
+  // Retourne la réponse brute de la fonction (ou null si annulé)
+  static Future<dynamic> executeFullImport({
+    required String type,
     required String schoolId,
     required String schoolCode,
     required String schoolYear,
   }) async {
-    // 1. Sélection et lecture du fichier
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['xlsx', 'xls', 'csv'],
+      withData: true, // AJOUT : bytes disponibles même si path == null
     );
 
-    if (result == null) return;
+    if (result == null) return null;
 
-    var bytes = File(result.files.single.path!).readAsBytesSync();
-    var excel = Excel.decodeBytes(bytes);
     List<Map<String, dynamic>> jsonData = [];
 
-    // 2. Parsing Excel vers JSON
-    for (var table in excel.tables.keys) {
-      var rows = excel.tables[table]?.rows;
-      if (rows == null || rows.length < 2) continue;
+    // ---- PARSING (instrumenté) ----
+    try {
+      final picked = result.files.single;
+      var bytes = picked.bytes ?? File(picked.path!).readAsBytesSync();
+      var excel = Excel.decodeBytes(bytes);
 
-      var headers = rows[0].map((e) => e?.value.toString().toLowerCase().trim()).toList();
+      for (var table in excel.tables.keys) {
+        var rows = excel.tables[table]?.rows;
+        if (rows == null || rows.length < 2) continue;
 
-      for (int i = 1; i < rows.length; i++) {
-        Map<String, dynamic> rowData = {};
-        for (int j = 0; j < headers.length; j++) {
-          rowData[headers[j]!] = rows[i][j]?.value;
+        // FIX null : e?.value?.toString() chaîne complète
+        var headers = rows[0]
+            .map((e) => e?.value?.toString().toLowerCase().trim())
+            .toList();
+
+        for (int i = 1; i < rows.length; i++) {
+          Map<String, dynamic> rowData = {};
+          // FIX débordement : borne par la ligne ET ignore en-têtes nulls
+          int limit =
+              rows[i].length < headers.length ? rows[i].length : headers.length;
+          for (int j = 0; j < limit; j++) {
+            final h = headers[j];
+            if (h == null) continue;
+            rowData[h] = rows[i][j]?.value;
+          }
+          if (rowData.values.any((v) => v != null)) jsonData.add(rowData);
         }
-        jsonData.add(rowData);
       }
+      print('✅ PARSING OK [$type] : ${jsonData.length} lignes');
+    } catch (e, st) {
+      print('❌ CRASH PENDANT LE PARSING : $e\n$st');
+      throw Exception('Erreur lecture fichier: $e');
     }
 
-    // 3. Appel à ta Edge Function existante
-    await client.functions.invoke(
-      'bulk-import', // Nom de ta fonction Deno
-      body: {
-        'type': type,
-        'data': jsonData,
-        'schoolId': schoolId,
-        'schoolCode': schoolCode,
-        'schoolYear': schoolYear,
-      },
-    );
+    // ---- APPEL FONCTION (instrumenté) ----
+    try {
+      final res = await client.functions.invoke(
+        'bulk-import',
+        body: {
+          'type': type,
+          'data': jsonData,
+          'schoolId': schoolId,
+          'schoolCode': schoolCode,
+          'schoolYear': schoolYear,
+        },
+      );
+      print('✅ RÉPONSE bulk-import : ${res.data}');
+      return res.data;
+    } on FunctionException catch (e) {
+      print('❌ ERREUR FONCTION HTTP ${e.status} : ${e.details}');
+      throw Exception('Fonction bulk-import: ${e.details}');
+    }
   }
 }

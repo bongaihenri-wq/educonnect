@@ -9,17 +9,17 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class BulkImportService {
-  static String get _functionUrl => 
-      dotenv.env['SUPABASE_FUNCTION_URL'] ?? 
+  static String get _functionUrl =>
+      dotenv.env['SUPABASE_FUNCTION_URL'] ??
       'https://vethtvfdkywbzxzwckdl.supabase.co/functions/v1/bulk-import';
-  
+
   // 🔥 REVIENT À TA VERSION ORIGINALE : Service Role Key
-  static String get _serviceRoleKey => 
+  static String get _serviceRoleKey =>
       dotenv.env['SUPABASE_SERVICE_ROLE_KEY'] ?? '';
 
   static const List<String> validTypes = [
     'students_parents',
-    'teachers', 
+    'teachers',
     'schedules'
   ];
 
@@ -31,7 +31,7 @@ class BulkImportService {
     if (value == null || value.toString().trim().isEmpty) {
       throw FormatException('Heure vide ou null');
     }
-    
+
     String s = value.toString().trim();
     print('🔍 _formatTimeToSupabase input: "$s"');
 
@@ -53,7 +53,8 @@ class BulkImportService {
 
     final hMatch = RegExp(r'^(\d{1,2})[hH](\d{2})$').firstMatch(s);
     if (hMatch != null) {
-      final result = "${hMatch.group(1)!.padLeft(2, '0')}:${hMatch.group(2)!}:00";
+      final result =
+          "${hMatch.group(1)!.padLeft(2, '0')}:${hMatch.group(2)!}:00";
       print('✅ Format HeureMinute -> $result');
       return result;
     }
@@ -87,7 +88,8 @@ class BulkImportService {
         if (fraction > 0 && fraction < 1) {
           final totalSeconds = (fraction * 24 * 60 * 60).round();
           final hours = (totalSeconds ~/ 3600).toString().padLeft(2, '0');
-          final minutes = ((totalSeconds % 3600) ~/ 60).toString().padLeft(2, '0');
+          final minutes =
+              ((totalSeconds % 3600) ~/ 60).toString().padLeft(2, '0');
           final seconds = (totalSeconds % 60).toString().padLeft(2, '0');
           final result = "$hours:$minutes:$seconds";
           print('✅ Format Excel fraction -> $result');
@@ -125,64 +127,75 @@ class BulkImportService {
     try {
       final formattedData = data.map((row) {
         final Map<String, dynamic> cleanRow = Map<String, dynamic>.from(row);
-        
+
         if (type == 'schedules') {
-          final rawStart = cleanRow['heure_debut'] ?? cleanRow['heure_début'] ?? cleanRow['start_time'];
+          final rawStart = cleanRow['heure_debut'] ??
+              cleanRow['heure_début'] ??
+              cleanRow['start_time'];
           final rawEnd = cleanRow['heure_fin'] ?? cleanRow['end_time'];
-          
+
           cleanRow['start_time'] = _formatTimeToSupabase(rawStart);
           cleanRow['end_time'] = _formatTimeToSupabase(rawEnd);
-          
+
           cleanRow.remove('heure_debut');
           cleanRow.remove('heure_début');
           cleanRow.remove('heure_fin');
         }
-        
+
         cleanRow['school_id'] = schoolId;
         cleanRow['school_code'] = schoolCode;
         cleanRow['school_year'] = schoolYear ?? '2024-2025';
-        
+
         return cleanRow;
       }).toList();
 
       print('📤 Envoi ${formattedData.length} lignes à $_functionUrl');
 
       // 🔥 VERSION ORIGINALE : Service Role Key dans Authorization
-      final response = await http.post(
-        Uri.parse(_functionUrl),
-        headers: {
-          'Authorization': 'Bearer $_serviceRoleKey',  // ← TA VERSION ORIGINALE
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'type': type,
-          'schoolId': schoolId,
-          'schoolCode': schoolCode,
-          'schoolYear': schoolYear ?? '2024-2025',
-          'data': formattedData,
-        }),
-      ).timeout(
-        const Duration(minutes: 2),
-        onTimeout: () => throw ImportTimeoutException('Le serveur a mis trop de temps à répondre'),
-      );
+      final response = await http
+          .post(
+            Uri.parse(_functionUrl),
+            headers: {
+              'Authorization':
+                  'Bearer $_serviceRoleKey', // ← TA VERSION ORIGINALE
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'type': type,
+              'schoolId': schoolId,
+              'schoolCode': schoolCode,
+              'schoolYear': schoolYear ?? '2024-2025',
+              'data': formattedData,
+            }),
+          )
+          .timeout(
+            const Duration(minutes: 2),
+            onTimeout: () => throw ImportTimeoutException(
+                'Le serveur a mis trop de temps à répondre'),
+          );
 
       print('📥 Status: ${response.statusCode}');
-      print('📥 Body: ${response.body.substring(0, response.body.length > 1000 ? 1000 : response.body.length)}');
+      print(
+          '📥 Body: ${response.body.substring(0, response.body.length > 1000 ? 1000 : response.body.length)}');
 
       final responseData = jsonDecode(response.body);
-      
+
       return ImportResult(
         success: responseData['success'] == true,
         created: responseData['created'] ?? 0,
         updated: responseData['updated'] ?? 0,
         deleted: responseData['deleted'] ?? 0,
-        errors: (responseData['errors'] as List?)?.cast<Map<String, dynamic>>() ?? [],
-        credentials: (responseData['credentials'] as List?)?.cast<Map<String, dynamic>>() ?? [],
+        errors:
+            (responseData['errors'] as List?)?.cast<Map<String, dynamic>>() ??
+                [],
+        credentials: (responseData['credentials'] as List?)
+                ?.cast<Map<String, dynamic>>() ??
+            [],
         requestId: responseData['requestId'],
         duration: responseData['duration'],
-        message: responseData['message'] ?? '${responseData['created'] ?? 0} créé(s), ${responseData['updated'] ?? 0} mis à jour',
+        message: responseData['message'] ??
+            '${responseData['created'] ?? 0} créé(s), ${responseData['updated'] ?? 0} mis à jour',
       );
-
     } catch (e) {
       return ImportResult(success: false, message: 'Erreur: $e');
     }
@@ -194,13 +207,15 @@ class BulkImportService {
 
   static List<Map<String, dynamic>> parseFile(FilePickerResult pickerResult) {
     final file = pickerResult.files.first;
-    final bytes = file.bytes ?? (file.path != null ? File(file.path!).readAsBytesSync() : null);
+    final bytes = file.bytes ??
+        (file.path != null ? File(file.path!).readAsBytesSync() : null);
 
     if (bytes == null || bytes.isEmpty) {
       throw Exception('Impossible de lire le fichier');
     }
 
-    print('📁 Fichier: ${file.name}, extension: ${file.extension}, taille: ${bytes.length} bytes');
+    print(
+        '📁 Fichier: ${file.name}, extension: ${file.extension}, taille: ${bytes.length} bytes');
 
     if (file.extension == 'xlsx' || file.extension == 'xls') {
       return _readExcel(bytes);
@@ -213,7 +228,7 @@ class BulkImportService {
     final csvString = _decodeWithFallback(bytes);
     final separator = _detectSeparator(csvString);
     final eol = csvString.contains('\r\n') ? '\r\n' : '\n';
-    
+
     final rows = CsvToListConverter(
       fieldDelimiter: separator,
       eol: eol,
@@ -223,34 +238,36 @@ class BulkImportService {
     if (rows.length < 2) return [];
 
     final headers = rows.first.map((e) {
-      return e.toString()
-        .trim()
-        .toLowerCase()
-        .replaceAll('\ufeff', '')
-        .replaceAll('\u00a0', '')
-        .replaceAll(' ', '_')
-        .replaceAll('-', '_')
-        .replaceAll('é', 'e')
-        .replaceAll('è', 'e')
-        .replaceAll('ê', 'e')
-        .replaceAll('à', 'a')
-        .replaceAll('ç', 'c')
-        .replaceAll('ô', 'o')
-        .replaceAll('ê', 'e')
-        .replaceAll('ù', 'u')
-        .replaceAll('û', 'u')
-        .replaceAll('î', 'i')
-        .replaceAll('ï', 'i')
-        .replaceAll('â', 'a')
-        .replaceAll('ä', 'a')
-        .replaceAll('ö', 'o')
-        .replaceAll('ü', 'u')
-        .replaceAll('ñ', 'n');
+      return e
+          .toString()
+          .trim()
+          .toLowerCase()
+          .replaceAll('\ufeff', '')
+          .replaceAll('\u00a0', '')
+          .replaceAll(' ', '_')
+          .replaceAll('-', '_')
+          .replaceAll('é', 'e')
+          .replaceAll('è', 'e')
+          .replaceAll('ê', 'e')
+          .replaceAll('à', 'a')
+          .replaceAll('ç', 'c')
+          .replaceAll('ô', 'o')
+          .replaceAll('ê', 'e')
+          .replaceAll('ù', 'u')
+          .replaceAll('û', 'u')
+          .replaceAll('î', 'i')
+          .replaceAll('ï', 'i')
+          .replaceAll('â', 'a')
+          .replaceAll('ä', 'a')
+          .replaceAll('ö', 'o')
+          .replaceAll('ü', 'u')
+          .replaceAll('ñ', 'n');
     }).toList();
 
     print('📋 Headers nettoyés: $headers');
 
-    return rows.skip(1)
+    return rows
+        .skip(1)
         .where((row) => row.any((cell) => cell.toString().trim().isNotEmpty))
         .map((row) {
       final map = <String, dynamic>{};
@@ -272,8 +289,10 @@ class BulkImportService {
         var sheet = excel.tables[table]!;
         if (sheet.maxRows < 2) continue;
 
-        final headers = sheet.rows.first.map((cell) => 
-          _extractCellValue(cell)?.toString().trim().toLowerCase() ?? "").toList();
+        final headers = sheet.rows.first
+            .map((cell) =>
+                _extractCellValue(cell)?.toString().trim().toLowerCase() ?? "")
+            .toList();
 
         for (int i = 1; i < sheet.maxRows; i++) {
           var row = sheet.rows[i];

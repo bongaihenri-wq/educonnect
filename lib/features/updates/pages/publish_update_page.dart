@@ -1,7 +1,5 @@
 // lib/features/updates/pages/publish_update_page.dart
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'dart:typed_data';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/update_repository.dart';
@@ -23,10 +21,6 @@ class _PublishUpdatePageState extends State<PublishUpdatePage> {
   final _changelogController = TextEditingController();
   bool _isMandatory = false;
   bool _publishing = false;
-
-  // ✅ APK sélectionné localement (upload automatique à la publication)
-  String? _apkFileName;
-  Uint8List? _apkBytes;
 
   List<AppUpdateInfo> _history = [];
   bool _historyLoading = true;
@@ -59,23 +53,6 @@ class _PublishUpdatePageState extends State<PublishUpdatePage> {
     super.dispose();
   }
 
-  // ── Sélection APK ──────────────────────────────────────────
-
-  Future<void> _pickApk() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['apk'],
-      withData: true,
-    );
-    if (result == null || result.files.isEmpty) return;
-    final file = result.files.first;
-    if (file.bytes == null) return;
-    setState(() {
-      _apkFileName = file.name;
-      _apkBytes = file.bytes;
-    });
-  }
-
   // ── Historique ─────────────────────────────────────────────
 
   Future<void> _loadHistory() async {
@@ -92,25 +69,19 @@ class _PublishUpdatePageState extends State<PublishUpdatePage> {
     }
   }
 
-  // ── Publication (upload APK inclus) ────────────────────────
+  // ── Publication (URL déterministe, aucun upload) ───────────
 
   Future<void> _publish() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_apkBytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Sélectionnez le fichier APK à publier'),
-          backgroundColor: Colors.orange));
-      return;
-    }
     setState(() => _publishing = true);
     try {
-      // 1. Upload APK → URL publique automatique
       final versionCode = int.parse(_versionCodeController.text.trim());
-      final fileName =
-          'app-v${_versionController.text.trim()}-$versionCode.apk';
-      final apkUrl = await _repo.uploadApk(_apkBytes!, fileName);
+      // ✅ URL déterministe : les APK gardent des noms fixes sur la landing,
+      // seul le cache-bust ?v= change à chaque release
+      const baseUrl =
+          'https://bongaihenri-wq.github.io/educonnect-landing/educonnect-armeabi-v7a.apk';
+      final apkUrl = '$baseUrl?v=$versionCode';
 
-      // 2. Publier la MAJ avec l'URL obtenue
       await _repo.publishUpdate(
         version: _versionController.text.trim(),
         versionCode: versionCode,
@@ -125,11 +96,7 @@ class _PublishUpdatePageState extends State<PublishUpdatePage> {
           backgroundColor: Colors.green));
       _iosUrlController.clear();
       _changelogController.clear();
-      setState(() {
-        _isMandatory = false;
-        _apkFileName = null;
-        _apkBytes = null;
-      });
+      setState(() => _isMandatory = false);
       _prefillFromInstalledVersion();
       _loadHistory();
     } catch (e) {
@@ -156,6 +123,7 @@ class _PublishUpdatePageState extends State<PublishUpdatePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // ══ FORMULAIRE ══
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -169,7 +137,6 @@ class _PublishUpdatePageState extends State<PublishUpdatePage> {
                               fontWeight: FontWeight.bold, fontSize: 15)),
                       const SizedBox(height: 12),
 
-                      // ✅ Pré-rempli (modifiable)
                       TextFormField(
                         controller: _versionController,
                         decoration: const InputDecoration(
@@ -184,7 +151,6 @@ class _PublishUpdatePageState extends State<PublishUpdatePage> {
                       ),
                       const SizedBox(height: 10),
 
-                      // ✅ Pré-rempli = code actuel + 1
                       TextFormField(
                         controller: _versionCodeController,
                         keyboardType: TextInputType.number,
@@ -205,13 +171,33 @@ class _PublishUpdatePageState extends State<PublishUpdatePage> {
                       ),
                       const SizedBox(height: 10),
 
-                      // ✅ Sélection APK → upload automatique à la publication
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.android, size: 18),
-                        label: Text(_apkFileName == null
-                            ? 'Choisir le fichier APK *'
-                            : '✅ $_apkFileName'),
-                        onPressed: _publishing ? null : _pickApk,
+                      // ✅ Info : source APK (noms fixes sur la landing)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('📦 Source de l\'APK',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 13)),
+                            SizedBox(height: 4),
+                            Text(
+                              'Avant de publier :\n'
+                              '1. Build : flutter build apk --release --split-per-abi\n'
+                              '2. Copier app-armeabi-v7a-release.apk vers la landing '
+                              'sous le nom fixe educonnect-armeabi-v7a.apk\n'
+                              '3. git push sur educonnect-landing\n\n'
+                              'L\'URL est générée automatiquement (?v=code). '
+                              'Aucun upload depuis l\'app.',
+                              style: TextStyle(fontSize: 11),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 10),
 
@@ -255,7 +241,7 @@ class _PublishUpdatePageState extends State<PublishUpdatePage> {
                                     strokeWidth: 2, color: Colors.white))
                             : const Icon(Icons.send, size: 18),
                         label: Text(_publishing
-                            ? 'Upload + publication...'
+                            ? 'Publication...'
                             : 'Publier la mise à jour'),
                         onPressed: _publishing ? null : _publish,
                       ),
@@ -264,7 +250,10 @@ class _PublishUpdatePageState extends State<PublishUpdatePage> {
                 ),
               ),
             ),
+
             const SizedBox(height: 20),
+
+            // ══ HISTORIQUE ══
             Row(
               children: [
                 const Expanded(
